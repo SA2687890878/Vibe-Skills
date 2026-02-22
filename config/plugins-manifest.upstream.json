@@ -1,0 +1,109 @@
+{
+  "description": "VCO ecosystem plugin manifest — lists all plugins with their role in VCO routing",
+  "plugins": {
+    "core": [
+      {
+        "id": "superpowers@superpowers-marketplace",
+        "repo": "https://github.com/obra/superpowers",
+        "install": "claude plugins install superpowers@superpowers-marketplace",
+        "role": "L grade: brainstorming, writing-plans, subagent-driven-dev, deep-research, continuous-learning-v2",
+        "required": true
+      },
+      {
+        "id": "everything-claude-code@everything-claude-code",
+        "repo": "https://github.com/punkpeye/everything-claude-code",
+        "install": "claude plugins install everything-claude-code@everything-claude-code",
+        "role": "M grade agents: tdd-guide, code-reviewer, security-reviewer, build-error-resolver, planner, architect, systematic-debugging",
+        "required": true
+      },
+      {
+        "id": "claude-code-settings@claude-code-settings",
+        "repo": "https://github.com/feiskyer/claude-code-settings",
+        "install": "claude plugins install claude-code-settings@claude-code-settings",
+        "role": "M grade: think-harder/think-ultra structured analysis",
+        "required": true
+      },
+      {
+        "id": "hookify@claude-plugins-official",
+        "repo": "https://github.com/anthropics/claude-code-plugins",
+        "install": "claude plugins install hookify@claude-plugins-official",
+        "role": "Hook management: auto-plugin-discovery, large-file-write prevention",
+        "required": true
+      },
+      {
+        "id": "ralph-loop@claude-plugins-official",
+        "repo": "https://github.com/frankbria/ralph-claude-code",
+        "install": "claude plugins install ralph-loop@claude-plugins-official",
+        "role": "Autonomous development loop with intelligent exit detection",
+        "required": true
+      }
+    ],
+    "recommended": [
+      {
+        "id": "episodic-memory@superpowers-marketplace",
+        "repo": "https://github.com/obra/superpowers",
+        "install": "claude plugins install episodic-memory@superpowers-marketplace",
+        "role": "Cross-session memory via vector search",
+        "required": false
+      },
+      {
+        "id": "serena@claude-plugins-official",
+        "repo": "https://github.com/anthropics/claude-code-plugins",
+        "install": "claude plugins install serena@claude-plugins-official",
+        "role": "Semantic code analysis, symbol navigation, project memory",
+        "required": false
+      },
+      {
+        "id": "context7@claude-plugins-official",
+        "repo": "https://github.com/anthropics/claude-code-plugins",
+        "install": "claude plugins install context7@claude-plugins-official",
+        "role": "Library documentation lookup",
+        "required": false
+      },
+      {
+        "id": "github@claude-plugins-official",
+        "repo": "https://github.com/anthropics/claude-code-plugins",
+        "install": "claude plugins install github@claude-plugins-official",
+        "role": "GitHub operations (PRs, issues, code search)",
+        "required": false
+      },
+      {
+        "id": "playwright@claude-plugins-official",
+        "repo": "https://github.com/anthropics/claude-code-plugins",
+        "install": "claude plugins install playwright@claude-plugins-official",
+        "role": "Browser automation and E2E testing",
+        "required": false
+      },
+      {
+        "id": "elements-of-style@superpowers-marketplace",
+        "install": "claude plugins install elements-of-style@superpowers-marketplace",
+        "role": "Code style enforcement",
+        "required": false
+      }
+    ],
+    "external": [
+      {
+        "name": "SuperClaude Framework",
+        "repo": "https://github.com/SuperClaude-Org/SuperClaude_Framework",
+        "install": "Cloned by install script to ~/.claude/commands/sc/",
+        "role": "sc:* commands (design, research, brainstorm, etc.)",
+        "required": true
+      },
+      {
+        "name": "claude-flow (ruflo)",
+        "repo": "https://github.com/ruvnet/claude-flow",
+        "install": "npm install -g claude-flow",
+        "role": "XL grade: multi-agent swarm orchestration via MCP",
+        "required": false,
+        "note": "Only needed for XL grade tasks"
+      },
+      {
+        "name": "spec-kit",
+        "repo": "https://github.com/github/spec-kit",
+        "install": "Reference only — spec-driven development toolkit",
+        "role": "Spec-driven development methodology reference",
+        "required": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+﻿{
+  "version": 1,
+  "profile": "codex",
+  "core": [
+    {
+      "name": "superpowers",
+      "install": "claude plugins install superpowers@superpowers-marketplace",
+      "required": true
+    },
+    {
+      "name": "everything-claude-code",
+      "install": "claude plugins install everything-claude-code@everything-claude-code",
+      "required": true
+    },
+    {
+      "name": "claude-code-settings",
+      "install": "claude plugins install claude-code-settings@claude-code-settings",
+      "required": true
+    },
+    {
+      "name": "hookify",
+      "install": "claude plugins install hookify@claude-plugins-official",
+      "required": true
+    },
+    {
+      "name": "ralph-loop",
+      "install": "claude plugins install ralph-loop@claude-plugins-official",
+      "required": true
+    }
+  ],
+  "optional": [
+    {
+      "name": "serena",
+      "install": "claude plugins install serena@claude-plugins-official"
+    },
+    {
+      "name": "context7",
+      "install": "claude plugins install context7@claude-plugins-official"
+    },
+    {
+      "name": "github",
+      "install": "claude plugins install github@claude-plugins-official"
+    },
+    {
+      "name": "claude-flow",
+      "install": "npm install -g claude-flow"
+    }
+  ],
+  "notes": "Codex compatibility rewrites are bundled in this repository; plugin install is supplemental."
+}

@@ -1,0 +1,50 @@
+﻿#!/usr/bin/env bash
+set -euo pipefail
+
+PROFILE="full"
+INSTALL_EXTERNAL="false"
+TARGET_ROOT="${HOME}/.codex"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --profile) PROFILE="$2"; shift 2 ;;
+    --target-root) TARGET_ROOT="$2"; shift 2 ;;
+    --install-external) INSTALL_EXTERNAL="true"; shift ;;
+    *) echo "Unknown arg: $1"; exit 1 ;;
+  esac
+done
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+mkdir -p "${TARGET_ROOT}/skills" "${TARGET_ROOT}/rules" "${TARGET_ROOT}/hooks" "${TARGET_ROOT}/agents/templates" "${TARGET_ROOT}/mcp/profiles" "${TARGET_ROOT}/config" "${TARGET_ROOT}/commands"
+
+cp -R "${SCRIPT_DIR}/bundled/skills/." "${TARGET_ROOT}/skills/"
+
+for n in brainstorming writing-plans subagent-driven-development systematic-debugging; do
+  cp -R "${SCRIPT_DIR}/bundled/superpowers-skills/${n}" "${TARGET_ROOT}/skills/"
+done
+
+if [[ "${PROFILE}" == "full" ]]; then
+  for n in requesting-code-review receiving-code-review verification-before-completion; do
+    cp -R "${SCRIPT_DIR}/bundled/superpowers-skills/${n}" "${TARGET_ROOT}/skills/"
+  done
+fi
+
+cp -R "${SCRIPT_DIR}/rules/." "${TARGET_ROOT}/rules/"
+cp -R "${SCRIPT_DIR}/hooks/." "${TARGET_ROOT}/hooks/"
+cp -R "${SCRIPT_DIR}/agents/templates/." "${TARGET_ROOT}/agents/templates/"
+cp -R "${SCRIPT_DIR}/mcp/." "${TARGET_ROOT}/mcp/"
+cp "${SCRIPT_DIR}/config/plugins-manifest.codex.json" "${TARGET_ROOT}/config/plugins-manifest.codex.json"
+cp "${SCRIPT_DIR}/config/upstream-lock.json" "${TARGET_ROOT}/config/upstream-lock.json"
+
+if [[ ! -f "${TARGET_ROOT}/settings.json" ]]; then
+  cp "${SCRIPT_DIR}/config/settings.template.codex.json" "${TARGET_ROOT}/settings.json"
+fi
+
+if [[ "${INSTALL_EXTERNAL}" == "true" ]]; then
+  if command -v npm >/dev/null 2>&1; then
+    npm install -g claude-flow || true
+  fi
+fi
+
+echo "Install done. Run: bash check.sh --profile ${PROFILE} --target-root ${TARGET_ROOT}"

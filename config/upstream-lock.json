@@ -1,0 +1,69 @@
+﻿{
+  "version": 1,
+  "updated_at": "2026-02-22",
+  "dependencies": [
+    {
+      "id": "obra/superpowers",
+      "upstream_repo": "https://github.com/obra/superpowers",
+      "upstream_ref": "main",
+      "integration_mode": "bundled-local",
+      "local_rewrite_required": true,
+      "bundled_paths": [
+        "bundled/superpowers-skills/brainstorming",
+        "bundled/superpowers-skills/writing-plans",
+        "bundled/superpowers-skills/subagent-driven-development",
+        "bundled/superpowers-skills/systematic-debugging",
+        "bundled/superpowers-skills/requesting-code-review",
+        "bundled/superpowers-skills/receiving-code-review",
+        "bundled/superpowers-skills/verification-before-completion"
+      ]
+    },
+    {
+      "id": "frankbria/ralph-claude-code",
+      "upstream_repo": "https://github.com/frankbria/ralph-claude-code",
+      "upstream_ref": "main",
+      "integration_mode": "bundled-local",
+      "local_rewrite_required": true,
+      "bundled_paths": [
+        "bundled/skills/ralph-loop",
+        "bundled/skills/cancel-ralph"
+      ]
+    },
+    {
+      "id": "SuperClaude-Org/SuperClaude_Framework",
+      "upstream_repo": "https://github.com/SuperClaude-Org/SuperClaude_Framework",
+      "upstream_ref": "master",
+      "integration_mode": "upstream-locked",
+      "local_rewrite_required": true,
+      "notes": "Install script can fetch commands, but codex wrappers in bundled/skills/superclaude-framework-compat are authoritative"
+    },
+    {
+      "id": "feiskyer/claude-code-settings",
+      "upstream_repo": "https://github.com/feiskyer/claude-code-settings",
+      "upstream_ref": "main",
+      "integration_mode": "bundled-local",
+      "local_rewrite_required": true,
+      "bundled_paths": [
+        "bundled/skills/think-harder"
+      ]
+    },
+    {
+      "id": "github/spec-kit",
+      "upstream_repo": "https://github.com/github/spec-kit",
+      "upstream_ref": "main",
+      "integration_mode": "bundled-local",
+      "local_rewrite_required": true,
+      "bundled_paths": [
+        "bundled/skills/spec-kit-vibe-compat"
+      ]
+    },
+    {
+      "id": "ruvnet/claude-flow",
+      "upstream_repo": "https://github.com/ruvnet/claude-flow",
+      "upstream_ref": "main",
+      "integration_mode": "upstream-locked",
+      "local_rewrite_required": false,
+      "notes": "Optional external runtime dependency"
+    }
+  ]
+}
