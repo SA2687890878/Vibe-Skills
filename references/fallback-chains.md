@@ -105,6 +105,18 @@ Direct: Single-agent execution with direct Claude reasoning
 | Pattern learning | continuous-learning-v2 | episodic-memory (manual notes) |
 | Project knowledge | Serena MCP write_memory | ruflo memory_store with "project" tag |
 
+## Retro Context Expert Fallback
+
+When running `vibe-retro` with Context Retro Advisor:
+
+1. Primary: Agent-Skills-for-Context-Engineering guidance (context diagnosis playbook)
+2. Fallback A: `context-fundamentals` + VCO retro heuristics
+3. Fallback B: VCO retro heuristics only (evidence-based manual diagnosis)
+
+Notes:
+- Retro advisor is guidance-only and does not auto-modify config.
+- If advisor sources are partially missing, continue with available evidence and mark confidence scope explicitly.
+
 ## Fallback Detection
 
 1. MCP not running: Tool call returns connection error or timeout

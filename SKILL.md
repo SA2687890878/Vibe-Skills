@@ -3,7 +3,7 @@ name: vibe
 description: Vibe Code Orchestrator (VCO) routes development tasks by grade and coordinates tool workflows for implementation, debugging, review, and planning.
 ---
 
-# VCO v2.0 — Vibe Code Orchestrator
+# VCO v2.3 — Vibe Code Orchestrator
 
 Unified entry point: classifies tasks via quick probe + user decision, selects optimal tools, coordinates 6 integrated plugins + Codex native runtime, and uses Codex native agent-team orchestration for XL by default.
 
@@ -131,7 +131,17 @@ Overview: ANALYZE → EXECUTE → REVIEW → LEARN（各步骤工具见下方）
    - Review: code-reviewer
 3. REVIEW: Auto-trigger code-reviewer for any code changes
    If security-relevant: also invoke security-reviewer
-4. LEARN: continuous-learning-v2 (instinct extraction)
+4. LEARN: continuous-learning-v2 + Context Retro Advisor
+   - Trigger Context Retro Advisor when:
+     - user explicitly asks for retro/postmortem/复盘/复查,
+     - repeated retries or fallback events are observed,
+     - context budget pressure appears (large tool outputs, compaction signals),
+     - route instability is detected in similar prompts.
+   - Retro analysis is guided by Agent-Skills-for-Context-Engineering as an expert knowledge base (advisory mode).
+   - Retro output contract uses CER format:
+     Pattern → Evidence → Root Cause → Intervention → Guardrail → Confidence.
+   - Advisory boundary: Context Retro Advisor does NOT mutate routing/config automatically.
+     Any config/rule change still requires explicit user approval.
 
 Behavioral Tone: see protocols/do.md Behavioral Tone section (Conclusion-First, Exploration Budget, No Self-Commentary).
 ```
@@ -205,7 +215,7 @@ Detect availability AFTER routing selects a tool, BEFORE invoking:
 | vibe-do | protocols/do.md | Coding, debugging (L grade) |
 | vibe-review | protocols/review.md | Code review, security audit (M/L/XL) |
 | vibe-team | protocols/team.md | XL multi-agent coordination |
-| vibe-retro | protocols/retro.md | Workflow review and improvement |
+| vibe-retro | protocols/retro.md | Workflow review, context diagnosis, and learning optimization |
 
 ## References
 
@@ -216,6 +226,7 @@ Detect availability AFTER routing selects a tool, BEFORE invoking:
 | tool-registry.md | Tool capabilities + verification status |
 | team-templates.md | 7 predefined team compositions |
 | extending-vco.md | Guide for adding/updating tools |
+| docs/context-retro-advisor-design.md | Context Retro Advisor design and rollout guide |
 | docs/skills-consolidation-roadmap.md | Pack consolidation phases and gates |
 | changelog.md | Version history |
 | index.md | Navigation index |
@@ -239,9 +250,9 @@ Detect availability AFTER routing selects a tool, BEFORE invoking:
 
 ## Maintenance
 
-- Version: 2.2.0
+- Version: 2.3.0
 - Updated: 2026-02-24
-- Sources: Source code analysis of 6 plugins (2026-02-18)
+- Sources: Source code analysis of 6 plugins (2026-02-18) + Agent-Skills-for-Context-Engineering (2026-02-24)
 - Changelog: references/changelog.md
 - Known limits:
   - Hook execution order between plugins not controllable by VCO

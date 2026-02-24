@@ -1,5 +1,54 @@
 # VCO Changelog
 
+## v2.2.11 (2026-02-24)
+
+- 新增 CER 对比工具：
+  - `scripts/verify/cer-compare.ps1`
+  - 输入两份 CER JSON，输出 Markdown/JSON 对比简报
+  - 对比字段：`pattern_delta`、`fallback_rate_delta`、`stability_delta`、`context_pressure_delta`、`top1_top2_gap delta`
+  - 支持可选 `-UpdateCurrentComparison` 回写当前 CER 的 `comparison` 字段
+- retro 协议新增 Phase 5.10：
+  - `protocols/retro.md` 增加 CER 跨迭代对比步骤与工具映射
+- 验证与文档更新：
+  - `scripts/verify/README.md` 增加 `cer-compare.ps1` 说明
+  - `scripts/verify/vibe-context-retro-smoke.ps1` 增加 CER compare 引用与脚本存在性断言
+  - `docs/context-retro-advisor-design.md` 增加 CER compare 验证与产物约定
+
+## v2.2.10 (2026-02-24)
+
+- 将 Context Retro Advisor 的触发条件从描述性规则落地为量化阈值（写入 `protocols/retro.md`）：
+  - 重试峰值、回退频率、上下文预算压力、pack/skill 路由稳定性、top1-top2 路由间隔
+- 新增 CER 标准模板（Markdown + JSON）与 JSON Schema：
+  - `templates/cer-report.md.template`
+  - `templates/cer-report.json.template`
+  - `templates/cer-report.schema.json`
+- 将 CER 产出挂到 retro Phase 5：
+  - 生成 `outputs/retro/YYYY-MM-DD-<topic>-cer.md|json`
+  - 写入 Serena memory 的 `cer-summary`
+  - 可选执行 `vibe-retro-context-regression-matrix.ps1` 做回归门禁
+- 新增 retro 回归矩阵脚本：
+  - `scripts/verify/vibe-retro-context-regression-matrix.ps1`
+  - 覆盖触发阈值固定案例与 CF-1..CF-6 分类稳定性固定案例
+- 验证入口更新：
+  - `scripts/verify/README.md`
+  - `scripts/verify/vibe-context-retro-smoke.ps1` 增加模板/回归脚本存在性断言
+- 文档更新：
+  - `docs/context-retro-advisor-design.md` 增加量化阈值、CER 产物与验证计划
+
+## v2.2.9 (2026-02-24)
+
+- 新增 Context Retro Advisor（复盘专家层）并将 Agent-Skills-for-Context-Engineering 作为 retro 阶段的指导知识源（advisory-only，不自动改配置）：
+  - `SKILL.md`：LEARN 阶段升级为 `continuous-learning-v2 + Context Retro Advisor`，新增触发条件与 CER 输出约束
+  - `protocols/retro.md`：新增 Context Retro Advisor 角色、CF-1..CF-6 失败分类、CER（Context Evidence Report）输出契约
+  - `references/fallback-chains.md`：新增 Retro Context Expert Fallback 链路
+- 新增设计与验证资产：
+  - `docs/context-retro-advisor-design.md`
+  - `scripts/verify/vibe-context-retro-smoke.ps1`
+  - `scripts/verify/README.md` 增补脚本说明
+- 引用索引更新：
+  - `references/index.md` 增加 Context Retro Advisor 设计文档入口
+- main/bundled 同步更新：`SKILL.md`、`protocols/retro.md`、`references/fallback-chains.md`、`references/index.md`、`references/changelog.md`
+
 ## v2.2.8 (2026-02-24)
 
 - 完成 Batch E 最终硬清理（final cleanup）并切换到 canonical-only 运行态：

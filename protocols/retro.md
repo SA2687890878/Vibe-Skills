@@ -1,22 +1,50 @@
-# vibe-retro Protocol
+﻿# vibe-retro Protocol
 
 Protocol for structured retrospective -- collaborative analysis of recent projects,
-workflow optimization, error pattern detection, and future improvement planning.
+workflow optimization, error pattern detection, context diagnosis, and future improvement planning.
 
 ## Scope
 Activated when the user wants to:
 - Review and reflect on recent project work
 - Identify workflow optimization opportunities
 - Detect recurring error patterns and design preventive hooks
+- Diagnose context quality failures in long-running tasks
 - Discover reusable patterns for future projects
 - Decide whether to create new skills, agents, MCPs, or hooks
 - Conduct a collaborative improvement discussion
+
+## Context Retro Advisor (Agent-Skills Guided)
+
+VCO uses Agent-Skills-for-Context-Engineering as an expert advisor in retro mode.
+This advisor is guidance-only and never auto-mutates runtime configuration.
+
+### Knowledge Sources (preferred)
+- context-fundamentals
+- context-degradation
+- context-compression
+- context-optimization
+- multi-agent-patterns
+- memory-systems
+- tool-design
+- filesystem-context
+- evaluation
+- advanced-evaluation
+- project-development
+
+### Advisory Boundaries
+- The advisor can classify failure modes and recommend interventions.
+- The advisor cannot directly change router thresholds, pack manifest, or conflict rules.
+- Any config or policy change still requires explicit user approval in Phase 4.
+
+### Fallback if Skills Are Missing
+- Fall back to built-in VCO heuristics in this protocol.
+- Continue with evidence-backed diagnosis using available session/tool data.
 
 ## 5-Phase Architecture
 
 Phase 1: GATHER -> Phase 2: ANALYZE -> Phase 3: DISCUSS -> Phase 4: DECIDE -> Phase 5: ACT
 
-Each phase uses existing tools from the 6 integrated plugins.
+Each phase uses existing tools from the integrated plugins.
 
 ---
 
@@ -49,6 +77,31 @@ Tool: git log + episodic-memory search
 - git log --oneline -20 (recent commits, especially fix/revert)
 - Search episodic-memory for error, fix, bug, revert
 
+### 1.6 Context Signal Collection
+Tool: session/tool trace synthesis
+- Count retries, fallback frequency, and compaction events
+- Measure large-output tool calls and repeated low-value observations
+- Detect route instability (same intent, different route outcomes)
+
+#### Default Trigger Thresholds
+
+Use these defaults unless project policy defines stricter thresholds:
+
+| Signal | Metric | Default Threshold | Trigger Meaning |
+|--------|--------|-------------------|-----------------|
+| Retry spike | `retry_count_10m` | `>= 3` | Execution stuck in retry loop |
+| Fallback frequency | `fallback_rate` | `>= 0.20` | Primary path reliability degraded |
+| Context pressure | `context_pressure` | `>= 0.75` | Context budget at risk |
+| Route instability (pack) | `route_stability_pack` | `< 0.80` | Same intent routes to different packs |
+| Route instability (skill) | `route_stability_skill` | `< 0.70` | Skill selection jitter inside pack |
+| Route ambiguity | `top1_top2_gap` | `< 0.03` | Weak route separability |
+
+Where:
+- `fallback_rate = fallback_count / total_attempts`
+- `context_pressure = observation_chars_total / context_budget_chars`
+- `route_stability_pack = most_common_pack / total_probe_runs`
+- `route_stability_skill = most_common_skill / total_probe_runs`
+
 Present structured data collection report before proceeding.
 
 ---
@@ -77,6 +130,23 @@ Fallback: Direct Claude reasoning synthesis
 - Synthesize data from 2.1-2.3
 - Error trends, activity domains, time sinks
 
+### 2.5 Context Failure Typing (Context Retro Advisor)
+Classify failures into one or more classes:
+- CF-1 Attention dilution / lost-in-middle
+- CF-2 Context poisoning (stale or contradictory state)
+- CF-3 Observation bloat (tool outputs dominate useful tokens)
+- CF-4 Memory mismatch (retrieval irrelevant/missing)
+- CF-5 Tool contract ambiguity (tool schema/intent mismatch)
+- CF-6 Evaluation blind spot (no rubric, weak verification)
+
+### 2.6 Intervention Design
+Map each failure class to interventions:
+- Compaction strategy update (what to compress, when)
+- Observation masking rules (what to retain vs reference)
+- Context partitioning for XL tasks (agent boundary refinement)
+- Memory indexing/persistence policy adjustments
+- Evaluation rubric and verification gate hardening
+
 ---
 
 ## Phase 3: DISCUSS (Interactive Discussion)
@@ -90,11 +160,12 @@ Fallback: Direct Claude reasoning synthesis
 
 **Data-Grounded Suggestions:**
 - Every suggestion references specific evidence from Phase 2
-- When uncertain, acknowledge it explicitly
+- When uncertain, acknowledge uncertainty explicitly
 
 **Discussion Topics:**
 - Workflow review: automation candidates, efficiency improvements
 - Error prevention: hooks, pre-commit checks
+- Context quality: compression policy, masking policy, partitioning strategy
 - Tool effectiveness: routing accuracy, fallback frequency
 - Future planning: templates, skills, new tools
 
@@ -114,12 +185,14 @@ Fallback: Direct Claude reasoning synthesis
 | Recurring workflow | Create command | claude-code-settings:command-creator |
 | Error prevention | Create hook | hookify:hookify |
 | Behavioral pattern | Create/update instinct | continuous-learning-v2 |
-| Routing improvement | Update VCO config | Edit SKILL.md |
+| Context quality | Update retro policy/playbook | Edit protocols/retro.md + docs |
+| Routing improvement | Update VCO config | Edit SKILL.md / config/*.json |
 | Knowledge capture | Persist memory | Serena write_memory / episodic-memory |
 | Complex automation | Create agent | Manual design + writing-skills |
 
 ### User Confirmation Gate
-Present all decisions as prioritized list. User approves, modifies, or rejects each before Phase 5.
+Present all decisions as prioritized list.
+User approves, modifies, or rejects each before Phase 5.
 
 ---
 
@@ -141,13 +214,59 @@ Tool: everything-claude-code:continuous-learning-v2
 - Set confidence score (start at 0.5)
 
 ### 5.4 Update VCO Configuration
-Tool: Direct file edits to SKILL.md, conflict-rules.md, fallback-chains.md
+Tool: Direct file edits to SKILL.md, conflict-rules.md, fallback-chains.md, router config
 
 ### 5.5 Persist Knowledge
 Tool: Serena write_memory + CLAUDE.md updates if globally applicable
 
-### 5.6 Generate Retro Report
-Store via Serena write_memory(retro/YYYY-MM-DD, report).
+### 5.6 Generate CER Report (Markdown + JSON)
+Generate both artifacts from templates:
+- `templates/cer-report.md.template`
+- `templates/cer-report.json.template`
+
+Store outputs under:
+- `outputs/retro/YYYY-MM-DD-<topic>-cer.md`
+- `outputs/retro/YYYY-MM-DD-<topic>-cer.json`
+
+### 5.7 Persist CER for Comparison
+Store summary via Serena write_memory:
+- key: `retro/YYYY-MM-DD/<topic>/cer-summary`
+- include: failure classes, key interventions, guardrails, confidence
+
+Optionally keep full JSON in local artifact store for trend analytics.
+
+### 5.8 Update Context Playbook (Optional)
+Update docs/context-retro-advisor-design.md if policy-level changes are accepted.
+
+### 5.9 Run Retro Regression Checks (Optional but recommended)
+Tool: `scripts/verify/vibe-retro-context-regression-matrix.ps1`
+- Validate trigger threshold logic with fixed metric cases
+- Validate CF-1..CF-6 classification stability with bilingual fixed evidence cases
+
+### 5.10 Compare CER Across Iterations (Optional but recommended)
+Tool: `scripts/verify/cer-compare.ps1`
+- Compare baseline and current CER JSON reports
+- Output machine-readable and human-readable delta summaries
+- Track trend fields: pattern delta, fallback_rate delta, stability delta, context_pressure delta
+
+---
+
+## Context Evidence Report (CER) Output Contract
+
+Every Context Retro Advisor analysis MUST output this schema:
+
+1. Pattern: failure class tags (CF-1..CF-6)
+2. Evidence: concrete observations (commands, outputs, events)
+3. Root Cause: why the pattern occurred
+4. Intervention: concrete change proposal
+5. Guardrail: validation check preventing recurrence
+6. Confidence: high/medium/low with scope limits
+
+No recommendation should be emitted without Evidence.
+
+### CER JSON Validation
+- Validate generated JSON against `templates/cer-report.schema.json` when available.
+- If schema validation fails, mark report status as `invalid` and do not use it for trend comparison.
 
 ---
 
@@ -160,10 +279,12 @@ Store via Serena write_memory(retro/YYYY-MM-DD, report).
 | 1.3 Instincts | instinct-status | Everything-CC | Skip |
 | 1.4 Memory | Serena list/read_memory | Serena MCP | Skip |
 | 1.5 Errors | git log + episodic search | Git + Superpowers | Manual review |
+| 1.6 Context signals | session/tool trace synthesis | Runtime-neutral | Manual synthesis |
 | 2.1 Reflection | reflection-harder | Claude-code-settings | deep-reflector agent / think-harder |
 | 2.2 Problems | conversation-analyzer | Hookify | Manual scan |
 | 2.3 Workflows | Session file analysis | Everything-CC | episodic search |
 | 2.4 Trends | think-ultra / think-harder | Claude-code-settings | Direct reasoning |
+| 2.5 Context typing | Agent-Skills context guidance | Agent-Skills | VCO heuristics |
 | 3.x Discussion | brainstorming methodology | Superpowers | Direct dialogue |
 | 4.x Decisions | user_confirm interface | Runtime-neutral | Direct dialogue |
 | 5.1 Hooks | hookify | Hookify | Manual creation |
@@ -171,6 +292,9 @@ Store via Serena write_memory(retro/YYYY-MM-DD, report).
 | 5.3 Instincts | continuous-learning-v2 | Everything-CC | Manual creation |
 | 5.4 Config | Direct edit | VCO | Manual edit |
 | 5.5 Knowledge | Serena write_memory | Serena MCP | episodic-memory |
+| 5.6 CER output | CER templates | VCO templates | manual structure |
+| 5.9 Regression check | vibe-retro-context-regression-matrix.ps1 | VCO verify | manual checklist |
+| 5.10 CER compare | cer-compare.ps1 | VCO verify | manual comparison |
 
 ---
 
@@ -183,8 +307,10 @@ Store via Serena write_memory(retro/YYYY-MM-DD, report).
 | XL | System-wide retro | All 5 + parallel agents | Deep analysis + major changes |
 
 ## Conflict Avoidance
-- Phase 2 analysis agents run sequentially to avoid mutual exclusion
-- Exception: XL grade uses Codex native team for parallel analysis
-- hookify conversation-analyzer is an analysis tool -- safe at any grade
-- deep-reflector is a diagnostic agent -- exempt from Rule 1
-- Phase 5 actions are sequential: hooks first, then skills, then config
+- Phase 2 analysis agents run sequentially to avoid mutual exclusion.
+- Exception: XL grade uses Codex native team for parallel analysis.
+- hookify conversation-analyzer is an analysis tool -- safe at any grade.
+- deep-reflector is a diagnostic agent -- exempt from Rule 1.
+- Context Retro Advisor is advisory and can run at any grade.
+- Phase 5 actions are sequential: hooks first, then skills, then config.
+- Router or threshold changes require explicit user confirmation.

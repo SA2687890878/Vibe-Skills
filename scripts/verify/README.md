@@ -6,3 +6,34 @@ This directory stores optional verification scripts for CI and local smoke check
 - `vibe-pack-regression-matrix.ps1`: broad pack-level regression matrix and determinism checks.
 - `vibe-keyword-precision-audit.ps1`: bilingual keyword precision audit (EN/ZH), cross-pack interference gap checks, and full skill-by-skill routing sweep.
 - `vibe-skill-index-routing-audit.ps1`: per-skill keyword index routing checks using common Chinese business phrases and ambiguous same-pack scenarios.
+- `vibe-context-retro-smoke.ps1`: validates Context Retro Advisor integration in SKILL/protocol/fallback docs and main/bundled sync for retro-critical files.
+- `vibe-retro-context-regression-matrix.ps1`: fixed-case regression matrix for retro trigger thresholds and CF-1..CF-6 classification stability.
+- `cer-compare.ps1`: compares two CER JSON reports and outputs Markdown/JSON delta summaries (pattern/fallback/stability/context-pressure/gap).
+- `vibe-retro-safety-gate.ps1`: full retro safety gate (trigger/classification/routing/pack smoke + protected-file hash invariance) to prove retro flow does not degrade VCO configs/protocols.
+
+## Quick Start (Retro Checks)
+
+Run context retro smoke + deterministic matrix:
+
+```powershell
+& ".\vibe-context-retro-smoke.ps1"
+& ".\vibe-retro-context-regression-matrix.ps1"
+& ".\vibe-retro-safety-gate.ps1"
+```
+
+Compare two CER reports and emit delta artifacts:
+
+```powershell
+& ".\cer-compare.ps1" `
+  -BaselineCerPath "..\..\outputs\retro\cer\baseline.json" `
+  -CurrentCerPath "..\..\outputs\retro\cer\current.json" `
+  -OutputMarkdownPath "..\..\outputs\retro\compare\delta.md" `
+  -OutputJsonPath "..\..\outputs\retro\compare\delta.json" `
+  -UpdateCurrentComparison
+```
+
+Interpretation:
+- `fallback_rate` delta < 0 is better.
+- `stability` delta > 0 is better.
+- `context_pressure` delta < 0 is better.
+- `route_gap` delta > 0 usually means better route separability.
