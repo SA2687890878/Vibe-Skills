@@ -19,6 +19,7 @@ This directory stores optional verification scripts for CI and local smoke check
 - `vibe-memory-governance-gate.ps1`: validates memory governance advice semantics (state_store/Serena/ruflo/Cognee boundaries + episodic-memory disabled) and route invariance across rollout stages.
 - `vibe-data-scale-overlay-gate.ps1`: validates data-scale overlay semantics (real file probe, small/large recommendation, soft confirm, strict auto-override, and off-stage invariance). Generated fixtures are cleaned up automatically unless `-KeepFixtures` is used.
 - `vibe-quality-debt-overlay-gate.ps1`: validates quality-debt overlay semantics (risk scoring + strict confirm advice + optional analyzer graceful degradation + route invariance).
+- `vibe-framework-interop-gate.ps1`: validates Ivy framework-interop overlay semantics (cross-framework migration signal detection + strict confirm advice + optional analyzer graceful degradation + route invariance).
 
 Related rollout utility:
 
@@ -90,6 +91,12 @@ Run Quality debt overlay trigger gate:
 
 ```powershell
 & ".\vibe-quality-debt-overlay-gate.ps1"
+```
+
+Run Framework interop overlay trigger gate:
+
+```powershell
+& ".\vibe-framework-interop-gate.ps1"
 ```
 
 Keep generated fixture files for manual inspection:

@@ -171,6 +171,17 @@ if ($InstallExternal) {
     Write-Host "xan already installed"
   }
 
+  if (Get-Command python -ErrorAction SilentlyContinue) {
+    try {
+      python -c "import ivy; print(ivy.__version__)" *> $null
+      Write-Host "ivy Python package already installed"
+    } catch {
+      Write-Warning "ivy Python package not detected. Install manually (pip install ivy) to enable framework-interop analyzer hints."
+    }
+  } else {
+    Write-Warning "python not detected. Install Python + ivy (pip install ivy) if you want framework-interop analyzer hints."
+  }
+
   if (-not (Get-Command fuck-u-code -ErrorAction SilentlyContinue)) {
     Write-Warning "fuck-u-code CLI not detected. Install manually if you want external quality-debt analyzer hints (quality-debt-overlay remains functional without it)."
   } else {

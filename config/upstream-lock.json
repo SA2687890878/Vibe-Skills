@@ -1,6 +1,6 @@
 ﻿{
   "version": 1,
-  "updated_at": "2026-02-22",
+  "updated_at": "2026-02-25",
   "dependencies": [
     {
       "id": "obra/superpowers",
@@ -88,6 +88,14 @@
       "integration_mode": "optional-external-cli",
       "local_rewrite_required": false,
       "notes": "Optional quality-debt analyzer backend for quality-debt-overlay (advice-only integration in VCO)"
+    },
+    {
+      "id": "ivy-llc/ivy",
+      "upstream_repo": "https://github.com/ivy-llc/ivy",
+      "upstream_ref": "main",
+      "integration_mode": "optional-external-python-lib",
+      "local_rewrite_required": false,
+      "notes": "Optional framework interop backend used by framework-interop-overlay in advisory mode"
     }
   ]
 }

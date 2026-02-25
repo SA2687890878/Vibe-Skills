@@ -38,6 +38,7 @@ check_path "vibe router script" "${TARGET_ROOT}/skills/vibe/scripts/router/resol
 check_path "vibe memory governance config" "${TARGET_ROOT}/skills/vibe/config/memory-governance.json"
 check_path "vibe data scale overlay config" "${TARGET_ROOT}/skills/vibe/config/data-scale-overlay.json"
 check_path "vibe quality debt overlay config" "${TARGET_ROOT}/skills/vibe/config/quality-debt-overlay.json"
+check_path "vibe framework interop overlay config" "${TARGET_ROOT}/skills/vibe/config/framework-interop-overlay.json"
 for n in brainstorming writing-plans subagent-driven-development systematic-debugging; do
   check_path "workflow/${n}" "${TARGET_ROOT}/skills/${n}/SKILL.md"
 done

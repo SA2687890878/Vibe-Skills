@@ -185,7 +185,8 @@ $pairs = @(
     [pscustomobject]@{ id = "prompt-overlay"; main = "config/prompt-overlay.json"; bundled = "bundled/skills/vibe/config/prompt-overlay.json" },
     [pscustomobject]@{ id = "memory-governance"; main = "config/memory-governance.json"; bundled = "bundled/skills/vibe/config/memory-governance.json" },
     [pscustomobject]@{ id = "data-scale-overlay"; main = "config/data-scale-overlay.json"; bundled = "bundled/skills/vibe/config/data-scale-overlay.json" },
-    [pscustomobject]@{ id = "quality-debt-overlay"; main = "config/quality-debt-overlay.json"; bundled = "bundled/skills/vibe/config/quality-debt-overlay.json" }
+    [pscustomobject]@{ id = "quality-debt-overlay"; main = "config/quality-debt-overlay.json"; bundled = "bundled/skills/vibe/config/quality-debt-overlay.json" },
+    [pscustomobject]@{ id = "framework-interop-overlay"; main = "config/framework-interop-overlay.json"; bundled = "bundled/skills/vibe/config/framework-interop-overlay.json" }
 )
 
 $results = @()

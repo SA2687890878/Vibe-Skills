@@ -17,6 +17,7 @@ Complete reference of VCO execution tools, their capabilities, APIs, state paths
 | 9 | Cognee (optional long-term memory) | External graph memory backend | None | External/adapter-managed | ⚠️ Optional |
 | 10 | xan (optional large-CSV backend) | External CLI | None | Dataset files / shell pipelines | ⚠️ Optional |
 | 11 | fuck-u-code (optional quality debt analyzer) | External CLI | None | Analyzer workspace / report output | ⚠️ Optional |
+| 12 | ivy (optional framework interop backend) | Python library / optional CLI | None | Python runtime / interop artifacts | ⚠️ Optional |
 
 ## Verification Status Legend
 
@@ -310,4 +311,22 @@ Characteristics:
 - Integrated through `quality-debt-overlay` as post-route advice only.
 - Does not replace `code-reviewer`, `security-reviewer`, or `tdd-guide`.
 - Missing binary never blocks routing; status is reported as `tool_unavailable`.
+- Current default is `manual_only` invocation hint mode to keep routing deterministic.
+
+---
+
+## 12. ivy (Optional Framework Interop Backend)
+
+**Package/Repo**: `ivy-llc/ivy`  
+**Import/Binary**: `import ivy` (optional CLI entrypoint if installed by environment)
+
+### Key Capabilities
+- Cross-framework model/function migration (`transpile`)
+- Optional graph-level execution optimization (`trace_graph`)
+- Backend interoperability for migration scenarios (for example PyTorch <-> TensorFlow/JAX pathways)
+
+### VCO Integration Boundary
+- Integrated through `framework-interop-overlay` as post-route advice only.
+- Does not replace training/evaluation flows in `data-ml`.
+- Missing runtime never blocks routing; status is reported as `tool_unavailable`.
 - Current default is `manual_only` invocation hint mode to keep routing deterministic.

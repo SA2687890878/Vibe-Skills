@@ -95,6 +95,23 @@ if [[ "${INSTALL_EXTERNAL}" == "true" ]]; then
     fi
   fi
 
+  PYTHON_BIN=""
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+  fi
+
+  if [[ -n "${PYTHON_BIN}" ]]; then
+    if "${PYTHON_BIN}" -c "import ivy; print(ivy.__version__)" >/dev/null 2>&1; then
+      echo "[INFO] ivy Python package already installed"
+    else
+      echo "[WARN] ivy Python package not detected. Install manually (pip install ivy) to enable framework-interop analyzer hints."
+    fi
+  else
+    echo "[WARN] python not detected. Install Python + ivy (pip install ivy) if you want framework-interop analyzer hints."
+  fi
+
   if ! command -v fuck-u-code >/dev/null 2>&1; then
     echo "[WARN] fuck-u-code CLI not detected. Install manually if you want external quality-debt analyzer hints (quality-debt-overlay still works without it)."
   fi

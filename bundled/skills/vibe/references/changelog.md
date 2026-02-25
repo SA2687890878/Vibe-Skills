@@ -1,5 +1,27 @@
 # VCO Changelog
 
+## v2.3.9 (2026-02-25)
+
+- 新增 Framework Interop Overlay（Ivy 增强，post-route advice-only，不替代 Pack 路由）：
+  - 新增配置（main + bundled）：
+    - `config/framework-interop-overlay.json`
+    - `bundled/skills/vibe/config/framework-interop-overlay.json`
+  - 路由器输出新增：
+    - `framework_interop_advice`
+  - 语义行为：
+    - `shadow`：仅建议，不改 selected pack/skill
+    - `soft`：强 interop 信号仅给出 `confirm_recommended`
+    - `strict`：强 interop 信号输出 `confirm_required` advice（仍不改路由分配）
+- 新增验证门禁：
+  - `scripts/verify/vibe-framework-interop-gate.ps1`
+  - `scripts/verify/vibe-config-parity-gate.ps1` 纳入 `framework-interop-overlay` main/bundled parity
+- 健康检查增强：
+  - `check.ps1`、`check.sh` 新增 `framework-interop-overlay` 配置存在性检查
+- 新增设计文档：
+  - `docs/framework-interop-overlay-integration.md`（main + bundled）
+- 文档同步：
+  - `README.md`、`SKILL.md`、`references/index.md`、`references/tool-registry.md` 更新 framework-interop 说明
+
 ## v2.3.8 (2026-02-25)
 
 - 新增 Quality Debt Overlay（fuck-u-code 增强，post-route advice-only，不替代 Pack 路由）：
