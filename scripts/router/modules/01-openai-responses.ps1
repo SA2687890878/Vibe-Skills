@@ -39,6 +39,12 @@ function Get-OpenAiChatCompletionsEndpoint {
     return ("{0}/chat/completions" -f $base)
 }
 
+function Get-OpenAiEmbeddingsEndpoint {
+    param([string]$BaseUrl)
+    $base = Get-OpenAiV1BaseUrl -Override $BaseUrl
+    return ("{0}/embeddings" -f $base)
+}
+
 function Get-OpenAiResponseOutputText {
     param([object]$Response)
 
@@ -81,6 +87,38 @@ function Get-OpenAiChatCompletionOutputText {
     } catch { }
 
     return $null
+}
+
+function Get-OpenAiEmbeddingsOutputVectors {
+    param([object]$Response)
+
+    if (-not $Response) { return @() }
+
+    try {
+        $data = @($Response.data)
+        if ($data.Count -eq 0) { return @() }
+
+        $hasIndex = $true
+        try {
+            $null = $data[0].index
+        } catch {
+            $hasIndex = $false
+        }
+
+        $rows = if ($hasIndex) { @($data | Sort-Object -Property index) } else { @($data) }
+
+        $vectors = @()
+        foreach ($row in $rows) {
+            if (-not $row) { continue }
+            if ($row.embedding) {
+                $vectors += ,@($row.embedding)
+            }
+        }
+
+        return @($vectors)
+    } catch {
+        return @()
+    }
 }
 
 function Invoke-OpenAiResponsesCreate {
@@ -264,6 +302,84 @@ function Invoke-OpenAiChatCompletionsCreate {
             status_code = $status
             latency_ms = [int]$sw.ElapsedMilliseconds
             output_text = $null
+            response = $null
+            error = $message
+        }
+    }
+}
+
+function Invoke-OpenAiEmbeddingsCreate {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Model,
+        [Parameter(Mandatory = $true)]
+        [object]$Input,
+        [int]$TimeoutMs = 2500,
+        [string]$ApiKey,
+        [string]$BaseUrl
+    )
+
+    $resolvedApiKey = if ($ApiKey) { $ApiKey } else { Get-OpenAiApiKey }
+    if (-not $resolvedApiKey) {
+        return [pscustomobject]@{
+            ok = $false
+            abstained = $true
+            reason = "missing_openai_api_key"
+            status_code = $null
+            latency_ms = 0
+            vectors = @()
+            response = $null
+            error = $null
+        }
+    }
+
+    $endpoint = Get-OpenAiEmbeddingsEndpoint -BaseUrl $BaseUrl
+    $timeoutSec = [Math]::Max(1, [int][Math]::Ceiling([double]$TimeoutMs / 1000.0))
+
+    $body = [ordered]@{
+        model = $Model
+        input = $Input
+    }
+
+    $json = ($body | ConvertTo-Json -Depth 20 -Compress)
+
+    $headers = @{
+        "Authorization" = ("Bearer {0}" -f $resolvedApiKey)
+        "Content-Type"  = "application/json"
+    }
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $resp = Invoke-RestMethod -Uri $endpoint -Method Post -Headers $headers -Body $json -TimeoutSec $timeoutSec
+        $sw.Stop()
+        $vectors = Get-OpenAiEmbeddingsOutputVectors -Response $resp
+        return [pscustomobject]@{
+            ok = $true
+            abstained = $false
+            reason = "ok"
+            status_code = 200
+            latency_ms = [int]$sw.ElapsedMilliseconds
+            vectors = @($vectors)
+            response = $resp
+            error = $null
+        }
+    } catch {
+        $sw.Stop()
+        $message = $_.Exception.Message
+        $status = $null
+        try {
+            if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+                $status = [int]$_.Exception.Response.StatusCode
+            }
+        } catch { }
+
+        return [pscustomobject]@{
+            ok = $false
+            abstained = $true
+            reason = "openai_http_error"
+            status_code = $status
+            latency_ms = [int]$sw.ElapsedMilliseconds
+            vectors = @()
             response = $null
             error = $message
         }

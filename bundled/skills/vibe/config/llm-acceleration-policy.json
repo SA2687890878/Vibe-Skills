@@ -12,7 +12,7 @@
     "route_mode_allow": ["legacy_fallback", "confirm_required", "pack_overlay"]
   },
   "trigger": {
-    "top_k": 3,
+    "top_k": 5,
     "always_on_explicit_vibe": true,
     "max_top1_top2_gap": 0.08,
     "max_confidence_for_llm": 0.55
@@ -22,8 +22,8 @@
     "model": "gpt-5.2-high",
     "base_url": "https://right.codes/codex/v1",
     "timeout_ms": 12000,
-    "max_output_tokens": 900,
-    "temperature": 0.2,
+    "max_output_tokens": 1600,
+    "temperature": 0.15,
     "top_p": 1.0,
     "store": false,
     "mock_response_path": ""
@@ -33,7 +33,18 @@
     "include_git_status": true,
     "include_git_diff": true,
     "max_git_status_lines": 80,
-    "max_diff_chars": 9000
+    "max_diff_chars": 6000,
+    "vector_diff": {
+      "enabled": true,
+      "embedding_model": "text-embedding-3-small",
+      "min_diff_chars_for_vector": 6000,
+      "max_chunks": 12,
+      "chunk_max_chars": 1400,
+      "max_selected_chunks": 3,
+      "cache_relpath": "outputs/runtime/llm-accel-vector-cache.jsonl",
+      "max_cache_entries": 250,
+      "max_cache_file_kb": 8192
+    }
   },
   "safety": {
     "fallback_on_error": true,
@@ -47,6 +58,8 @@
     "max_live_apply_rate": 1.0
   }
 }
+
+
 
 
 
