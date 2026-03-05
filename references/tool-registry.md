@@ -36,8 +36,8 @@ Complete reference of VCO execution tools, their capabilities, APIs, state paths
 
 ## 1. Superpowers (obra/superpowers)
 
-**Version**: 4.3.0
-**Location**: ~/.claude/plugins/cache/superpowers-marketplace/superpowers/4.3.0/
+**Version**: 4.3.1
+**Location**: ~/.claude/plugins/cache/superpowers-marketplace/superpowers/4.3.1/
 
 ### Key Skills
 | Skill | Purpose | Invocation | Verified |
@@ -113,8 +113,8 @@ Complete reference of VCO execution tools, their capabilities, APIs, state paths
 
 ## 4. Claude-code-settings (feiskyer/claude-code-settings)
 
-**Version**: 2.1.4
-**Location**: ~/.claude/plugins/cache/claude-code-settings/claude-code-settings/2.1.4/
+**Version**: 2.1.5
+**Location**: ~/.claude/plugins/cache/claude-code-settings/claude-code-settings/2.1.5/
 
 ### Key Skills
 | Skill | Purpose | Verified |
@@ -152,8 +152,8 @@ Complete reference of VCO execution tools, their capabilities, APIs, state paths
 
 ## 5. Everything-claude-code
 
-**Version**: 1.4.1
-**Location**: ~/.claude/plugins/cache/everything-claude-code/everything-claude-code/1.4.1/
+**Version**: 1.7.0
+**Location**: ~/.claude/plugins/cache/everything-claude-code/everything-claude-code/1.7.0/
 
 ### Key Agents
 | Agent | Model | Purpose | Verified |
