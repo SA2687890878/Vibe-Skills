@@ -1,10 +1,10 @@
 {
     "schema_version":  2,
     "release":  {
-                    "version":  "2.3.45",
+                    "version":  "2.3.46",
                     "updated":  "2026-03-15",
                     "channel":  "stable",
-                    "notes":  "Hardens benchmark_autonomous bridge closure on Windows by adding durable artifact readiness checks and artifact-root-relative runtime summary paths, while preserving the real bounded XL executor and proof contract introduced in 2.3.44."
+                    "notes":  "Hardens Linux benchmark_autonomous and governed runtime closure by resolving Python hosts through a platform-neutral strategy (`python`, `python3`, or `py -3`) while preserving the real bounded XL executor and proof contract."
                 },
     "source_of_truth":  {
                             "canonical_root":  ".",

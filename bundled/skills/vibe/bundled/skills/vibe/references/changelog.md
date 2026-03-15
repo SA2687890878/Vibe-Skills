@@ -1,5 +1,14 @@
 # VCO Changelog
 
+## v2.3.46 (2026-03-15)
+
+- Fixed the Linux `benchmark_autonomous` / governed-runtime execution chain so benchmark units no longer hardcode `python` on hosts that only provide `python3`.
+- Added platform-neutral Python host resolution through `Resolve-VgoPythonCommandSpec`, supporting `python`, `python3`, and `py -3` without forking runtime truth by host.
+- Updated the Linux no-`pwsh` router gate wrapper and benchmark execution policy to consume the shared Python host resolver instead of direct `python` invocations.
+- Extended `tests/runtime_neutral/test_governed_runtime_bridge.py` with host-resolution coverage so the governed bridge now proves `python3` fallback and Windows `py -3` launcher behavior.
+- Detailed release notes: `docs/releases/v2.3.46.md`.
+
+
 ## v2.3.45 (2026-03-15)
 
 - Hardened `invoke-vibe-runtime.ps1` so the governed runtime waits for critical execution artifacts to become durable before returning summary output.

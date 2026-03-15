@@ -153,7 +153,10 @@ function Invoke-VibeExecutionUnit {
             $display = @($command) + @($arguments) -join ' '
         }
         'python_command' {
-            $command = Expand-VibeExecutionTemplate -Text ([string]$Unit.command) -Tokens $Tokens
+            $commandSpec = Expand-VibeExecutionTemplate -Text ([string]$Unit.command) -Tokens $Tokens
+            $pythonInvocation = Resolve-VgoPythonCommandSpec -Command $commandSpec
+            $command = [string]$pythonInvocation.host_path
+            $arguments = @($pythonInvocation.prefix_arguments)
             foreach ($arg in @($Unit.arguments)) {
                 $arguments += (Expand-VibeExecutionTemplate -Text ([string]$arg) -Tokens $Tokens)
             }

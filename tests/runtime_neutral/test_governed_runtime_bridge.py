@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -34,6 +35,34 @@ def resolve_powershell() -> str | None:
     return None
 
 
+def _ps_single_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def resolve_python_command_spec_via_powershell(command_spec: str, path_entries: list[Path]) -> dict[str, object]:
+    shell = resolve_powershell()
+    if shell is None:
+        raise unittest.SkipTest("PowerShell executable not available in PATH")
+
+    helper = REPO_ROOT / "scripts" / "common" / "vibe-governance-helpers.ps1"
+    scoped_path = os.pathsep.join(str(entry) for entry in path_entries)
+    ps_script = (
+        f"$env:PATH = {_ps_single_quote(scoped_path)}; "
+        "$env:PATHEXT = '.CMD;.EXE;.BAT;.PS1'; "
+        f". {_ps_single_quote(str(helper))}; "
+        f"$result = Resolve-VgoPythonCommandSpec -Command {_ps_single_quote(command_spec)}; "
+        "$result | ConvertTo-Json -Depth 5"
+    )
+    completed = subprocess.run(
+        [shell, "-NoLogo", "-NoProfile", "-Command", ps_script],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(completed.stdout)
+
+
 class GovernedRuntimeBridgeTests(unittest.TestCase):
     def test_version_governance_bridges_governed_runtime_surfaces(self) -> None:
         governance = json.loads((REPO_ROOT / "config" / "version-governance.json").read_text(encoding="utf-8"))
@@ -54,6 +83,19 @@ class GovernedRuntimeBridgeTests(unittest.TestCase):
         self.assertIn("config/requirement-doc-policy.json", required_markers)
         self.assertIn("config/plan-execution-policy.json", required_markers)
         self.assertIn("config/phase-cleanup-policy.json", required_markers)
+
+        benchmark_policy = json.loads(
+            (REPO_ROOT / "config" / "benchmark-execution-policy.json").read_text(encoding="utf-8")
+        )
+        first_unit = benchmark_policy["profiles"][0]["waves"][0]["units"][0]
+        self.assertEqual("python_command", first_unit["kind"])
+        self.assertEqual("${VGO_PYTHON}", first_unit["command"])
+
+        linux_no_pwsh_gate = (REPO_ROOT / "scripts" / "verify" / "vibe-linux-router-no-pwsh-gate.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Get-VgoPythonCommand", linux_no_pwsh_gate)
+        self.assertNotIn("& python @args", linux_no_pwsh_gate)
 
         self.assertEqual(
             EXPECTED_STAGE_IDS,
@@ -176,6 +218,26 @@ class GovernedRuntimeBridgeTests(unittest.TestCase):
                 self.assertEqual(0, result["exit_code"])
                 self.assertTrue(Path(result["stdout_path"]).exists())
                 self.assertTrue(Path(result["stderr_path"]).exists())
+
+    def test_resolve_vgo_python_command_spec_falls_back_to_python3(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            fake_dir = Path(tempdir)
+            (fake_dir / "python3.cmd").write_text("@echo off\r\nexit /b 0\r\n", encoding="utf-8")
+
+            resolved = resolve_python_command_spec_via_powershell("${VGO_PYTHON}", [fake_dir])
+
+            self.assertTrue(str(resolved["host_leaf"]).startswith("python3"))
+            self.assertEqual([], resolved["prefix_arguments"])
+
+    def test_resolve_vgo_python_command_spec_uses_py_launcher_with_dash3_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            fake_dir = Path(tempdir)
+            (fake_dir / "py.cmd").write_text("@echo off\r\nexit /b 0\r\n", encoding="utf-8")
+
+            resolved = resolve_python_command_spec_via_powershell("${VGO_PYTHON}", [fake_dir])
+
+            self.assertTrue(str(resolved["host_leaf"]).startswith("py."))
+            self.assertEqual(["-3"], resolved["prefix_arguments"])
 
 
 if __name__ == "__main__":

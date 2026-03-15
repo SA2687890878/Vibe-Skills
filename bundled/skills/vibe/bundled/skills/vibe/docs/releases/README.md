@@ -10,7 +10,7 @@ This directory stores governed VCO release notes and the minimum runtime-facing 
 
 ### Current Release Surface
 
-- [`v2.3.45.md`](v2.3.45.md): benchmark_autonomous bridge durability hardening, artifact-root-relative runtime summary paths, and restored end-to-end Python bridge proof
+- [`v2.3.46.md`](v2.3.46.md): Linux benchmark/governed-runtime Python host neutrality (`python` / `python3` / `py -3`) and restored proof-chain closure
 
 ### Release Runtime / Proof Handoff
 
@@ -21,6 +21,7 @@ This directory stores governed VCO release notes and the minimum runtime-facing 
 
 ## Recent Governed Releases
 
+- [`v2.3.46.md`](v2.3.46.md) - 2026-03-15 - Linux benchmark/governed-runtime Python host neutrality / proof-chain closure
 - [`v2.3.45.md`](v2.3.45.md) - 2026-03-15 - benchmark_autonomous bridge durability / relative runtime summary paths / restored Python bridge proof
 - [`v2.3.44.md`](v2.3.44.md) - 2026-03-15 - real bounded benchmark_autonomous executor / execution manifests / benchmark proof gate
 - [`v2.3.43.md`](v2.3.43.md) - 2026-03-15 - governed runtime contract / six-stage vibe entry / runtime bridge tests / release-surface alignment

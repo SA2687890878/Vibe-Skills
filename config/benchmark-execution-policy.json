@@ -30,7 +30,7 @@
             {
               "unit_id": "runtime-neutral-freshness-gate-tests",
               "kind": "python_command",
-              "command": "python",
+              "command": "${VGO_PYTHON}",
               "arguments": [
                 "-m",
                 "unittest",
