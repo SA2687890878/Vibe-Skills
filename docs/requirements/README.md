@@ -19,8 +19,6 @@ Primary policy:
 
 ## Current Entry
 
-- [`2026-03-19-public-readme-gemini-art-direction.md`](./2026-03-19-public-readme-gemini-art-direction.md): 冻结 README 基于作者 Gemini 原图的风格迁移；聚焦编辑风双栏 hero、局部裁切 panel 与同源 mark。
-- [`2026-03-19-public-readme-poster-hero.md`](./2026-03-19-public-readme-poster-hero.md): 冻结 README 横版海报式首屏改造；聚焦 GitHub-safe 的 SVG 主视觉、章鱼 logo 与高密度信息层。
 - [`2026-03-19-public-readme-anxiety-positioning-refresh.md`](./2026-03-19-public-readme-anxiety-positioning-refresh.md): 冻结 README 首页焦虑定位刷新；聚焦时代焦虑切入、系统回应强化与章鱼识别区移除。
 - [`2026-03-19-public-readme-octopus-identity-zone.md`](./2026-03-19-public-readme-octopus-identity-zone.md): 冻结 README 章鱼识别区优化；聚焦无图片素材的可爱章鱼中枢品牌识别层。
 - [`2026-03-19-public-readme-capability-snapshot.md`](./2026-03-19-public-readme-capability-snapshot.md): 冻结 README 能力快照展示区优化；聚焦纯 Markdown 的能力战报面板与首屏辨识度增强。
