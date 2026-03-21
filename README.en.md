@@ -281,6 +281,7 @@ We know that building in isolation cannot keep up with the speed of the AI era. 
 * 📜 [VibeSkills manifesto](./docs/manifesto.md)
 
 **Installation and configuration guide**
+* Current public support surface: **Claude Code and Codex only**
 * ⚡️ [Prompt-based install (recommended default)](./docs/install/one-click-install-release-copy.en.md)
 * 📁 [Manual copy install (offline / no-admin)](./docs/install/manual-copy-install.en.md)
 

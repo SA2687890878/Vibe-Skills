@@ -286,6 +286,7 @@ graph LR
 * 📜 [VibeSkills 宣言](./docs/manifesto.md)
 
 **安装与配置指南**
+* 当前公开支持面：**仅支持 Claude Code 和 Codex**
 * ⚡️ [提示词安装（默认推荐）](./docs/install/one-click-install-release-copy.md)
 * 📁 [手动复制安装（离线 / 无管理员权限）](./docs/install/manual-copy-install.md)
 
