@@ -300,6 +300,8 @@ graph LR
 
 感谢你的观看！
 
+感谢LinuxDo各位佬的支持！欢迎大家加入https://linux.do/，各种技术交流，AI前沿资讯，AI经验分享，尽在Linuxdo！
+
 ---
 
 <div align="center">
