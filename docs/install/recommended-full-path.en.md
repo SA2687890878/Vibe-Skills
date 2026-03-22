@@ -51,7 +51,10 @@ bash ./check.sh --host claude-code --profile full --deep
 ## How old-version users should upgrade
 
 Old-version users do not need to uninstall first.
-The supported path is to update the repo to a newer version, then rerun the install and check commands for the same host.
+For most users, the simplest and recommended path is to rerun the prompt-based install flow.
+
+In other words, asking AI to run the install again with [`one-click-install-release-copy.en.md`](./one-click-install-release-copy.en.md) is usually enough.
+The commands below are mainly for cases where AI cannot execute the install for you, or when you need manual debugging.
 
 ### If you still have a local checkout of this repo
 
@@ -104,6 +107,9 @@ cd Vibe-Skills
 ```
 
 ### How to verify that the upgrade finished
+
+If AI is rerunning the install for you, you usually do not need to do this manually.
+Use the file below only when you want to verify the installed version yourself.
 
 If Codex is installed under the default `~/.codex` target root, check the version governance file directly:
 

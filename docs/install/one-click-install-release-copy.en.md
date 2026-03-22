@@ -74,9 +74,18 @@ These may still remain host-side or user-side tasks:
 ## How old-version users should upgrade
 
 If you already installed an older version, you usually do not need to uninstall first.
-Update the repo to the newer version, then rerun the install and check flow.
+For most users, the simplest path is to rerun this prompt-based install flow.
 
-For the full upgrade steps, the version verification command, and the release-tag upgrade path, see:
+In practice, that means asking AI to run one more install pass with this prompt.
+If that install completes normally, you usually do not need any extra manual commands.
+
+Only use the more detailed upgrade commands when:
+
+- AI cannot run the install for you
+- you need to debug a failed upgrade manually
+- you explicitly want to upgrade to a specific release or tag
+
+Then see:
 
 - [`recommended-full-path.en.md`](./recommended-full-path.en.md)
 
