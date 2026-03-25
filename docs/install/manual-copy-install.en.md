@@ -8,6 +8,7 @@ The current public host surface includes:
 - `claude-code`
 - `cursor`
 - `windsurf`
+- `openclaw`
 
 ## Core Files To Copy
 
@@ -24,6 +25,7 @@ Copy these into the target root:
 - `claude-code` -> `~/.claude`
 - `cursor` -> `~/.cursor`
 - `windsurf` -> `~/.codeium/windsurf`
+- `openclaw` -> `OPENCLAW_HOME` or `~/.openclaw`
 
 If the target is `windsurf`, also note:
 
@@ -51,13 +53,18 @@ If the target is `windsurf`, also note:
 ### Windsurf
 
 - confirm `mcp_config.json` and `global_workflows/` under `~/.codeium/windsurf`
-- finish account, provider, plugin, and workspace-native setup inside the host itself
+- finish host-local configuration inside Windsurf itself
+
+### OpenClaw
+
+- confirm the runtime-core payload under `OPENCLAW_HOME` or `~/.openclaw`
+- use the attach / copy / bundle guidance when you want parity with the scripted path
+- finish host-local configuration inside OpenClaw itself
 
 ## What This Path Does Not Complete Automatically
 
 - hook installation
 - provider credential wiring
-- host login or account takeover
-- automatic rewriting of the real Claude / Cursor / Windsurf settings surfaces
+- automatic takeover of host-local configuration
 
-Across the current public surface, none of the four hosts should be described as “hooks installed automatically.”
+Across the current public surface, none of the five hosts should be described as “hooks installed automatically.”

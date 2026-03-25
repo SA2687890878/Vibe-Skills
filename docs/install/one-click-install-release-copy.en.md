@@ -4,7 +4,7 @@ This is the default public install entrypoint.
 
 ## First confirm two things
 
-1. Confirm the host: `codex`, `claude-code`, `cursor`, or `windsurf`
+1. Confirm the host: `codex`, `claude-code`, `cursor`, `windsurf`, or `openclaw`
 2. Confirm the public version: `Full Version + Customizable Governance` or `Framework Only + Customizable Governance`
 
 The real profile mapping is:
@@ -25,7 +25,7 @@ The real profile mapping is:
 The install assistant should:
 
 - ask for the host first, then the version
-- execute only on the four supported hosts
+- execute only on the five supported hosts
 - map the public versions only to `full` or `minimal`
 - choose `bash` or `pwsh` based on the operating system
 - never ask you to paste secrets into chat

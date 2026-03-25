@@ -9,7 +9,7 @@
 仓库地址：https://github.com/foryourhealth111-pixel/Vibe-Skills
 
 在执行任何安装命令前，你必须先问我：
-“你要把 VibeSkills 安装到哪个宿主里？当前只支持：codex、claude-code、cursor、windsurf。”
+“你要把 VibeSkills 安装到哪个宿主里？当前只支持：codex、claude-code、cursor、windsurf、openclaw。”
 
 然后你必须再问我：
 “你要安装哪个公开版本？当前只支持：全量版本+可自定义添加治理，或 仅核心框架+可自定义添加治理。”
@@ -21,8 +21,9 @@
 4. 按我选择的宿主执行 `--host <host> --profile minimal` 的安装与检查命令。
 5. 对 `claude-code` 和 `cursor`，明确说明当前提供支持的安装与使用路径。
 6. 对 `windsurf`，明确说明当前提供支持的安装与使用路径，且已接入 runtime adapter，默认根目录是 `~/.codeium/windsurf`。
-7. 对 `codex`，明确说明 hook 仍冻结；这不是安装失败。
-8. 对四个宿主，都不要要求我把密钥、URL 或 model 粘贴到聊天里。
-9. 安装完成后，必须额外提醒我：当前拿到的是治理框架底座，不等于默认 workflow core 已齐备。
-10. 结果报告仍需包含：目标宿主、公开版本、实际 profile、实际命令、已完成部分、仍需手动处理的部分。
+7. 对 `openclaw`，明确说明当前按 `preview` / `runtime-core-preview` / `runtime-core` 路径接入，默认目标根目录是 `OPENCLAW_HOME` 或 `~/.openclaw`，并说明 attach / copy / bundle 三路径。
+8. 对 `codex`，明确说明 hook 仍冻结；这不是安装失败。
+9. 对五个宿主，都不要要求我把密钥、URL 或 model 粘贴到聊天里。
+10. 安装完成后，必须额外提醒我：当前拿到的是治理框架底座，不等于默认 workflow core 已齐备。
+11. 结果报告仍需包含：目标宿主、公开版本、实际 profile、实际命令、已完成部分、仍需手动处理的部分。
 ```

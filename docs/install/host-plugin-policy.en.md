@@ -12,6 +12,7 @@ This document answers only three questions:
 - `claude-code`
 - `cursor`
 - `windsurf`
+- `openclaw`
 
 Other agents should not currently be described as having an official install closure.
 
@@ -20,6 +21,9 @@ Other agents should not currently be described as having an official install clo
 - install the repo-governed payload first
 - add host-local configuration only as needed
 - if a capability is not stably, publicly, and verifiably owned by the repo, do not write it as a default install requirement
+- for OpenClaw, write it as `preview` / `runtime-core-preview` / `runtime-core`
+- for OpenClaw, make the default root explicit: `OPENCLAW_HOME` or `~/.openclaw`
+- for OpenClaw, make the three paths explicit: attach / copy / bundle
 
 ## Codex
 
@@ -48,11 +52,20 @@ Other agents should not currently be described as having an official install clo
 - the repo currently owns only shared runtime payload plus optional materialization of `mcp_config.json` and `global_workflows/`
 - Windsurf-native local settings remain managed on the Windsurf side
 
+## OpenClaw
+
+- supported install-and-use path at the current `preview` (`runtime-core-preview`) level
+- install/check runs in `runtime-core` mode with default target root from `OPENCLAW_HOME` or `~/.openclaw`
+- attach / copy / bundle cover runtime-core payload installation, validation, and distribution
+- OpenClaw-local configuration remains managed on the OpenClaw side
+
 ## Recommended Community Wording
 
-- the current version supports `codex`, `claude-code`, `cursor`, and `windsurf`
+- the current version supports `codex`, `claude-code`, `cursor`, `windsurf`, and `openclaw`
 - `codex` follows the governed path
 - `claude-code` and `cursor` have a supported install-and-use path
 - `windsurf` has a supported install-and-use path with runtime-adapter integration
+- `openclaw` follows the `preview` / `runtime-core-preview` / `runtime-core` wording
+- `openclaw` uses `OPENCLAW_HOME` or `~/.openclaw` as the default root, with attach / copy / bundle paths
 - hooks remain frozen across the current public surface; that is not a user install failure
 - provider `url` / `apikey` / `model` values stay local and should not be pasted into chat

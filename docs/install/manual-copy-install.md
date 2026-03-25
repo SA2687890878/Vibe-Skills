@@ -2,12 +2,13 @@
 
 如果你不想跑安装脚本，只想手动放文件，这条路径只解决“把仓库文件复制到目标宿主根目录”。
 
-当前公开支持四个宿主：
+当前公开支持五个宿主：
 
 - `codex`
 - `claude-code`
 - `cursor`
 - `windsurf`
+- `openclaw`
 
 ## 基本复制内容
 
@@ -24,6 +25,7 @@
 - `claude-code` -> `~/.claude`
 - `cursor` -> `~/.cursor`
 - `windsurf` -> `~/.codeium/windsurf`
+- `openclaw` -> `OPENCLAW_HOME` 或 `~/.openclaw`
 
 如果目标是 `windsurf`，还要额外注意：
 
@@ -51,13 +53,18 @@
 ### Windsurf
 
 - 确认 `~/.codeium/windsurf` 下的 `mcp_config.json` 与 `global_workflows/`
-- 账号、provider、插件和 workspace-native 能力仍需在宿主侧完成
+- 宿主侧本地配置仍需在 Windsurf 内完成
+
+### OpenClaw
+
+- 确认 `OPENCLAW_HOME` 或 `~/.openclaw` 下的 runtime-core payload
+- 如需与脚本安装结果对齐，优先使用 attach / copy / bundle 三路径说明
+- 宿主侧本地配置仍需在 OpenClaw 内完成
 
 ## 这条路径不会自动完成什么
 
 - hook 安装
 - provider 凭据写入
-- 宿主登录或账号接管
-- Claude / Cursor / Windsurf 真实 settings 的自动改写
+- 宿主侧本地配置的自动代管
 
-当前公开支持面里，四个宿主都不应被描述成“已自动安装 hook”。
+当前公开支持面里，五个宿主都不应被描述成“已自动安装 hook”。

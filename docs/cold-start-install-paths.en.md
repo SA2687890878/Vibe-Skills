@@ -4,12 +4,13 @@ This document answers the only cold-start questions that matter right now: which
 
 ## One-Line Conclusion
 
-The current public surface supports four hosts:
+The current public surface supports five hosts:
 
 - `codex`
 - `claude-code`
 - `cursor`
 - `windsurf`
+- `openclaw`
 
 Within that scope:
 
@@ -17,6 +18,7 @@ Within that scope:
 - `claude-code`: preview guidance
 - `cursor`: preview guidance
 - `windsurf`: preview runtime-core
+- `openclaw`: `preview` / `runtime-core-preview` / `runtime-core`
 
 Other hosts should not currently be described as supported installation targets.
 
@@ -91,7 +93,30 @@ What you get:
 What you do not get:
 
 - full closure
-- host login / account / provider / plugin closure
+- automatic takeover of host-local configuration
+
+## OpenClaw
+
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host openclaw --profile full
+bash ./check.sh --host openclaw --profile full --deep
+```
+
+What you get:
+
+- shared runtime payload
+- an OpenClaw runtime-core preview install path, with default target root from `OPENCLAW_HOME` or `~/.openclaw`
+- explicit attach / copy / bundle path semantics:
+  - attach: connect and validate an existing `OPENCLAW_HOME` (or `~/.openclaw`) target root
+  - copy: use install/check entrypoints to copy runtime-core payload into the target root
+  - bundle: consume runtime-core distribution manifests from `dist/host-openclaw/manifest.json` and `dist/manifests/vibeskills-openclaw.json`
+- explicit host-managed boundaries
+- a runtime-core-focused install, validation, and distribution path
+
+What you do not get:
+
+- full closure
+- automatic takeover of OpenClaw-local configuration
 
 ## Boundaries That Must Hold During Cold Start
 
