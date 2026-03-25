@@ -15,6 +15,7 @@ This document explains the current real support boundary and the concrete comman
 | `claude-code` | supported install-and-use path | `~/.claude` | keeps real host settings boundaries explicit |
 | `cursor` | supported install-and-use path | `~/.cursor` | keeps real host settings boundaries explicit |
 | `windsurf` | supported install-and-use path + runtime adapter | `~/.codeium/windsurf` | includes runtime-adapter integration while keeping real host settings boundaries explicit |
+| `openclaw` | `preview` / `runtime-core-preview` / `runtime-core` | `OPENCLAW_HOME` or `~/.openclaw` | focused on runtime-core payload install, validation, and distribution |
 
 `TargetRoot` is only a path.
 `HostId` / `--host` decides host semantics.
@@ -71,6 +72,18 @@ bash ./scripts/bootstrap/one-shot-setup.sh --host windsurf --profile full
 bash ./check.sh --host windsurf --profile full --deep
 ```
 
+### OpenClaw
+
+```powershell
+pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId openclaw -Profile full
+pwsh -File .\check.ps1 -HostId openclaw -Profile full -Deep
+```
+
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host openclaw --profile full
+bash ./check.sh --host openclaw --profile full --deep
+```
+
 If you want the “Framework Only + Customizable Governance” variant, replace `full` with `minimal`.
 
 ## Upgrade Flow
@@ -115,3 +128,10 @@ git checkout vX.Y.Z
 - the default root is `~/.codeium/windsurf`
 - the repo currently owns only shared runtime payload plus optional materialization of `mcp_config.json` and `global_workflows/`
 - Windsurf-native local settings remain managed on the Windsurf side
+
+### OpenClaw
+
+- this host is described with the `preview` / `runtime-core-preview` / `runtime-core` wording
+- the default target root is `OPENCLAW_HOME` or `~/.openclaw`
+- attach / copy / bundle center on runtime-core payload install, validation, and distribution
+- OpenClaw-local configuration remains managed on the OpenClaw side

@@ -4,7 +4,7 @@
 
 ## 先做两件事
 
-1. 先确认宿主：`codex`、`claude-code`、`cursor`、`windsurf`
+1. 先确认宿主：`codex`、`claude-code`、`cursor`、`windsurf`、`openclaw`
 2. 再确认版本：`全量版本 + 可自定义添加治理` 或 `仅核心框架 + 可自定义添加治理`
 
 对应的真实 profile 映射是：
@@ -26,7 +26,7 @@
 AI 安装助手应当：
 
 - 先问宿主，再问版本
-- 只对四个已支持宿主执行安装
+- 只对五个已支持宿主执行安装
 - 只把两个公开版本映射到真实 profile：`full` 或 `minimal`
 - 按系统类型选择 `bash` 或 `pwsh`
 - 不要求你把密钥贴到聊天里

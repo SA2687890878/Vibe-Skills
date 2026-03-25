@@ -12,6 +12,7 @@
 - `claude-code`
 - `cursor`
 - `windsurf`
+- `openclaw`
 
 ## 规则 2：再确认版本
 
@@ -82,15 +83,29 @@
 - repo 当前只负责 shared runtime payload，以及按需物化 `mcp_config.json` 与 `global_workflows/`
 - Windsurf 宿主本地设置仍由用户在宿主侧完成
 
-## 规则 11：不要要求用户把密钥贴到聊天里
+## 规则 11：OpenClaw 必须按 preview / runtime-core-preview / runtime-core 口径描述
 
-对四个支持宿主，都不要要求用户把密钥、URL 或 model 直接粘贴到聊天里；只引导用户去本地 settings 或本地环境变量配置。
+如果用户选择 `openclaw`：
 
-## 规则 12：区分“本地安装完成”和“在线能力就绪”
+- 运行 `--host openclaw`
+- 明确说明这是 `preview` 宿主，closure level 是 `runtime-core-preview`，install/check mode 是 `runtime-core`
+- 默认目标根目录是 `OPENCLAW_HOME` 或 `~/.openclaw`
+- 明确三条路径：
+  - attach：接入并校验已有 `OPENCLAW_HOME`（或 `~/.openclaw`）目录
+  - copy：通过 install/check 入口复制 runtime-core payload 到目标根目录
+  - bundle：按 `dist/host-openclaw/manifest.json` 与 `dist/manifests/vibeskills-openclaw.json` 消费分发清单
+- 聚焦 runtime-core payload 的安装、检查与分发结果
+- 宿主侧本地配置仍按 OpenClaw 方式完成
+
+## 规则 12：不要要求用户把密钥贴到聊天里
+
+对五个支持宿主，都不要要求用户把密钥、URL 或 model 直接粘贴到聊天里；只引导用户去本地 settings 或本地环境变量配置。
+
+## 规则 13：区分“本地安装完成”和“在线能力就绪”
 
 如果本地 provider 字段没有配置好，就不能把环境描述成“online ready”。
 
-## 规则 13：输出安装或更新结果时必须说清楚
+## 规则 14：输出安装或更新结果时必须说清楚
 
 结果摘要至少应包含：
 
@@ -101,7 +116,7 @@
 - 已完成的部分
 - 仍需用户手动处理的部分
 
-## 规则 14：框架版本不是开箱即用全量体验
+## 规则 15：框架版本不是开箱即用全量体验
 
 如果用户选择 `仅核心框架 + 可自定义添加治理` / `minimal`，必须额外提醒：
 

@@ -4,12 +4,13 @@
 
 ## 一句话结论
 
-当前公开支持四个宿主：
+当前公开支持五个宿主：
 
 - `codex`
 - `claude-code`
 - `cursor`
 - `windsurf`
+- `openclaw`
 
 其中：
 
@@ -17,6 +18,7 @@
 - `claude-code`：preview guidance
 - `cursor`：preview guidance
 - `windsurf`：preview runtime-core
+- `openclaw`：`preview` / `runtime-core-preview` / `runtime-core`
 
 其他宿主当前都不应被描述成“已支持安装”。
 
@@ -96,7 +98,30 @@ bash ./check.sh --host windsurf --profile full --deep
 你不会得到：
 
 - full closure
-- 宿主登录 / 账号 / provider / 插件闭环
+- 宿主侧本地配置的自动代管
+
+## OpenClaw
+
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host openclaw --profile full
+bash ./check.sh --host openclaw --profile full --deep
+```
+
+你会得到：
+
+- shared runtime payload
+- OpenClaw runtime-core 预览安装路径，默认目标根目录为 `OPENCLAW_HOME` 或 `~/.openclaw`
+- attach / copy / bundle 三路径口径：
+  - attach：把已有 `OPENCLAW_HOME`（或 `~/.openclaw`）作为目标根目录进行接入与校验
+  - copy：通过 install/check 入口把 runtime-core payload 复制到目标根目录
+  - bundle：按 `dist/host-openclaw/manifest.json` 与 `dist/manifests/vibeskills-openclaw.json` 消费 runtime-core 分发清单
+- 明确保持 host-managed 边界
+- 聚焦 runtime-core payload 的安装、校验与分发路径
+
+你不会得到：
+
+- full closure
+- 自动代管 OpenClaw 宿主本地配置
 
 ## 冷启动阶段必须守住的边界
 

@@ -12,6 +12,7 @@ The current public host surface is limited to:
 - `claude-code`
 - `cursor`
 - `windsurf`
+- `openclaw`
 
 ## Rule 2: Confirm the public version next
 
@@ -84,13 +85,27 @@ If the user chooses `windsurf`:
 
 ## Rule 11: Never ask users to paste secrets into chat
 
-For all four supported hosts, do not ask users to paste keys, URLs, or model names into chat. Point them to local settings or local environment variables instead.
+For all five supported hosts, do not ask users to paste keys, URLs, or model names into chat. Point them to local settings or local environment variables instead.
 
-## Rule 12: Distinguish local install from online readiness
+## Rule 12: Describe OpenClaw as preview / runtime-core-preview / runtime-core
+
+If the user chooses `openclaw`:
+
+- run `--host openclaw`
+- describe it as a `preview` host with `runtime-core-preview` closure level and `runtime-core` install/check mode
+- the default target root is `OPENCLAW_HOME` or `~/.openclaw`
+- make the three paths explicit:
+  - attach: connect and validate an existing `OPENCLAW_HOME` (or `~/.openclaw`) root
+  - copy: copy the runtime-core payload into the target root through the install/check entrypoints
+  - bundle: consume `dist/host-openclaw/manifest.json` and `dist/manifests/vibeskills-openclaw.json`
+- keep the wording focused on runtime-core payload installation, validation, and distribution
+- leave host-local configuration on the OpenClaw side
+
+## Rule 13: Distinguish local install from online readiness
 
 If local provider fields are not configured, the environment must not be described as online-ready.
 
-## Rule 13: The result summary must stay explicit
+## Rule 14: The result summary must stay explicit
 
 The install or upgrade summary should include at least:
 
@@ -101,7 +116,7 @@ The install or upgrade summary should include at least:
 - completed parts
 - manual follow-up still required
 
-## Rule 14: The framework version is not the full out-of-box experience
+## Rule 15: The framework version is not the full out-of-box experience
 
 If the user chooses `Framework Only + Customizable Governance` / `minimal`, explicitly remind them:
 

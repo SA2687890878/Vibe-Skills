@@ -5,7 +5,7 @@
 > - [`one-click-install-release-copy.md`](./one-click-install-release-copy.md)
 > - [`manual-copy-install.md`](./manual-copy-install.md)
 
-这份文档只解释当前真实支持边界，以及四个宿主对应的安装命令。
+这份文档只解释当前真实支持边界，以及五个宿主对应的安装命令。
 
 ## 当前支持面
 
@@ -15,6 +15,7 @@
 | `claude-code` | 支持的安装与使用路径 | `~/.claude` | 保持真实宿主设置边界 |
 | `cursor` | 支持的安装与使用路径 | `~/.cursor` | 保持真实宿主设置边界 |
 | `windsurf` | 支持的安装与使用路径 + runtime adapter | `~/.codeium/windsurf` | 已接入 runtime adapter，保持真实宿主设置边界 |
+| `openclaw` | `preview` / `runtime-core-preview` / `runtime-core` | `OPENCLAW_HOME` 或 `~/.openclaw` | 聚焦 runtime-core payload 的安装、校验与分发 |
 
 `TargetRoot` 只是路径。
 `HostId` / `--host` 才决定宿主语义。
@@ -71,6 +72,18 @@ bash ./scripts/bootstrap/one-shot-setup.sh --host windsurf --profile full
 bash ./check.sh --host windsurf --profile full --deep
 ```
 
+### OpenClaw
+
+```powershell
+pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId openclaw -Profile full
+pwsh -File .\check.ps1 -HostId openclaw -Profile full -Deep
+```
+
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host openclaw --profile full
+bash ./check.sh --host openclaw --profile full --deep
+```
+
 如果你要装“仅核心框架 + 可自定义添加治理”，把上面的 `full` 改成 `minimal`。
 
 ## 更新方式
@@ -115,3 +128,10 @@ git checkout vX.Y.Z
 - 默认根目录是 `~/.codeium/windsurf`
 - repo 当前只负责 shared runtime payload，以及按需物化 `mcp_config.json` 与 `global_workflows/`
 - Windsurf 宿主自身的本地设置仍按 Windsurf 自身方式管理
+
+### OpenClaw
+
+- 当前按 `preview` / `runtime-core-preview` / `runtime-core` 路径描述
+- 默认目标根目录是 `OPENCLAW_HOME` 或 `~/.openclaw`
+- attach / copy / bundle 三路径围绕 runtime-core payload 的安装、校验与分发
+- OpenClaw 宿主自身的本地配置仍按 OpenClaw 自身方式管理

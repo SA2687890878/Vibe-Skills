@@ -42,6 +42,7 @@ Keep the public wording user-friendly, then map to the real profile at execution
 - `claude-code`
 - `cursor`
 - `windsurf`
+- `openclaw`
 
 Within that scope:
 
@@ -49,6 +50,7 @@ Within that scope:
 - `claude-code`: supported install-and-use path
 - `cursor`: supported install-and-use path
 - `windsurf`: supported install-and-use path with runtime-adapter integration
+- `openclaw`: preview / runtime-core-preview / runtime-core path
 
 Other hosts should not currently be described as supported installation targets.
 
