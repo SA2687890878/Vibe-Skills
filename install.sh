@@ -526,6 +526,34 @@ sync_vibe_canonical_to_target() {
   done
 }
 
+sanitize_installed_runtime_skill_entrypoints() {
+  local nested_skills_root="${TARGET_ROOT}/skills/vibe/bundled/skills"
+  [[ -d "${nested_skills_root}" ]] || return 0
+
+  local skill_md=""
+  local renamed=0
+  while IFS= read -r -d '' skill_md; do
+    local mirror_path="${skill_md%/SKILL.md}/SKILL.runtime-mirror.md"
+    mv "${skill_md}" "${mirror_path}"
+    echo "[INFO] Hid nested runtime mirror skill entrypoint: ${skill_md} -> ${mirror_path}"
+    renamed=$((renamed+1))
+  done < <(find "${nested_skills_root}" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' -print0)
+
+  if [[ ${renamed} -eq 0 ]]; then
+    echo "[INFO] Nested runtime mirror skill entrypoints already sanitized."
+  fi
+}
+
+restore_skill_entrypoint_if_needed() {
+  local skill_root="$1"
+  local mirror_path="${skill_root}/SKILL.runtime-mirror.md"
+  local skill_md="${skill_root}/SKILL.md"
+  if [[ -f "${skill_md}" || ! -f "${mirror_path}" ]]; then
+    return 0
+  fi
+  mv "${mirror_path}" "${skill_md}"
+}
+
 ensure_skill_present() {
   local name="$1"
   local required="$2"
@@ -543,6 +571,7 @@ ensure_skill_present() {
       if [[ -d "${src}" ]]; then
         echo "[WARN] Using external fallback source for skill '${name}': ${src}"
         copy_dir_content "${src}" "${TARGET_ROOT}/skills/${name}"
+        restore_skill_entrypoint_if_needed "${TARGET_ROOT}/skills/${name}"
         EXTERNAL_FALLBACK_USED+=("${name}")
         break
       fi
@@ -587,6 +616,8 @@ ADAPTER_INSTALL_JSON="$("${PYTHON_BIN_FOR_ADAPTER}" "${ADAPTER_INSTALLER}" \
 if [[ -n "${ADAPTER_INSTALL_JSON}" ]]; then
   mapfile -t EXTERNAL_FALLBACK_USED < <(printf '%s\n' "${ADAPTER_INSTALL_JSON}" | "${PYTHON_BIN_FOR_ADAPTER}" -c 'import json,sys; data=json.load(sys.stdin); [print(x) for x in data.get("external_fallback_used", [])]')
 fi
+
+sanitize_installed_runtime_skill_entrypoints
 
 if [[ "${INSTALL_EXTERNAL}" == "true" ]]; then
   if [[ "${ADAPTER_INSTALL_MODE}" != "governed" ]]; then

@@ -34,6 +34,13 @@ class InstalledRuntimeScriptsTests(unittest.TestCase):
         ]
         subprocess.run(cmd, capture_output=True, text=True, check=True)
 
+    def assert_nested_runtime_skill_entrypoints_sanitized(self, target_root: Path) -> None:
+        nested_skills_root = target_root / "skills" / "vibe" / "bundled" / "skills"
+        self.assertTrue(nested_skills_root.exists())
+        self.assertEqual([], sorted(nested_skills_root.glob("*/SKILL.md")))
+        for name in ("vibe", "ralph-loop", "cancel-ralph", "xan"):
+            self.assertTrue((nested_skills_root / name / "SKILL.runtime-mirror.md").exists())
+
     def test_shell_install_quarantines_legacy_agents_duplicate_for_default_codex_root(self) -> None:
         home_root = self.root / "home"
         target_root = home_root / ".codex"
@@ -143,6 +150,7 @@ class InstalledRuntimeScriptsTests(unittest.TestCase):
 
     def test_installed_shell_scripts_work_without_repo_level_adapter_registry(self) -> None:
         self.install_shell_runtime()
+        self.assert_nested_runtime_skill_entrypoints_sanitized(self.target_root)
 
         installed_root = self.target_root / "skills" / "vibe"
         check_cmd = [
@@ -203,6 +211,7 @@ class InstalledRuntimeScriptsTests(unittest.TestCase):
             str(self.target_root),
         ]
         subprocess.run(install_cmd, capture_output=True, text=True, check=True)
+        self.assert_nested_runtime_skill_entrypoints_sanitized(self.target_root)
 
         installed_root = self.target_root / "skills" / "vibe"
         check_cmd = [

@@ -473,6 +473,18 @@ function Check-Path {
   }
 }
 
+function Check-PathAbsent {
+  param([string]$Label, [string]$Path)
+
+  if (Test-Path -LiteralPath $Path) {
+    Write-Host "[FAIL] $Label -> $Path" -ForegroundColor Red
+    $script:fail++
+  } else {
+    Write-Host "[OK] $Label"
+    $script:pass++
+  }
+}
+
 function Invoke-AdapterSpecificChecks {
   param(
     [psobject]$Adapter,
@@ -547,6 +559,8 @@ function Invoke-AdapterSpecificChecks {
     Check-Path -Label "vibe bundled exploration intent profiles config" -Path (Join-Path $RuntimeNestedSkillRoot 'config\exploration-intent-profiles.json') -Required:$NestedBundledRequired
     Check-Path -Label "vibe bundled exploration domain map config" -Path (Join-Path $RuntimeNestedSkillRoot 'config\exploration-domain-map.json') -Required:$NestedBundledRequired
     Check-Path -Label "vibe bundled llm acceleration policy config" -Path (Join-Path $RuntimeNestedSkillRoot 'config\llm-acceleration-policy.json') -Required:$NestedBundledRequired
+    Check-PathAbsent -Label "vibe nested bundled skill entrypoint hidden" -Path (Join-Path $RuntimeNestedSkillRoot 'SKILL.md')
+    Check-Path -Label "vibe nested bundled skill runtime mirror" -Path (Join-Path $RuntimeNestedSkillRoot 'SKILL.runtime-mirror.md') -Required:$NestedBundledRequired
   } else {
     Write-Host ("[OK] vibe nested bundled config checks skipped (target absent; policy={0})" -f $NestedBundledPresencePolicy)
     $script:pass++

@@ -281,6 +281,17 @@ check_path() {
   fi
 }
 
+check_absent_path() {
+  local label="$1"; local path="$2"
+  if [[ -e "$path" ]]; then
+    echo "[FAIL] $label -> $path"
+    FAIL=$((FAIL+1))
+  else
+    echo "[OK] $label"
+    PASS=$((PASS+1))
+  fi
+}
+
 check_condition() {
   local label="$1"; local condition="$2"; local detail="${3:-}"
   if [[ "$condition" == "true" ]]; then
@@ -781,6 +792,8 @@ if [[ -d "${runtime_nested_skill_root}" ]]; then
   check_path "vibe bundled exploration intent profiles config" "${runtime_nested_skill_root}/config/exploration-intent-profiles.json"
   check_path "vibe bundled exploration domain map config" "${runtime_nested_skill_root}/config/exploration-domain-map.json"
   check_path "vibe bundled llm acceleration policy config" "${runtime_nested_skill_root}/config/llm-acceleration-policy.json"
+  check_absent_path "vibe nested bundled skill entrypoint hidden" "${runtime_nested_skill_root}/SKILL.md"
+  check_path "vibe nested bundled skill runtime mirror" "${runtime_nested_skill_root}/SKILL.runtime-mirror.md"
 else
   echo "[OK] vibe nested bundled config checks skipped (target absent; policy=optional)"
   PASS=$((PASS+1))

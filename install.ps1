@@ -239,7 +239,9 @@ function Ensure-SkillPresent {
       if ([string]::IsNullOrWhiteSpace($src)) { continue }
       if (Test-Path -LiteralPath $src) {
         Write-Warning "Using external fallback source for skill '$Name': $src"
-        Copy-DirContent -Source $src -Destination (Join-Path $TargetRoot ("skills\" + $Name))
+        $destination = Join-Path $TargetRoot ("skills\" + $Name)
+        Copy-DirContent -Source $src -Destination $destination
+        Restore-SkillEntryPointIfNeeded -SkillRoot $destination
         $ExternalFallbackUsed.Add($Name) | Out-Null
         break
       }
@@ -286,6 +288,44 @@ function Sync-VibeCanonicalToTarget {
     Copy-DirContent -Source $srcDir -Destination $dstDir
   }
 }
+
+function Hide-InstalledRuntimeMirrorSkillEntryPoints {
+  param([string]$TargetRoot)
+
+  $nestedSkillsRoot = Join-Path $TargetRoot 'skills\vibe\bundled\skills'
+  if (-not (Test-Path -LiteralPath $nestedSkillsRoot -PathType Container)) {
+    return
+  }
+
+  $renamed = 0
+  foreach ($skillDir in @(Get-ChildItem -LiteralPath $nestedSkillsRoot -Directory -ErrorAction SilentlyContinue)) {
+    $skillMd = Join-Path $skillDir.FullName 'SKILL.md'
+    if (-not (Test-Path -LiteralPath $skillMd -PathType Leaf)) {
+      continue
+    }
+
+    $mirrorPath = Join-Path $skillDir.FullName 'SKILL.runtime-mirror.md'
+    Move-Item -LiteralPath $skillMd -Destination $mirrorPath -Force
+    Write-Host ("[INFO] Hid nested runtime mirror skill entrypoint: {0} -> {1}" -f $skillMd, $mirrorPath)
+    $renamed++
+  }
+
+  if ($renamed -eq 0) {
+    Write-Host "[INFO] Nested runtime mirror skill entrypoints already sanitized."
+  }
+}
+
+function Restore-SkillEntryPointIfNeeded {
+  param([string]$SkillRoot)
+
+  $skillMd = Join-Path $SkillRoot 'SKILL.md'
+  $mirrorPath = Join-Path $SkillRoot 'SKILL.runtime-mirror.md'
+  if ((Test-Path -LiteralPath $skillMd -PathType Leaf) -or -not (Test-Path -LiteralPath $mirrorPath -PathType Leaf)) {
+    return
+  }
+
+  Move-Item -LiteralPath $mirrorPath -Destination $skillMd -Force
+}
 Write-Host "=== VCO Adapter Installer ===" -ForegroundColor Cyan
 Write-Host "Host   : $HostId"
 Write-Host "Mode   : $($Adapter.install_mode)"
@@ -322,6 +362,8 @@ if ($null -ne $adapterInstallReceipt -and $adapterInstallReceipt.PSObject.Proper
     }
   }
 }
+
+Hide-InstalledRuntimeMirrorSkillEntryPoints -TargetRoot $TargetRoot
 
 if ($InstallExternal) {
   if ($Adapter.install_mode -ne 'governed') {
