@@ -15,6 +15,9 @@ if (-not (Test-Path -LiteralPath $docsPath)) {
 $checks = @(
     @{ Path = 'codex/settings-map.json'; MustExist = $true },
     @{ Path = 'claude-code/settings-map.json'; MustExist = $true },
+    @{ Path = 'cursor/settings-map.json'; MustExist = $true },
+    @{ Path = 'windsurf/settings-map.json'; MustExist = $true },
+    @{ Path = 'openclaw/settings-map.json'; MustExist = $true },
     @{ Path = 'opencode/settings-map.json'; MustExist = $true },
     @{ Path = 'generic/settings-map.json'; MustExist = $true },
     @{ Path = 'codex/platform-windows.json'; MustExist = $true },
@@ -23,9 +26,18 @@ $checks = @(
     @{ Path = 'claude-code/platform-windows.json'; MustExist = $true },
     @{ Path = 'claude-code/platform-linux.json'; MustExist = $true },
     @{ Path = 'claude-code/platform-macos.json'; MustExist = $true },
+    @{ Path = 'cursor/platform-windows.json'; MustExist = $true },
+    @{ Path = 'cursor/platform-linux.json'; MustExist = $true },
+    @{ Path = 'cursor/platform-macos.json'; MustExist = $true },
     @{ Path = 'opencode/platform-windows.json'; MustExist = $true },
     @{ Path = 'opencode/platform-linux.json'; MustExist = $true },
     @{ Path = 'opencode/platform-macos.json'; MustExist = $true }
+    @{ Path = 'windsurf/platform-windows.json'; MustExist = $true },
+    @{ Path = 'windsurf/platform-linux.json'; MustExist = $true },
+    @{ Path = 'windsurf/platform-macos.json'; MustExist = $true },
+    @{ Path = 'openclaw/platform-windows.json'; MustExist = $true },
+    @{ Path = 'openclaw/platform-linux.json'; MustExist = $true },
+    @{ Path = 'openclaw/platform-macos.json'; MustExist = $true }
 )
 
 foreach ($check in $checks) {
@@ -54,6 +66,28 @@ if (Test-Path -LiteralPath $openCodeProfilePath) {
     }
     if ($opencode.runtime_role -ne 'host-adapter-preview') {
         $failures += "opencode runtime_role must be host-adapter-preview"
+    }
+}
+
+$windsurfProfilePath = Join-Path $adapterRoot 'windsurf/host-profile.json'
+if (Test-Path -LiteralPath $windsurfProfilePath) {
+    $windsurf = Get-Content -LiteralPath $windsurfProfilePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($windsurf.status -ne 'preview') {
+        $failures += "windsurf must remain preview until broader proof exists"
+    }
+    if ($windsurf.runtime_role -ne 'official-runtime-adapter') {
+        $failures += "windsurf runtime_role must remain official-runtime-adapter"
+    }
+}
+
+$openClawProfilePath = Join-Path $adapterRoot 'openclaw/host-profile.json'
+if (Test-Path -LiteralPath $openClawProfilePath) {
+    $openclaw = Get-Content -LiteralPath $openClawProfilePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($openclaw.status -ne 'preview') {
+        $failures += "openclaw must remain preview until broader proof exists"
+    }
+    if ($openclaw.runtime_role -ne 'official-runtime-adapter') {
+        $failures += "openclaw runtime_role must remain official-runtime-adapter"
     }
 }
 

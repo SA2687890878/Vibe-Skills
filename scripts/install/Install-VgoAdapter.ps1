@@ -131,11 +131,29 @@ function Install-RuntimeCorePayload {
 
     Sync-VibeCanonicalToTarget -RepoRoot $RepoRoot -TargetRoot $TargetRoot -TargetRel $targetVibeRel
 
-    $canonicalSkillsRoot = Split-Path -Parent $RepoRoot
-    $workspaceRoot = Split-Path -Parent $canonicalSkillsRoot
-    $workspaceSkillsRoot = Join-Path $workspaceRoot 'skills'
-    $workspaceSuperpowersRoot = Join-Path $workspaceRoot 'superpowers\skills'
+    $canonicalSkillsRoot = Get-VgoParentPath -Path $RepoRoot
+    $workspaceRoot = Get-VgoParentPath -Path $canonicalSkillsRoot
+    $workspaceSkillsRoot = if (-not [string]::IsNullOrWhiteSpace($workspaceRoot)) { Join-Path $workspaceRoot 'skills' } else { '' }
+    $workspaceSuperpowersRoot = if (-not [string]::IsNullOrWhiteSpace($workspaceRoot)) { Join-Path $workspaceRoot 'superpowers\skills' } else { '' }
     $bundledSuperpowersRoot = Join-Path $RepoRoot 'bundled\superpowers-skills'
+
+    function New-SkillFallbackSources {
+        param(
+            [Parameter(Mandatory)] [string]$Name,
+            [string[]]$Roots
+        )
+
+        $sources = New-Object System.Collections.Generic.List[string]
+        foreach ($root in $Roots) {
+            if ([string]::IsNullOrWhiteSpace($root)) { continue }
+            if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }
+            $candidate = Join-Path $root $Name
+            if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                $sources.Add($candidate) | Out-Null
+            }
+        }
+        return @($sources | Select-Object -Unique)
+    }
 
     $requiredCore = @('dialectic', 'local-vco-roles', 'spec-kit-vibe-compat', 'superclaude-framework-compat', 'ralph-loop', 'cancel-ralph', 'tdd-guide', 'think-harder')
     $requiredWorkflow = @('brainstorming', 'writing-plans', 'subagent-driven-development', 'systematic-debugging')
@@ -146,29 +164,20 @@ function Install-RuntimeCorePayload {
 
     foreach ($name in $requiredCore) {
         Ensure-SkillPresent -Name $name -Required $true -FallbackSources @(
-            (Join-Path $canonicalSkillsRoot $name),
-            (Join-Path $workspaceSkillsRoot $name),
-            (Join-Path $workspaceSuperpowersRoot $name),
-            (Join-Path $bundledSuperpowersRoot $name)
+            (New-SkillFallbackSources -Name $name -Roots @($canonicalSkillsRoot, $workspaceSkillsRoot, $workspaceSuperpowersRoot, $bundledSuperpowersRoot))
         ) -ExternalFallbackUsed $externalFallbackUsed -MissingRequiredSkills $missingRequiredSkills
     }
 
     foreach ($name in $requiredWorkflow) {
         Ensure-SkillPresent -Name $name -Required $true -FallbackSources @(
-            (Join-Path $workspaceSkillsRoot $name),
-            (Join-Path $workspaceSuperpowersRoot $name),
-            (Join-Path $bundledSuperpowersRoot $name),
-            (Join-Path $canonicalSkillsRoot $name)
+            (New-SkillFallbackSources -Name $name -Roots @($workspaceSkillsRoot, $workspaceSuperpowersRoot, $bundledSuperpowersRoot, $canonicalSkillsRoot))
         ) -ExternalFallbackUsed $externalFallbackUsed -MissingRequiredSkills $missingRequiredSkills
     }
 
     if ($Profile -eq 'full') {
         foreach ($name in $optionalWorkflow) {
             Ensure-SkillPresent -Name $name -Required $false -FallbackSources @(
-                (Join-Path $workspaceSkillsRoot $name),
-                (Join-Path $workspaceSuperpowersRoot $name),
-                (Join-Path $bundledSuperpowersRoot $name),
-                (Join-Path $canonicalSkillsRoot $name)
+                (New-SkillFallbackSources -Name $name -Roots @($workspaceSkillsRoot, $workspaceSuperpowersRoot, $bundledSuperpowersRoot, $canonicalSkillsRoot))
             ) -ExternalFallbackUsed $externalFallbackUsed -MissingRequiredSkills $missingRequiredSkills
         }
     }
@@ -213,20 +222,35 @@ function Install-OpenCodeGuidancePayload {
     }
 }
 
+function Install-RuntimeCoreModePayload {
+    $commandsRoot = Join-Path $RepoRoot 'commands'
+    if (Test-Path -LiteralPath $commandsRoot) {
+        Copy-DirContent -Source $commandsRoot -Destination (Join-Path $TargetRoot 'global_workflows')
+    }
+
+    $mcpTemplate = Join-Path $RepoRoot 'mcp\servers.template.json'
+    $mcpConfigPath = Join-Path $TargetRoot 'mcp_config.json'
+    if ((Test-Path -LiteralPath $mcpTemplate) -and -not (Test-Path -LiteralPath $mcpConfigPath)) {
+        Copy-Item -LiteralPath $mcpTemplate -Destination $mcpConfigPath -Force
+    }
+}
+
 $adapter = Resolve-VgoAdapterDescriptor -RepoRoot $RepoRoot -HostId $HostId
 $result = Install-RuntimeCorePayload -Adapter $adapter
 switch ([string]$adapter.install_mode) {
     'governed' { Install-GovernedCodexPayload }
     'preview-guidance' {
-        if ([string]$adapter.id -eq 'claude-code') {
-            Install-ClaudeGuidancePayload
-        } elseif ([string]$adapter.id -eq 'opencode') {
+        if ([string]$adapter.id -eq 'opencode') {
             Install-OpenCodeGuidancePayload
+        } elseif ([string]$adapter.id -eq 'claude-code' -or [string]$adapter.id -eq 'cursor') {
+            Install-ClaudeGuidancePayload
         } else {
             throw "Unsupported preview-guidance adapter id: $($adapter.id)"
         }
     }
-    'runtime-core' { }
+    'runtime-core' {
+        Install-RuntimeCoreModePayload
+    }
     default { throw "Unsupported adapter install mode: $($adapter.install_mode)" }
 }
 

@@ -1,129 +1,137 @@
-# Install Path: Standard Recommended Full-Featured
+# Install Path: Advanced Host / Lane Reference
 
-This path is the **default recommendation for most users**.
+> Most users should start with:
+>
+> - [`one-click-install-release-copy.en.md`](./one-click-install-release-copy.en.md)
+> - [`manual-copy-install.en.md`](./manual-copy-install.en.md)
 
-Its goal is not "pretend everything is fully ready". Its goal is:
+This document explains the current real support boundary and the concrete commands per host.
 
-- close the repo-governed surfaces as completely as possible
-- run the deep doctor and coherence checks
-- expose the remaining host-managed gaps honestly
+## Current Supported Surface
 
-In other words, this path optimizes for a **truthful, stable, low-surprise first real setup**.
+| Host | Mode | Default root | Current wording |
+| --- | --- | --- | --- |
+| `codex` | governed | `~/.codex` | strongest supported path today |
+| `claude-code` | supported install-and-use path | `~/.claude` | keeps real host settings boundaries explicit |
+| `cursor` | supported install-and-use path | `~/.cursor` | keeps real host settings boundaries explicit |
+| `windsurf` | supported install-and-use path + runtime adapter | `~/.codeium/windsurf` | includes runtime-adapter integration while keeping real host settings boundaries explicit |
+| `openclaw` | `preview` / `runtime-core-preview` / `runtime-core` | `OPENCLAW_HOME` or `~/.openclaw` | focused on runtime-core payload install, validation, and distribution |
 
-## Who This Path Is For
-
-- heavy AI users who want a stable working VibeSkills setup
-- team leads who want to evaluate the governed surface before broader rollout
-- users who want more than a minimum smoke test, but do not want enterprise rollout overhead yet
-
-## What This Path Promises
-
-This path aims to close the surfaces that the repository actually owns:
-
-- shipped runtime payload
-- bundled mirrors
-- selected active MCP profile
-- deep doctor / runtime coherence path
-- repo-side governance assets and verification entrypoints
-
-In the current rollout, that also means the standard full lane distinguishes three separate default surfaces:
-
-- `scrapling`: default local runtime surface for the full profile
-- `Cognee`: default long-term enhancement owner for governed graph memory
-- `Composio / Activepieces`: predeclared external action surfaces that are visible by default but still setup-required
-
-## What This Path Does Not Promise
-
-This path does **not** honestly promise:
-
-- automatic host plugin installation
-- automatic MCP registration in the host platform
-- automatic provider secret provisioning
-- automatic enablement of external write-capable control planes
-- magical parity across all hosts and all platforms
-
-If those are still missing, `manual_actions_pending` is the correct result.
-
-## Platform Truth
-
-- Windows is still the strongest authoritative reference path.
-- Linux can approach the authoritative path only when `pwsh` is available and the PowerShell gate surface can run.
-- Linux without `pwsh` is still supported, but it is a degraded path, not full parity.
-- Claude Code remains `preview`.
-- Generic hosts remain advisory / contract-consumer territory unless separately proven.
+`TargetRoot` is only a path.
+`HostId` / `--host` decides host semantics.
 
 ## Recommended Commands
 
-### Windows
+Default full install:
+
+### Codex
 
 ```powershell
-pwsh -File .\scripts\bootstrap\one-shot-setup.ps1
-pwsh -File .\check.ps1 -Profile full -Deep
+pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId codex -Profile full
+pwsh -File .\check.ps1 -HostId codex -Profile full -Deep
 ```
-
-### Linux / macOS
 
 ```bash
-bash ./scripts/bootstrap/one-shot-setup.sh
-bash ./check.sh --profile full --deep
+bash ./scripts/bootstrap/one-shot-setup.sh --host codex --profile full
+bash ./check.sh --host codex --profile full --deep
 ```
 
-## What "Done" Looks Like
+### Claude Code
 
-For the standard recommended install, "done" means:
+```powershell
+pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId claude-code -Profile full
+pwsh -File .\check.ps1 -HostId claude-code -Profile full -Deep
+```
 
-- bootstrap succeeded
-- deep doctor succeeded
-- repo-governed surfaces are closed
-- remaining host-managed gaps are clearly listed
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host claude-code --profile full
+bash ./check.sh --host claude-code --profile full --deep
+```
 
-Concretely:
+### Cursor
 
-- `scrapling` should either be callable or be reported as a direct missing default full-profile surface
-- `Cognee` should appear as the declared long-term enhancement lane, not as a second session-memory owner
-- `Composio / Activepieces` should appear as prewired setup-required surfaces, not as fake core-install failures
+```powershell
+pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId cursor -Profile full
+pwsh -File .\check.ps1 -HostId cursor -Profile full -Deep
+```
 
-Possible truthful end states:
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host cursor --profile full
+bash ./check.sh --host cursor --profile full --deep
+```
 
-- `fully_ready`
-- `manual_actions_pending`
+### Windsurf
 
-The state that should block adoption is:
+```powershell
+pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId windsurf -Profile full
+pwsh -File .\check.ps1 -HostId windsurf -Profile full -Deep
+```
 
-- `core_install_incomplete`
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host windsurf --profile full
+bash ./check.sh --host windsurf --profile full --deep
+```
 
-## How To Enhance After The Standard Recommended Install
+### OpenClaw
 
-Do not add everything at once. A safer order is:
+```powershell
+pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId openclaw -Profile full
+pwsh -File .\check.ps1 -HostId openclaw -Profile full -Deep
+```
 
-1. add provider secrets
-   Start with the keys required for the workflows you actually use.
-2. verify the default local runtime lane
-   In practice, confirm that `scrapling` is callable if you want the out-of-box scraping surface from the full profile.
-3. keep the memory lane clean
-   Treat `Cognee` as the governed long-term graph-memory owner only. Do not let it replace `state_store`.
-4. add recommended host plugins
-   Prioritize `superpowers` and `hookify`.
-5. add plugin-backed MCP surfaces
-   For example `github`, `context7`, and `serena`.
-6. wire external action integrations only when you truly need them
-   `Composio` and `Activepieces` stay predeclared, confirm-gated, and setup-required by design.
-7. only add the remaining host plugins when doctor still points to a concrete gap
-   For example `everything-claude-code`, `claude-code-settings`, and `ralph-loop`.
-8. add optional CLI enhancements
-   For example `claude-flow`, `xan`, and `ivy`.
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host openclaw --profile full
+bash ./check.sh --host openclaw --profile full --deep
+```
 
-## When You Should Escalate To The Enterprise-Governed Path
+If you want the “Framework Only + Customizable Governance” variant, replace `full` with `minimal`.
 
-Move beyond the standard recommended path when you need:
+## Upgrade Flow
 
-- repeatable audited rollout
-- fixed release/version evidence
-- ownership for host-managed provisioning
-- rollback-ready install governance
+If you still have a local checkout, update the repo first and then rerun the same commands:
 
-See:
+```bash
+git pull origin main
+```
 
-- [`enterprise-governed-path.md`](./enterprise-governed-path.md)
-- [`host-plugin-policy.en.md`](./host-plugin-policy.en.md)
-- [`../cold-start-install-paths.en.md`](../cold-start-install-paths.en.md)
+If you follow tagged releases instead of `main`, use:
+
+```bash
+git fetch --tags --force
+git checkout vX.Y.Z
+```
+
+## Boundaries That Must Stay Explicit
+
+### Codex
+
+- this is the governed path
+- hooks remain frozen; that is not an install failure
+- `OPENAI_*` only covers Codex base online provider access
+- `VCO_AI_PROVIDER_*` is the optional governance-AI online layer
+
+### Claude Code
+
+- this host has a supported install-and-use path
+- it does not overwrite the real `~/.claude/settings.json`
+- hooks remain frozen; that is not an install failure
+
+### Cursor
+
+- this host has a supported install-and-use path
+- it does not overwrite the real `~/.cursor/settings.json`
+- Cursor-native settings and extension surfaces remain managed on the Cursor side
+
+### Windsurf
+
+- this host has a supported install-and-use path with runtime-adapter integration
+- the default root is `~/.codeium/windsurf`
+- the repo currently owns only shared runtime payload plus optional materialization of `mcp_config.json` and `global_workflows/`
+- Windsurf-native local settings remain managed on the Windsurf side
+
+### OpenClaw
+
+- this host is described with the `preview` / `runtime-core-preview` / `runtime-core` wording
+- the default target root is `OPENCLAW_HOME` or `~/.openclaw`
+- attach / copy / bundle center on runtime-core payload install, validation, and distribution
+- OpenClaw-local configuration remains managed on the OpenClaw side

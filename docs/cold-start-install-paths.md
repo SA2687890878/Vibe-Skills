@@ -1,98 +1,131 @@
 # 冷启动安装路径
 
-这份文档只回答冷启动阶段最重要的问题：当前支持哪个宿主、该走哪条路径。
+这份文档只回答冷启动阶段最重要的问题：当前支持哪个宿主，以及每个宿主最短的 truth-first 安装路径。
 
 ## 一句话结论
 
-当前公开安装面支持三个宿主：
+当前公开支持六个宿主：
 
 - `codex`
 - `claude-code`
+- `cursor`
+- `windsurf`
+- `openclaw`
 - `opencode`
 
 其中：
 
-- `codex`：正式推荐路径
-- `claude-code`：预览指导路径
-- `opencode`：预览适配路径
+- `codex`：governed 正式路径
+- `claude-code`：preview guidance
+- `cursor`：preview guidance
+- `windsurf`：preview runtime-core
+- `openclaw`：`preview` / `runtime-core-preview` / `runtime-core`
+- `opencode`：preview adapter
 
-如果你要装到其他代理，当前版本应视为不支持，而不是改走隐藏 lane。
+其他宿主当前都不应被描述成“已支持安装”。
 
-## 路径一：Codex
-
-Windows:
-
-```powershell
-pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId codex
-pwsh -File .\check.ps1 -HostId codex -Profile full -Deep
-```
-
-Linux / macOS:
+## Codex
 
 ```bash
-bash ./scripts/bootstrap/one-shot-setup.sh --host codex
+bash ./scripts/bootstrap/one-shot-setup.sh --host codex --profile full
 bash ./check.sh --host codex --profile full --deep
 ```
 
 你会得到：
 
-- governed payload
-- 可选的 provider seed 写入
-- MCP active profile 物化
+- governed runtime payload
+- 可选的 Codex 本地 settings / MCP 建议
 - deep health check
 
 你不会得到：
 
-- hook 安装
+- hook 自动安装
+- 自动完成治理 AI online readiness
 
-## 路径二：Claude Code
+后续动作：
 
-Windows:
+- 看 `~/.codex/settings.json`
+- 区分 `OPENAI_*` 与 `VCO_AI_PROVIDER_*`
 
-```powershell
-pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId claude-code
-pwsh -File .\check.ps1 -HostId claude-code -Profile full -Deep
-```
-
-Linux / macOS:
+## Claude Code
 
 ```bash
-bash ./scripts/bootstrap/one-shot-setup.sh --host claude-code
+bash ./scripts/bootstrap/one-shot-setup.sh --host claude-code --profile full
 bash ./check.sh --host claude-code --profile full --deep
 ```
 
 你会得到：
 
-- runtime payload
-- preview guidance health check
+- preview guidance payload
+- preview health check
 
 你不会得到：
 
-- 自动覆盖真实 `settings.json`
-- hook 安装
-- 自动插件 provision
-- 自动 MCP 宿主注册
-- 自动 provider secret 写入
+- full closure
+- 覆盖真实 `~/.claude/settings.json`
+- hook 自动安装
 
-## Claude Code 的正确后续动作
+## Cursor
 
-- 打开 `~/.claude/settings.json`
-- 只在 `env` 下补你需要的字段
-- 常见是 `VCO_AI_PROVIDER_URL`、`VCO_AI_PROVIDER_API_KEY`、`VCO_AI_PROVIDER_MODEL`
-- 如宿主连接需要，再补 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`
-- 当前版本不会再生成 `settings.vibe.preview.json`
-- 不要把密钥贴到聊天里
-
-## 路径三：OpenCode
-
-Windows:
-
-```powershell
-pwsh -NoProfile -File .\install.ps1 -HostId opencode
-pwsh -NoProfile -File .\check.ps1 -HostId opencode
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host cursor --profile full
+bash ./check.sh --host cursor --profile full --deep
 ```
 
-Linux / macOS:
+你会得到：
+
+- preview guidance payload
+- preview health check
+
+你不会得到：
+
+- full closure
+- 覆盖真实 `~/.cursor/settings.json`
+- Cursor host-native provider / MCP / hook 闭环
+
+## Windsurf
+
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host windsurf --profile full
+bash ./check.sh --host windsurf --profile full --deep
+```
+
+你会得到：
+
+- shared runtime payload
+- `~/.codeium/windsurf` 下的 runtime-core 预览安装结果
+- 按需物化 `mcp_config.json`
+- 按需物化 `global_workflows/`
+
+你不会得到：
+
+- full closure
+- 宿主侧本地配置的自动代管
+
+## OpenClaw
+
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host openclaw --profile full
+bash ./check.sh --host openclaw --profile full --deep
+```
+
+你会得到：
+
+- shared runtime payload
+- OpenClaw runtime-core 预览安装路径，默认目标根目录为 `OPENCLAW_HOME` 或 `~/.openclaw`
+- attach / copy / bundle 三路径口径：
+  - attach：把已有 `OPENCLAW_HOME`（或 `~/.openclaw`）作为目标根目录进行接入与校验
+  - copy：通过 install/check 入口把 runtime-core payload 复制到目标根目录
+  - bundle：按 `dist/host-openclaw/manifest.json` 与 `dist/manifests/vibeskills-openclaw.json` 消费 runtime-core 分发清单
+- 明确保持 host-managed 边界
+- 聚焦 runtime-core payload 的安装、校验与分发路径
+
+你不会得到：
+
+- full closure
+- 自动代管 OpenClaw 宿主本地配置
+
+## OpenCode
 
 ```bash
 bash ./install.sh --host opencode
@@ -102,29 +135,27 @@ bash ./check.sh --host opencode
 你会得到：
 
 - runtime-core payload
-- VibeSkills 技能载荷
-- OpenCode command/agent 包装器
+- VibeSkills skill payload
+- OpenCode command / agent wrappers
 - `opencode.json.example`
 
 你不会得到：
 
 - one-shot bootstrap
-- 自动覆盖真实 `opencode.json`
-- 自动 plugin provision
-- 自动 provider secret 写入
-- 自动 MCP 信任决策
+- 覆盖真实 `~/.config/opencode/opencode.json`
+- 自动 plugin 安装
+- 自动写入 provider 凭据
+- 自动替你做 MCP 信任决策
 
-## OpenCode 的正确后续动作
+后续动作：
 
-- 需要全局安装时，默认目标根目录是 `OPENCODE_HOME`，否则是 `~/.config/opencode`
-- 需要项目隔离时，用 `--target-root ./.opencode`
-- 自己处理真实 `opencode.json`
-- 自己补 provider 凭据、plugin 安装和 MCP 信任
-- 细节看 [`install/opencode-path.md`](./install/opencode-path.md)
+- 默认目标根目录是 `OPENCODE_HOME`，否则是 `~/.config/opencode`
+- 如果你要项目内隔离安装，改用 `--target-root ./.opencode`
+- 继续看 [`install/opencode-path.md`](./install/opencode-path.md)
 
-## 冷启动阶段最重要的边界
+## 冷启动阶段必须守住的边界
 
-- `HostId` / `--host` 决定宿主语义，不是路径名决定
-- 当前没有其他宿主的公开安装入口
-- hook 当前因兼容性问题被冻结，不在支持宿主的安装面里
-- 如果本地还没配好 `url` / `apikey` / `model`，不能描述成“已完成 online readiness”
+- `HostId` / `--host` 决定宿主语义
+- hook 当前在公开支持面里统一冻结；这不是安装失败
+- 本地 provider 字段没配好时，不能说环境已 online ready
+- 不要要求用户把密钥贴到聊天里

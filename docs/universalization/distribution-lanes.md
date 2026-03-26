@@ -32,6 +32,9 @@ Dist manifests may point to these assets, but must not replace them.
 | `host-codex` | strongest host adapter lane | governed-with-constraints | supported-with-constraints |
 | `host-claude-code` | preview host adapter lane | preview-scaffold via shared entrypoints | preview only |
 | `host-opencode` | preview host adapter lane | preview-scaffold via shared entrypoints | preview only |
+| `host-cursor` | preview host adapter lane | preview-scaffold via shared entrypoints | preview only |
+| `host-windsurf` | preview host adapter lane using documented Windsurf root | runtime-core-preview via shared entrypoints | preview only |
+| `host-openclaw` | preview host adapter lane using documented OpenClaw root | runtime-core-preview via shared entrypoints | preview only |
 | `generic` | neutral contract consumer lane | runtime-core-only via neutral target root | advisory-only |
 
 ## Important Boundary
@@ -46,6 +49,11 @@ Dist manifests may point to these assets, but must not replace them.
 
 - the repo may install bounded host-native payload such as wrapper files or example config
 - the repo still does not claim final host settings ownership or replay-backed platform parity
+`runtime-core-preview` means:
+
+- the repo can install canonical runtime-core payload into a documented host root such as `~/.codeium/windsurf` or `~/.openclaw`
+- the repo may materialize host-facing bridge files such as `mcp_config.json` or `global_workflows/`
+- the repo still does **not** claim host-native settings, login, plugin, workspace, or credential closure
 
 ## Truth Sources
 

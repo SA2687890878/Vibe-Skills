@@ -1,98 +1,126 @@
 # Cold-Start Install Paths
 
-This document answers the only cold-start questions that matter right now: which hosts are supported, and which path you should use.
+This document answers the only cold-start questions that matter right now: which hosts are supported, and what the shortest truth-first install path looks like for each.
 
 ## One-Line Conclusion
 
-The current public install surface supports three hosts:
+The current public surface supports six hosts:
 
 - `codex`
 - `claude-code`
+- `cursor`
+- `windsurf`
+- `openclaw`
 - `opencode`
 
 Within that scope:
 
-- `codex`: recommended path
-- `claude-code`: preview guidance path
-- `opencode`: preview adapter path
+- `codex`: governed path
+- `claude-code`: preview guidance
+- `cursor`: preview guidance
+- `windsurf`: preview runtime-core
+- `openclaw`: `preview` / `runtime-core-preview` / `runtime-core`
+- `opencode`: preview adapter
 
-If you want another agent, the current version should be treated as unsupported rather than silently routed into a hidden lane.
+Other hosts should not currently be described as supported installation targets.
 
-## Path 1: Codex
-
-Windows:
-
-```powershell
-pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId codex
-pwsh -File .\check.ps1 -HostId codex -Profile full -Deep
-```
-
-Linux / macOS:
+## Codex
 
 ```bash
-bash ./scripts/bootstrap/one-shot-setup.sh --host codex
+bash ./scripts/bootstrap/one-shot-setup.sh --host codex --profile full
 bash ./check.sh --host codex --profile full --deep
 ```
 
 What you get:
 
-- governed payload
-- optional provider seeding
-- MCP active profile materialization
+- governed runtime payload
+- local settings / MCP guidance
 - deep health check
 
 What you do not get:
 
-- hook installation
+- automatic hooks
+- automatic governance-AI online readiness
 
-## Path 2: Claude Code
-
-Windows:
-
-```powershell
-pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId claude-code
-pwsh -File .\check.ps1 -HostId claude-code -Profile full -Deep
-```
-
-Linux / macOS:
+## Claude Code
 
 ```bash
-bash ./scripts/bootstrap/one-shot-setup.sh --host claude-code
+bash ./scripts/bootstrap/one-shot-setup.sh --host claude-code --profile full
 bash ./check.sh --host claude-code --profile full --deep
 ```
 
 What you get:
 
-- runtime payload
-- preview guidance health check
+- preview-guidance payload
+- preview health check
 
 What you do not get:
 
-- automatic overwrite of the real `settings.json`
-- hook installation
-- automatic plugin provisioning
-- automatic host MCP registration
-- automatic provider secret wiring
+- full closure
+- overwrite of the real `~/.claude/settings.json`
+- automatic hooks
 
-## Correct Follow-Up For Claude Code
+## Cursor
 
-- open `~/.claude/settings.json`
-- add only the fields you need under `env`
-- common fields are `VCO_AI_PROVIDER_URL`, `VCO_AI_PROVIDER_API_KEY`, and `VCO_AI_PROVIDER_MODEL`
-- add `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` only when needed for the host connection
-- the current version no longer generates `settings.vibe.preview.json`
-- do not paste secrets into chat
-
-## Path 3: OpenCode
-
-Windows:
-
-```powershell
-pwsh -NoProfile -File .\install.ps1 -HostId opencode
-pwsh -NoProfile -File .\check.ps1 -HostId opencode
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host cursor --profile full
+bash ./check.sh --host cursor --profile full --deep
 ```
 
-Linux / macOS:
+What you get:
+
+- preview-guidance payload
+- preview health check
+
+What you do not get:
+
+- full closure
+- overwrite of the real `~/.cursor/settings.json`
+- Cursor host-native provider / MCP / hook closure
+
+## Windsurf
+
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host windsurf --profile full
+bash ./check.sh --host windsurf --profile full --deep
+```
+
+What you get:
+
+- shared runtime payload
+- a runtime-core preview install under `~/.codeium/windsurf`
+- optional `mcp_config.json` materialization
+- optional `global_workflows/` materialization
+
+What you do not get:
+
+- full closure
+- automatic takeover of host-local configuration
+
+## OpenClaw
+
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host openclaw --profile full
+bash ./check.sh --host openclaw --profile full --deep
+```
+
+What you get:
+
+- shared runtime payload
+- an OpenClaw runtime-core preview install path, with default target root from `OPENCLAW_HOME` or `~/.openclaw`
+- explicit attach / copy / bundle path semantics:
+  - attach: connect and validate an existing `OPENCLAW_HOME` (or `~/.openclaw`) target root
+  - copy: use install/check entrypoints to copy runtime-core payload into the target root
+  - bundle: consume runtime-core distribution manifests from `dist/host-openclaw/manifest.json` and `dist/manifests/vibeskills-openclaw.json`
+- explicit host-managed boundaries
+- a runtime-core-focused install, validation, and distribution path
+
+What you do not get:
+
+- full closure
+- automatic takeover of OpenClaw-local configuration
+
+## OpenCode
 
 ```bash
 bash ./install.sh --host opencode
@@ -103,28 +131,26 @@ What you get:
 
 - runtime-core payload
 - VibeSkills skill payload
-- OpenCode command/agent wrappers
+- OpenCode command / agent wrappers
 - `opencode.json.example`
 
 What you do not get:
 
 - one-shot bootstrap
-- automatic overwrite of the real `opencode.json`
-- automatic plugin provisioning
-- automatic provider secret wiring
+- overwrite of the real `~/.config/opencode/opencode.json`
+- automatic plugin installation
+- automatic provider credential wiring
 - automatic MCP trust decisions
 
-## Correct Follow-Up For OpenCode
+Next actions:
 
-- for a global install, the default target root is `OPENCODE_HOME`, otherwise `~/.config/opencode`
-- for project isolation, use `--target-root ./.opencode`
-- manage the real `opencode.json` locally
-- add provider credentials, plugin installation, and MCP trust locally
-- for the detailed path note, read [`install/opencode-path.en.md`](./install/opencode-path.en.md)
+- the default target root is `OPENCODE_HOME`, otherwise `~/.config/opencode`
+- for project-local isolation, use `--target-root ./.opencode`
+- read [`install/opencode-path.en.md`](./install/opencode-path.en.md)
 
-## Most Important Cold-Start Boundary
+## Boundaries That Must Hold During Cold Start
 
-- `HostId` / `--host` decides host semantics, not the folder name alone
-- there is no public install entry for any other host in the current version
-- hooks are currently frozen because of compatibility issues and are outside the supported install surface
-- if `url` / `apikey` / `model` are not configured locally yet, the environment must not be described as online-ready
+- `HostId` / `--host` decides host semantics
+- hooks remain frozen across the current public surface; that is not an install failure
+- if local provider fields are not configured, the environment must not be described as online-ready
+- do not ask users to paste secrets into chat

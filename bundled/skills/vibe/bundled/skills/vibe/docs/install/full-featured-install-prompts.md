@@ -28,7 +28,7 @@
 
 ```text
 请你把当前仓库按 VibeSkills 标准推荐安装路径装好，并严格遵守 truth-first 原则：
-
+仓库地址：https://github.com/foryourhealth111-pixel/Vibe-Skills
 1. 先识别当前系统是 Windows 还是 Linux。
 2. 如果是 Windows：
    - 优先使用 `pwsh -File .\scripts\bootstrap\one-shot-setup.ps1`
@@ -47,11 +47,22 @@
    - 还缺哪些 host-managed surfaces
    - 是否已经达到当前平台可宣称的“当前最强支持路径”
 5. 不要把宿主插件、外部 MCP、provider secrets 伪装成已经自动装好。
-6. 如果结果是 `manual_actions_pending`，请继续列出剩余人工动作，不要把它说成失败。
-7. 如果需要补宿主插件，遵守当前默认策略：
-   - 优先建议 `superpowers`、`hookify`
-   - 不要默认要求第一次就安装 `everything-claude-code`、`claude-code-settings`、`ralph-loop`
-8. 在整个过程中，不要修改仓库运行时逻辑；只做安装、检查、结论整理。
+6. 如果结果是 `manual_actions_pending`，请继续列出剩余人工动作，并把它整理成推荐的下一步，不要把它说成失败。
+7. 如果需要补 MCP 或本地配置，只围绕宿主当前可官方证明支持的能力给建议；并用推荐口吻说明：当前 hook 安装面仍在作者处理兼容性，因此暂未开放，这不是安装失败。
+8. 对 Claude Code：
+   - 不要要求我把 key 粘贴到聊天里
+   - 告诉我打开 `~/.claude/settings.json`
+   - 只在 `env` 下补充缺少字段，例如 `VCO_AI_PROVIDER_URL`、`VCO_AI_PROVIDER_API_KEY`、`VCO_AI_PROVIDER_MODEL`
+   - 如有需要，再按实际宿主连接方式补 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN`
+   - 当前版本不会再写 `settings.vibe.preview.json`
+9. 对 Codex：
+   - 推荐告诉我：当前 hook 安装面暂未开放，主要是作者还在处理兼容性；这不代表安装有问题
+   - 只围绕 `~/.codex` 下的本地设置、官方 MCP 注册和可选 CLI 依赖给建议
+   - 如果需要在线模型能力，告诉我去 `~/.codex/settings.json` 的 `env` 或本地环境变量里配置 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 等值
+   - 同时明确告诉我：`OPENAI_*` 只代表 Codex 基础在线 provider，不等于治理 AI 在线层已经配置完成
+   - 如果还要启用治理 AI 在线层，把 `VCO_AI_PROVIDER_URL`、`VCO_AI_PROVIDER_API_KEY`、`VCO_AI_PROVIDER_MODEL` 作为可选增强设置推荐给我，我可以按需继续让你补装
+10. 在整个过程中，不要修改仓库运行时逻辑；只做安装、检查、结论整理。
+> 提醒：AI 智能治理层相关配置必须由用户在本地文件或本地环境变量中填写。不要要求用户在聊天里直接提供 `url`、`apikey`、`model`。
 ```
 
 ## Windows 满血安装提示词
@@ -65,7 +76,7 @@
 
 ```text
 请你把当前仓库按 Windows 推荐满血路径安装好。
-
+仓库地址：https://github.com/foryourhealth111-pixel/Vibe-Skills
 要求：
 
 1. 使用 `pwsh` 优先执行：
@@ -80,9 +91,8 @@
    - 哪些 host-managed surfaces 还需要手工 provision
 4. 不要把宿主插件、provider secrets、plugin-backed MCP 伪装成自动完成。
 5. 如果是 `manual_actions_pending`，请把剩余动作列成清单。
-6. 宿主插件默认策略遵守：
-   - 优先建议 `superpowers`、`hookify`
-   - 不默认要求第一次就安装 `everything-claude-code`、`claude-code-settings`、`ralph-loop`
+6. 对 Codex 只围绕本地 settings、官方 MCP 和可选 CLI 依赖给建议；并用推荐口吻说明当前 hook 安装面仍在作者处理兼容性，因此暂未开放，这不是安装失败。
+7. 如果需要启用 AI 智能治理层相关配置，不要让我把 `url`、`apikey`、`model` 发到聊天里，而是告诉我应该在本地哪里配置。
 ```
 
 ## Linux 满血安装提示词
@@ -96,7 +106,7 @@
 
 ```text
 请你把当前仓库按 Linux 推荐满血路径安装好，并先判断当前 Linux 是否具备 `pwsh`。
-
+仓库地址：https://github.com/foryourhealth111-pixel/Vibe-Skills
 要求：
 
 1. 先检查 `pwsh` 是否可用。
@@ -111,22 +121,13 @@
    - readiness_state
    - 是否仍有 host-managed surfaces 未补齐
    - 是否建议我继续补 `pwsh`
-   - 是否建议我继续补宿主插件
-6. 默认宿主插件策略遵守：
-   - 优先建议 `superpowers`、`hookify`
-   - 不默认要求第一次就安装 `everything-claude-code`、`claude-code-settings`、`ralph-loop`
-7. 如果结果为 `manual_actions_pending`，列出剩余人工动作，不要把它说成安装失败。
+   - 是否建议我继续补官方支持的 MCP 或本地配置，并把这些内容当作可选增强项来推荐
+6. 用推荐口吻说明当前 hook 安装面仍在作者处理兼容性，因此暂未开放，这不是安装失败。
+7. 如果结果为 `manual_actions_pending`，列出剩余人工动作，并把它说成推荐补齐项，不要把它说成安装失败。
+> 提醒：AI 智能治理层相关配置必须由用户在本地文件或本地环境变量中填写。不要要求用户在聊天里直接提供 `url`、`apikey`、`model`。
+
 ```
 
-## 新手简版提示词
-
-如果你只是想让用户“一句话开装”，可以给这个短版本：
-
-```text
-请按当前平台的 VibeSkills 推荐满血路径帮我完成安装：
-自动识别 Windows / Linux，运行 one-shot bootstrap 和 deep doctor，并严格区分 fully_ready、manual_actions_pending、core_install_incomplete。
-不要伪装宿主插件、MCP、provider secrets 已自动装好；如果仍需人工动作，请列出清单。默认优先建议 `superpowers`、`hookify`，不要默认要求第一次就把其他 3 个宿主插件全装上。
-```
 
 ## 给用户的话术建议
 
@@ -137,6 +138,5 @@
 ## 相关文档
 
 - [`recommended-full-path.md`](./recommended-full-path.md)
-- [`host-plugin-policy.md`](./host-plugin-policy.md)
 - [`../one-shot-setup.md`](../one-shot-setup.md)
 - [`../cold-start-install-paths.md`](../cold-start-install-paths.md)

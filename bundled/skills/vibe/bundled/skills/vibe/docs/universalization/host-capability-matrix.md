@@ -7,7 +7,8 @@
 This matrix freezes the difference between:
 
 - official runtime ownership
-- host adapter preview support
+- preview scaffold support
+- runtime-core-only neutral lanes
 - advisory-only contract consumption
 
 It prevents the project from collapsing all hosts into a fake "one runtime fits all" story.
@@ -17,18 +18,21 @@ It prevents the project from collapsing all hosts into a fake "one runtime fits 
 | Status | Meaning |
 | --- | --- |
 | `supported-with-constraints` | repo has real host evidence and a bounded support claim, but some surfaces remain host-managed |
-| `preview` | adapter contract exists, but proof bundle is incomplete |
-| `not-yet-proven` | host is named in the migration target, but there is no verified runtime contract yet |
-| `advisory-only` | host may consume canonical contracts, but the repo makes no runtime closure claim |
+| `preview` | adapter contract exists and scaffold/check proof exists, but full host closure is still incomplete |
+| `not-yet-proven` | host is named in the migration target, but there is no verified host-native runtime contract yet |
+| `advisory-only` | host may consume canonical contracts or runtime-core payload, but the repo makes no host closure claim |
 
 ## Host Matrix
 
 | Host | Status | Runtime Role | Settings Contract | Plugin/MCP Contract | Release Closure | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| Codex | `supported-with-constraints` | official-runtime-adapter | repo template + materialization exist | host-managed but documented | strongest current path | this is the current practical reference lane |
-| Claude Code | `preview` | host-adapter-preview | template exists | mostly host-managed | not yet frozen | adapter may be built, but not marketed as full |
-| OpenCode | `not-yet-proven` | future-host-adapter | none yet | none yet | none yet | no overclaim until contract + replay exist |
-| Generic Host | `advisory-only` | contract-consumer | host-defined | host-defined | none | canonical skill truth can be consumed without runtime promise |
+| Codex | `supported-with-constraints` | official-runtime-adapter | repo template + materialization exist | host-managed but documented | strongest current path | current reference lane |
+| Claude Code | `preview` | host-adapter-preview | repo scaffold exists | mostly host-managed | preview-scaffold | install/check can scaffold and verify preview truth |
+| Cursor | `preview` | host-adapter-preview | preview guidance only | mostly host-managed | preview-scaffold | shared entrypoints exist, but host-native closure is not claimed |
+| Windsurf | `preview` | official-runtime-adapter | runtime-core host-root install/check exists | host-managed beyond runtime-core payload | runtime-core-preview | documented host root with shared runtime-core payload only |
+| OpenClaw | `preview` | official-runtime-adapter | runtime-core host-root install/check exists | host-managed beyond runtime-core payload | runtime-core-preview | attach / copy / bundle are supported, but host-native closure is not claimed |
+| OpenCode | `not-yet-proven` | future-host-adapter | neutral runtime-core only | none yet | runtime-core-only | no host-native closure yet |
+| Generic Host | `advisory-only` | contract-consumer | neutral runtime-core only | host-defined | runtime-core-only | canonical skill truth can be consumed without host promise |
 
 ## Capability Guidance
 
@@ -39,18 +43,35 @@ It prevents the project from collapsing all hosts into a fake "one runtime fits 
 
 ### Claude Code
 
-- Existing template proves configuration intent.
-- No governed install/check closure lane in this repository yet.
+- The repo can now scaffold preview settings + hooks and run preview health checks.
+- This is still not a full Claude Code closure claim.
+
+### Cursor
+
+- The repo can expose preview guidance and truthful check surfaces through the shared install/check entrypoints.
+- Cursor-native settings, plugin enablement, MCP registration, and provider credentials remain host-managed.
+
+### Windsurf
+
+- The repo can install and verify a shared runtime-core payload into `WINDSURF_HOME` or `~/.codeium/windsurf`.
+- Supported wording is locked to `preview` with `runtime-core-preview` closure, not host-native closure.
+- Attach / copy / bundle are valid delivery paths, but login, provider access, plugin provisioning, and native settings surfaces remain host-managed.
+
+### OpenClaw
+
+- The repo can install and verify a shared runtime-core payload into `OPENCLAW_HOME` or `~/.openclaw`.
+- Supported wording is locked to `preview` with `runtime-core-preview` closure, not host-native closure.
+- Attach / copy / bundle are valid delivery paths, but login, provider access, plugin provisioning, and native settings surfaces remain host-managed.
 
 ### OpenCode
 
-- Migration target only.
-- No repository-backed capability proof yet.
+- The repo can only install neutral runtime-core payload into a non-host target root.
+- Host-native settings, plugin, and MCP semantics remain unproven.
 
 ### Generic Host
 
-- Useful for future interoperability.
-- Must never be described as an official runtime.
+- Useful when the user wants canonical skills and runtime-core only.
+- Must never be described as an official runtime or a host-native closure lane.
 
 ## Promotion Rule
 
