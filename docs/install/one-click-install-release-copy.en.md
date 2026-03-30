@@ -44,6 +44,14 @@ Outside these four docs, the other pages no longer act as public install prompt 
   - [`custom-workflow-onboarding.en.md`](./custom-workflow-onboarding.en.md)
   - [`custom-skill-governance-rules.en.md`](./custom-skill-governance-rules.en.md)
 
+## If you need to uninstall afterward
+
+The symmetric path after install is the repo-root `uninstall.ps1` / `uninstall.sh` entrypoint. It accepts the same `--host`, `--target-root`, and `--profile` arguments as `install.*`, runs uninstall directly by default, and only removes content that Vibe can prove it owns.
+
+- Full contract: [`../uninstall-governance.md`](../uninstall-governance.md)
+- Add `--preview` if you want to inspect the planned deletions first
+- It does not roll back host-managed login state, provider credentials, plugin state, or user-maintained config by default
+
 ## About Follow-Up Configuration
 
 - the base install can be used directly once it finishes

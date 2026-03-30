@@ -8,6 +8,10 @@ This directory contains the public install, upgrade, and custom-integration docs
 
 - [`one-click-install-release-copy.en.md`](./one-click-install-release-copy.en.md): the single public install entry; choose host, action, and version there, then copy the matching prompt
 
+### Public Uninstall Entry
+
+- [`uninstall.ps1` / `uninstall.sh` (root)](../uninstall.ps1) + [`docs/uninstall-governance.md`](../uninstall-governance.md): the owned-only uninstall contract; these scripts mirror `install.*` arguments and only remove Vibe-managed payloads recorded in the install ledger or closure metadata.
+
 ### Reference Docs
 
 - [`recommended-full-path.en.md`](./recommended-full-path.en.md): multi-host install command reference

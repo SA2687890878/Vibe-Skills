@@ -485,6 +485,10 @@ The runtime core behind **VibeSkills** is **VCO**. This is not a single-point to
 
 _Skills keep growing — but you don't need to manage them individually._
 
+### Uninstall: Owned-only cleanup
+
+Running `uninstall.ps1` or `uninstall.sh --host <host>` is the partner surface to install. By default it performs a ledger-first, owned-only cleanup that only touches paths recorded in `.vibeskills/install-ledger.json`, `*.host-closure.json`, or the documented legacy surfaces. The full contract lives in [`docs/uninstall-governance.md`](./docs/uninstall-governance.md) so operators always know which host files Vibe actually owns.
+
 ### Install: One entry, two public versions
 
 <div align="center">

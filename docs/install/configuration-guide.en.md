@@ -144,6 +144,10 @@ Common default roots:
 - `provider_unreachable`: network, DNS, base-url reachability, or timeout is failing
 - `prefix_required`: the current policy only evaluates advice in explicit `/vibe` scope
 
+## Owned-only uninstall cleanup
+
+When you need to reverse an install, run `pwsh -NoProfile -File ..\..\uninstall.ps1 --host <host> --target-root <root>` or, on Linux/macOS, `bash ./uninstall.sh ...`. The uninstallers honor the ledger-first contract described in [`docs/uninstall-governance.md`](../uninstall-governance.md) and will only delete Vibe-managed surfaces recorded in the install ledger, closure manifest, or documented legacy payloads.
+
 ## Short practical conclusion
 
 If you want the fastest path for a common OpenAI-compatible setup:

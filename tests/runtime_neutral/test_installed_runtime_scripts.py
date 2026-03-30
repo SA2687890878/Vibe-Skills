@@ -258,6 +258,24 @@ class InstalledRuntimeScriptsTests(unittest.TestCase):
         self.assertIn("duplicate Codex-discovered vibe skill surface", check_result.stdout)
         self.assertNotIn("safe_parent_dir: command not found", check_result.stderr)
 
+    def test_shell_install_writes_install_ledger(self) -> None:
+        self.install_shell_runtime("codex")
+        ledger_path = self.target_root / ".vibeskills" / "install-ledger.json"
+        self.assertTrue(ledger_path.exists())
+        ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+        self.assertEqual("codex", ledger["host_id"])
+        self.assertEqual("governed", ledger["install_mode"])
+        self.assertEqual("full", ledger["profile"])
+        self.assertEqual(str(self.target_root.resolve()), ledger["target_root"])
+        self.assertEqual(str(self.target_root.resolve()), ledger["runtime_root"])
+        self.assertEqual(str((self.target_root / "skills" / "vibe").resolve()), ledger["canonical_vibe_root"])
+        self.assertIn(str(self.target_root.resolve()), ledger["created_paths"])
+        self.assertIn(str((self.target_root / "settings.json").resolve()), ledger["managed_json_paths"])
+        self.assertIn(str((self.target_root / "settings.json").resolve()), ledger["generated_from_template_if_absent"])
+        self.assertTrue(ledger["specialist_wrapper_paths"])
+        for wrapper_path in ledger["specialist_wrapper_paths"]:
+            self.assertTrue(Path(wrapper_path).exists(), f"wrapper missing: {wrapper_path}")
+
     def test_installed_shell_scripts_work_without_repo_level_adapter_registry(self) -> None:
         self.install_shell_runtime()
         self.assert_nested_runtime_skill_entrypoints_sanitized(self.target_root)
