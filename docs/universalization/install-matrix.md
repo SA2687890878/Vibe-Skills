@@ -45,3 +45,11 @@ Even when the repo can install something, these surfaces may still remain host-m
 
 - `docs/universalization/host-capability-matrix.md`
 - `docs/universalization/official-runtime-baseline.md`
+
+## Uninstall Lane
+
+| Lane | Uninstall Entry | Closure Level | Notes |
+| --- | --- | --- | --- |
+| `owned-only` | `uninstall.ps1`, `uninstall.sh` | owned-only | Only removes paths recorded by the install ledger (`.vibeskills/install-ledger.json`), host closure manifests, or the surfaces documented per host in [`docs/uninstall-governance.md`](../uninstall-governance.md). |
+
+The uninstall lane deliberately avoids touching host-managed credentials, plugins, or login state even when the host root is known.

@@ -144,6 +144,17 @@ python3 ./scripts/verify/runtime_neutral/router_ai_connectivity_probe.py --targe
 - `provider_unreachable`：网络、DNS、base URL 可达性或超时有问题
 - `prefix_required`：当前策略要求在 `/vibe` 显式作用域下再检查 advice
 
+## 安装后如果要卸载
+
+当你需要回滚当前安装时，使用仓库根目录下的 `uninstall.ps1` 或 `uninstall.sh`：
+
+- Windows：
+  - `pwsh -NoProfile -File .\uninstall.ps1 --host <host> --target-root "<目标宿主根目录>"`
+- Linux / macOS：
+  - `bash ./uninstall.sh --host <host> --target-root "<目标宿主根目录>"`
+
+这两个卸载入口与 `install.*` 参数对称，默认直接执行，但遵守 [`../uninstall-governance.md`](../uninstall-governance.md) 里的 ledger-first、owned-only 契约：只删除 install ledger、host closure 或保守 legacy 规则能够证明属于 Vibe 的内容；共享配置文件里只移除 `vibeskills` 受管节点。
+
 ## 最短实践结论
 
 如果你只想最快补齐常见 OpenAI-compatible 在线能力：

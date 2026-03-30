@@ -44,6 +44,14 @@
   - [`custom-workflow-onboarding.md`](./custom-workflow-onboarding.md)
   - [`custom-skill-governance-rules.md`](./custom-skill-governance-rules.md)
 
+## 如果安装后要卸载
+
+安装的对称入口是仓库根目录下的 `uninstall.ps1` / `uninstall.sh`。它们与 `install.*` 使用同一组 `--host`、`--target-root`、`--profile` 参数，默认直接执行卸载，但只会清理 Vibe 自己安装或写入的内容。
+
+- 完整规则见 [`../uninstall-governance.md`](../uninstall-governance.md)
+- 如果你只想先看计划删除什么，可以加 `--preview`
+- 它不会默认回滚宿主登录态、provider 凭证、插件状态或你自己维护的配置
+
 ## 关于补充配置
 
 - 基础安装完成后即可直接使用
