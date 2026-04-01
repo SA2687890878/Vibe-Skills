@@ -31,10 +31,13 @@ class PythonValidationContractTests(unittest.TestCase):
 
     def test_timesfm_examples_do_not_track_generated_binary_or_web_outputs(self) -> None:
         forbidden_suffixes = {".png", ".gif", ".html"}
+        self.assertTrue(TIMESFM_OUTPUT_ROOT.exists(), "TimesFM examples root should exist")
         forbidden_paths = sorted(
             path.relative_to(REPO_ROOT).as_posix()
             for path in TIMESFM_OUTPUT_ROOT.rglob("*")
-            if path.is_file() and path.parent.name == "output" and path.suffix.lower() in forbidden_suffixes
+            if path.is_file()
+            and "output" in path.relative_to(TIMESFM_OUTPUT_ROOT).parts
+            and path.suffix.lower() in forbidden_suffixes
         )
 
         self.assertEqual([], forbidden_paths)

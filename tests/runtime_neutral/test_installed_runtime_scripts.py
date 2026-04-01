@@ -591,7 +591,10 @@ class InstalledRuntimeScriptsTests(unittest.TestCase):
             REPO_ROOT / "bundled" / "skills" / "vibe" / "install.ps1",
             REPO_ROOT / "bundled" / "skills" / "vibe" / "bundled" / "skills" / "vibe" / "install.ps1",
         ]
-        for path in (candidate for candidate in candidate_paths if candidate.exists()):
+        self.assertTrue((REPO_ROOT / "install.ps1").exists())
+        existing_paths = [candidate for candidate in candidate_paths if candidate.exists()]
+        self.assertGreaterEqual(len(existing_paths), 1)
+        for path in existing_paths:
             with self.subTest(path=path):
                 self.assertNotIn("ConvertFrom-Json -AsHashtable", path.read_text(encoding="utf-8"))
 
