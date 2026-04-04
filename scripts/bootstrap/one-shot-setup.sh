@@ -7,10 +7,18 @@ HOST_ID_EXPLICIT="false"
 TARGET_ROOT=""
 SKIP_EXTERNAL_INSTALL="false"
 STRICT_OFFLINE="false"
-OPENAI_BASE_URL="${OPENAI_BASE_URL:-}"
-OPENAI_API_KEY_INPUT=""
-ARK_BASE_URL="${ARK_BASE_URL:-}"
-ARK_API_KEY_INPUT=""
+INTENT_ADVICE_BASE_URL="${VCO_INTENT_ADVICE_BASE_URL:-}"
+INTENT_ADVICE_API_KEY_INPUT=""
+PYTHON_MIN_MAJOR=3
+PYTHON_MIN_MINOR=10
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+ADAPTER_QUERY_PY="${REPO_ROOT}/scripts/common/adapter_registry_query.py"
+INSTALL_SH="${REPO_ROOT}/install.sh"
+CHECK_SH="${REPO_ROOT}/check.sh"
+MATERIALIZE_PS1="${REPO_ROOT}/scripts/setup/materialize-codex-mcp-profile.ps1"
+PERSIST_OPENAI_PS1="${REPO_ROOT}/scripts/setup/persist-codex-openai-env.ps1"
+CLAUDE_SCAFFOLD_SH="${REPO_ROOT}/scripts/bootstrap/scaffold-claude-preview.sh"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -19,10 +27,10 @@ while [[ $# -gt 0 ]]; do
     --target-root) TARGET_ROOT="$2"; shift 2 ;;
     --skip-external-install) SKIP_EXTERNAL_INSTALL="true"; shift ;;
     --strict-offline) STRICT_OFFLINE="true"; shift ;;
-    --openai-base-url) OPENAI_BASE_URL="$2"; shift 2 ;;
-    --openai-api-key) OPENAI_API_KEY_INPUT="$2"; shift 2 ;;
-    --ark-base-url) ARK_BASE_URL="$2"; shift 2 ;;
-    --ark-api-key) ARK_API_KEY_INPUT="$2"; shift 2 ;;
+    --intent-advice-base-url) INTENT_ADVICE_BASE_URL="$2"; shift 2 ;;
+    --intent-advice-api-key) INTENT_ADVICE_API_KEY_INPUT="$2"; shift 2 ;;
+    --openai-base-url) INTENT_ADVICE_BASE_URL="$2"; shift 2 ;;
+    --openai-api-key) INTENT_ADVICE_API_KEY_INPUT="$2"; shift 2 ;;
     *)
       echo "Unknown arg: $1" >&2
       exit 1
@@ -30,47 +38,122 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+python_version_of() {
+  local candidate="$1"
+  "${candidate}" - <<'PY'
+import sys
+print(f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}")
+PY
+}
+
+python_meets_minimum() {
+  local candidate="$1"
+  local version major minor patch
+  version="$(python_version_of "${candidate}" 2>/dev/null || true)"
+  [[ -n "${version}" ]] || return 1
+  IFS='.' read -r major minor patch <<EOF
+${version}
+EOF
+  [[ -n "${major}" && -n "${minor}" ]] || return 1
+  if (( major > PYTHON_MIN_MAJOR )); then
+    return 0
+  fi
+  if (( major == PYTHON_MIN_MAJOR && minor >= PYTHON_MIN_MINOR )); then
+    return 0
+  fi
+  return 1
+}
+
+pick_supported_python() {
+  local candidate resolved=""
+  for candidate in python3 python; do
+    if ! resolved="$(command -v "${candidate}" 2>/dev/null)"; then
+      continue
+    fi
+    if [[ -n "${resolved}" ]] && python_meets_minimum "${resolved}"; then
+      printf '%s' "${resolved}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+print_python_requirement_error() {
+  local context="$1"
+  local candidate resolved version found_any="false"
+  echo "[FAIL] ${context} requires Python ${PYTHON_MIN_MAJOR}.${PYTHON_MIN_MINOR}+." >&2
+  for candidate in python3 python; do
+    if resolved="$(command -v "${candidate}" 2>/dev/null)"; then
+      found_any="true"
+      version="$(python_version_of "${resolved}" 2>/dev/null || echo unknown)"
+      echo "[FAIL] Detected ${candidate} -> ${resolved} (${version})" >&2
+    fi
+  done
+  if [[ "${found_any}" != "true" ]]; then
+    echo "[FAIL] No usable python3/python executable was found in PATH." >&2
+  fi
+  if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
+    echo "[FAIL] macOS often provides zsh plus an old/missing system Python. Install a modern Python 3.10+ and ensure 'python3 --version' reports >= ${PYTHON_MIN_MAJOR}.${PYTHON_MIN_MINOR} before rerunning." >&2
+  else
+    echo "[FAIL] Install a modern Python 3.10+ and ensure 'python3 --version' reports >= ${PYTHON_MIN_MAJOR}.${PYTHON_MIN_MINOR} before rerunning." >&2
+  fi
+}
+
 is_interactive_shell() {
   [[ -t 0 && -t 1 ]]
 }
 
 resolve_host_id() {
   local host_id="${1:-${VCO_HOST_ID:-codex}}"
-  host_id="$(printf '%s' "${host_id}" | tr '[:upper:]' '[:lower:]')"
-  case "${host_id}" in
-    codex) printf '%s' 'codex' ;;
-    claude|claude-code) printf '%s' 'claude-code' ;;
-    cursor) printf '%s' 'cursor' ;;
-    windsurf) printf '%s' 'windsurf' ;;
-    openclaw) printf '%s' 'openclaw' ;;
-    *)
-      echo "[FAIL] Unsupported VCO host id: ${host_id}. Supported values: codex, claude-code, cursor, windsurf, openclaw" >&2
-      exit 1
-      ;;
-  esac
+  adapter_query_for_host "${host_id}" "id"
 }
 
 prompt_for_host_id() {
-  local choice normalized
+  local choice normalized count i alias
+  local index id summary aliases
+  local -a choice_ids=()
+  local -a choice_summaries=()
+  local -a choice_aliases=()
+  local -a alias_list=()
+
+  while IFS=$'\t' read -r index id summary aliases; do
+    [[ -n "${index}" ]] || continue
+    choice_ids+=("${id}")
+    choice_summaries+=("${summary}")
+    choice_aliases+=("${aliases}")
+  done < <(bootstrap_choice_lines)
+
+  count="${#choice_ids[@]}"
+  if [[ "${count}" -eq 0 ]]; then
+    echo "[FAIL] No bootstrap host choices were available from the adapter registry." >&2
+    exit 1
+  fi
+
   echo "Select the install target before bootstrap:"
-  echo "  1) codex        - strongest governed lane"
-  echo "  2) claude-code  - supported install/use path"
-  echo "  3) cursor       - supported install/use path"
-  echo "  4) windsurf     - supported path + runtime adapter"
-  echo "  5) openclaw     - preview runtime-core adapter"
+  for ((i=0; i<count; i++)); do
+    printf '  %d) %-12s - %s\n' "$((i + 1))" "${choice_ids[i]}" "${choice_summaries[i]}"
+  done
+
   while true; do
-    read -r -p "Install into which agent? [1-5]: " choice
+    read -r -p "Install into which agent? [1-${count}]: " choice
     normalized="$(printf '%s' "${choice}" | tr '[:upper:]' '[:lower:]' | xargs)"
-    case "${normalized}" in
-      1|codex) HOST_ID='codex'; return 0 ;;
-      2|claude|claude-code) HOST_ID='claude-code'; return 0 ;;
-      3|cursor) HOST_ID='cursor'; return 0 ;;
-      4|windsurf) HOST_ID='windsurf'; return 0 ;;
-      5|openclaw) HOST_ID='openclaw'; return 0 ;;
-      *)
-        echo "[WARN] Unsupported choice: ${choice}. Enter 1, 2, 3, 4, 5, or a supported host name." >&2
-        ;;
-    esac
+
+    for ((i=0; i<count; i++)); do
+      if [[ "${normalized}" == "$((i + 1))" || "${normalized}" == "${choice_ids[i]}" ]]; then
+        HOST_ID="${choice_ids[i]}"
+        return 0
+      fi
+
+      IFS=',' read -r -a alias_list <<< "${choice_aliases[i]}"
+      for alias in "${alias_list[@]}"; do
+        if [[ "${normalized}" == "${alias}" ]]; then
+          HOST_ID="${choice_ids[i]}"
+          return 0
+        fi
+      done
+    done
+
+    echo "[WARN] Unsupported choice: ${choice}. Enter 1-${count}, or a supported host name." >&2
   done
 }
 
@@ -87,124 +170,85 @@ ensure_requested_host_id() {
     return 0
   fi
   echo "[FAIL] No host was provided for one-shot bootstrap." >&2
-  echo "[FAIL] Pass --host codex|claude-code|cursor|windsurf|openclaw when running non-interactively." >&2
+  local supported_hosts=""
+  supported_hosts="$(supported_host_hint)"
+  echo "[FAIL] Pass --host ${supported_hosts} when running non-interactively." >&2
   return 1
 }
 
 resolve_default_target_root() {
   local host_id="$1"
-  case "${host_id}" in
-    codex) printf '%s' "${CODEX_HOME:-${HOME}/.vibeskills/targets/codex}" ;;
-    claude-code) printf '%s' "${CLAUDE_HOME:-${HOME}/.vibeskills/targets/claude-code}" ;;
-    cursor) printf '%s' "${CURSOR_HOME:-${HOME}/.vibeskills/targets/cursor}" ;;
-    windsurf) printf '%s' "${WINDSURF_HOME:-${HOME}/.vibeskills/targets/windsurf}" ;;
-    openclaw) printf '%s' "${OPENCLAW_HOME:-${HOME}/.vibeskills/targets/openclaw}" ;;
-    *)
-      echo "[FAIL] Unsupported VCO host id for target-root resolution: ${host_id}" >&2
-      exit 1
-      ;;
-  esac
+  local env_name rel env_value
+  env_name="$(adapter_query_for_host "${host_id}" 'default_target_root.env')"
+  rel="$(adapter_query_for_host "${host_id}" 'default_target_root.rel')"
+
+  env_value=""
+  if [[ -n "${env_name}" && "${env_name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    env_value="${!env_name:-}"
+  fi
+
+  if [[ -n "${env_value}" ]]; then
+    printf '%s' "${env_value}"
+    return 0
+  fi
+  if [[ -z "${rel}" ]]; then
+    echo "[FAIL] Adapter '${host_id}' does not define default_target_root.rel." >&2
+    exit 1
+  fi
+  if [[ "${rel}" == /* ]]; then
+    printf '%s' "${rel}"
+  else
+    printf '%s' "${HOME}/${rel}"
+  fi
 }
 
-assert_target_root_matches_host_intent() {
+target_root_owner_for_path() {
   local target_root="$1"
-  local host_id="$2"
-  local leaf normalized_target is_codex_root is_claude_root is_cursor_root is_windsurf_root is_openclaw_root
-  leaf="$(basename "${target_root}")"
-  leaf="$(printf '%s' "${leaf}" | tr '[:upper:]' '[:lower:]')"
-  normalized_target="$(printf '%s' "${target_root}" | tr '\\' '/' | tr '[:upper:]' '[:lower:]')"
-  normalized_target="${normalized_target%/}"
-  is_codex_root="false"
-  is_claude_root="false"
-  is_cursor_root="false"
-  is_windsurf_root="false"
-  is_openclaw_root="false"
-  [[ "${leaf}" == ".codex" || "${normalized_target}" == */.vibeskills/targets/codex ]] && is_codex_root="true"
-  [[ "${leaf}" == ".claude" || "${normalized_target}" == */.vibeskills/targets/claude-code ]] && is_claude_root="true"
-  [[ "${leaf}" == ".cursor" || "${normalized_target}" == */.vibeskills/targets/cursor ]] && is_cursor_root="true"
-  [[ "${normalized_target}" == */.codeium/windsurf || "${normalized_target}" == */.vibeskills/targets/windsurf ]] && is_windsurf_root="true"
-  [[ "${leaf}" == ".openclaw" || "${normalized_target}" == */.vibeskills/targets/openclaw ]] && is_openclaw_root="true"
-  if [[ "${host_id}" == "codex" && ( "${is_claude_root}" == "true" || "${is_windsurf_root}" == "true" || "${is_openclaw_root}" == "true" ) ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a non-Codex host root, but host='codex'." >&2
+  local python_bin=""
+  python_bin="$(pick_python || true)"
+  if [[ -z "${python_bin}" ]]; then
+    print_python_requirement_error "Adapter-driven target-root intent validation"
     exit 1
   fi
-  if [[ "${host_id}" == "codex" && "${is_cursor_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Cursor home, but host='codex'." >&2
-    echo "[FAIL] Pass --host cursor or use a Codex target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "claude-code" && ( "${is_codex_root}" == "true" || "${is_windsurf_root}" == "true" || "${is_openclaw_root}" == "true" ) ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a non-Claude host root, but host='claude-code'." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "claude-code" && "${is_codex_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Codex home, but host='claude-code'." >&2
-    echo "[FAIL] Use --host codex for the official closure lane or choose a Claude Code target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "claude-code" && "${is_cursor_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Cursor home, but host='claude-code'." >&2
-    echo "[FAIL] Pass --host cursor or choose a Claude Code target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "cursor" && "${is_codex_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Codex home, but host='cursor'." >&2
-    echo "[FAIL] Use --host codex for the official closure lane or choose a Cursor target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "cursor" && "${is_claude_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Claude Code home, but host='cursor'." >&2
-    echo "[FAIL] Pass --host claude-code or choose a Cursor target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "cursor" && "${is_windsurf_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Windsurf home, but host='cursor'." >&2
-    echo "[FAIL] Pass --host windsurf or choose a Cursor target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "cursor" && "${is_openclaw_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like an OpenClaw home, but host='cursor'." >&2
-    echo "[FAIL] Pass --host openclaw or choose a Cursor target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "windsurf" && ( "${is_codex_root}" == "true" || "${is_claude_root}" == "true" || "${is_openclaw_root}" == "true" ) ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a non-Windsurf host root, but host='windsurf'." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "windsurf" && "${is_cursor_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Cursor home, but host='windsurf'." >&2
-    echo "[FAIL] Pass --host cursor or choose a Windsurf target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "openclaw" && ( "${is_codex_root}" == "true" || "${is_claude_root}" == "true" || "${is_windsurf_root}" == "true" ) ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a non-OpenClaw host root, but host='openclaw'." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "openclaw" && "${is_cursor_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Cursor home, but host='openclaw'." >&2
-    echo "[FAIL] Pass --host cursor or choose an OpenClaw target root." >&2
-    exit 1
-  fi
+  "${python_bin}" "${ADAPTER_QUERY_PY}" --repo-root "${REPO_ROOT}" --target-root-owner "${target_root}"
 }
 
-if ! ensure_requested_host_id; then
-  exit 1
-fi
-HOST_ID="$(resolve_host_id "${HOST_ID}")"
-if [[ -z "${TARGET_ROOT}" ]]; then
-  TARGET_ROOT="$(resolve_default_target_root "${HOST_ID}")"
-fi
-assert_target_root_matches_host_intent "${TARGET_ROOT}" "${HOST_ID}"
+adapter_query_for_host() {
+  local host_id="$1"
+  local property="$2"
+  local python_bin=""
+  python_bin="$(pick_python || true)"
+  if [[ -z "${python_bin}" ]]; then
+    print_python_requirement_error "Adapter-driven bootstrap metadata"
+    exit 1
+  fi
+  "${python_bin}" "${ADAPTER_QUERY_PY}" --repo-root "${REPO_ROOT}" --host "${host_id}" --property "${property}"
+}
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-INSTALL_SH="${REPO_ROOT}/install.sh"
-CHECK_SH="${REPO_ROOT}/check.sh"
-MATERIALIZE_PS1="${REPO_ROOT}/scripts/setup/materialize-codex-mcp-profile.ps1"
-PERSIST_OPENAI_PS1="${REPO_ROOT}/scripts/setup/persist-codex-openai-env.ps1"
-PERSIST_ARK_PS1="${REPO_ROOT}/scripts/setup/persist-codex-ark-env.ps1"
-CLAUDE_SCAFFOLD_SH="${REPO_ROOT}/scripts/bootstrap/scaffold-claude-preview.sh"
-ADAPTER_RESOLVER="${REPO_ROOT}/scripts/common/resolve_vgo_adapter.py"
+adapter_query() {
+  local property="$1"
+  adapter_query_for_host "${HOST_ID}" "${property}"
+}
+
+bootstrap_choice_lines() {
+  local python_bin=""
+  python_bin="$(pick_python || true)"
+  if [[ -z "${python_bin}" ]]; then
+    print_python_requirement_error "Adapter-driven bootstrap host selection"
+    exit 1
+  fi
+  "${python_bin}" "${ADAPTER_QUERY_PY}" --repo-root "${REPO_ROOT}" --bootstrap-choice-lines
+}
+
+supported_host_hint() {
+  local python_bin=""
+  python_bin="$(pick_python || true)"
+  if [[ -z "${python_bin}" ]]; then
+    print_python_requirement_error "Adapter-driven bootstrap host selection"
+    exit 1
+  fi
+  "${python_bin}" "${ADAPTER_QUERY_PY}" --repo-root "${REPO_ROOT}" --supported-hosts
+}
 
 require_cmd() {
   local cmd="$1"
@@ -216,27 +260,69 @@ require_cmd() {
 }
 
 pick_python() {
-  if command -v python3 >/dev/null 2>&1; then
-    echo "python3"
-    return 0
-  fi
-  if command -v python >/dev/null 2>&1; then
-    echo "python"
-    return 0
-  fi
+  pick_supported_python
+}
+
+pick_powershell() {
+  local candidate resolved=""
+  for candidate in pwsh pwsh.exe powershell powershell.exe; do
+    if resolved="$(command -v "${candidate}" 2>/dev/null)"; then
+      if [[ -n "${resolved}" ]]; then
+        printf '%s' "${resolved}"
+        return 0
+      fi
+    fi
+  done
   return 1
 }
 
-adapter_query() {
-  local property="$1"
-  local python_bin=""
-  python_bin="$(pick_python || true)"
-  if [[ -z "${python_bin}" ]]; then
-    echo "[FAIL] Python is required for adapter-driven bootstrap metadata." >&2
+run_powershell_file() {
+  local script_path="$1"
+  shift
+  local shell_path=""
+  shell_path="$(pick_powershell || true)"
+  [[ -n "${shell_path}" ]] || return 127
+
+  local leaf="${shell_path##*/}"
+  leaf="$(printf '%s' "${leaf}" | tr '[:upper:]' '[:lower:]')"
+  local cmd=("${shell_path}" "-NoProfile")
+  if [[ "${leaf}" == "powershell" || "${leaf}" == "powershell.exe" ]]; then
+    cmd+=("-ExecutionPolicy" "Bypass")
+  fi
+  cmd+=("-File" "${script_path}")
+  "${cmd[@]}" "$@"
+}
+
+assert_target_root_matches_host_intent() {
+  local target_root="$1"
+  local host_id="$2"
+  local foreign_host=""
+  foreign_host="$(target_root_owner_for_path "${target_root}")"
+  if [[ -z "${foreign_host}" || "${foreign_host}" == "${host_id}" ]]; then
+    return 0
+  fi
+  if [[ "${host_id}" == "codex" && "${foreign_host}" == "cursor" ]]; then
+    echo "[FAIL] Target root '${target_root}' looks like a Cursor home, but host='codex'." >&2
+    echo "[FAIL] Pass --host cursor for preview guidance or use a Codex target root." >&2
     exit 1
   fi
-  "${python_bin}" "${ADAPTER_RESOLVER}" --repo-root "${REPO_ROOT}" --host "${HOST_ID}" --property "${property}"
+  if [[ "${host_id}" == "codex" && "${foreign_host}" == "opencode" ]]; then
+    echo "[FAIL] Target root '${target_root}' looks like an OpenCode root, but host='codex'." >&2
+    echo "[FAIL] Pass --host opencode for the OpenCode preview lane or use a Codex target root." >&2
+    exit 1
+  fi
+  echo "[FAIL] Target root '${target_root}' looks like the default target root for host='${foreign_host}', but host='${host_id}'." >&2
+  exit 1
 }
+
+if ! ensure_requested_host_id; then
+  exit 1
+fi
+HOST_ID="$(resolve_host_id "${HOST_ID}")"
+if [[ -z "${TARGET_ROOT}" ]]; then
+  TARGET_ROOT="$(resolve_default_target_root "${HOST_ID}")"
+fi
+assert_target_root_matches_host_intent "${TARGET_ROOT}" "${HOST_ID}"
 
 read_existing_settings_env_value() {
   local codex_root="$1"
@@ -274,23 +360,23 @@ PY
 
 seed_settings_env_with_python() {
   local codex_root="$1"
-  local provider="$2"
+  local surface="$2"
   local base_url="$3"
   local api_key="$4"
   local python_bin
 
   if ! python_bin="$(pick_python)"; then
-    echo "[WARN] Python not found; skipping ${provider} settings seed." >&2
+    echo "[WARN] Python not found; skipping ${surface} settings seed." >&2
     return 0
   fi
 
-  "${python_bin}" - "${codex_root}" "${provider}" "${base_url}" "${api_key}" <<'PY'
+  "${python_bin}" - "${codex_root}" "${surface}" "${base_url}" "${api_key}" <<'PY'
 import json
 import os
 import sys
 from pathlib import Path
 
-codex_root, provider, base_url, api_key = sys.argv[1:5]
+codex_root, surface, base_url, api_key = sys.argv[1:5]
 settings_path = Path(codex_root) / "settings.json"
 if not settings_path.exists():
     raise SystemExit(f"settings.json not found: {settings_path}")
@@ -300,16 +386,13 @@ with settings_path.open("r", encoding="utf-8-sig") as fh:
 
 env = settings.setdefault("env", {})
 
-if provider == "openai":
+if surface == "intent_advice":
     if base_url:
-        env["OPENAI_BASE_URL"] = base_url
+        env["VCO_INTENT_ADVICE_BASE_URL"] = base_url
     if api_key:
-        env["OPENAI_API_KEY"] = api_key
-elif provider == "ark":
-    if base_url:
-        env["ARK_BASE_URL"] = base_url
-    if api_key:
-        env["ARK_API_KEY"] = api_key
+        env["VCO_INTENT_ADVICE_API_KEY"] = api_key
+else:
+    raise SystemExit(f"unsupported bootstrap settings seed: {surface}")
 
 env.setdefault("VCO_PROFILE", "full")
 env.setdefault("VCO_CODEX_MODE", "true")
@@ -327,7 +410,7 @@ materialize_mcp_profile_with_python() {
   local python_bin
 
   if ! python_bin="$(pick_python)"; then
-    echo "[FAIL] Python is required to materialize the MCP active profile when pwsh is unavailable." >&2
+    echo "[FAIL] Python is required to materialize the MCP active profile when no PowerShell host is available." >&2
     exit 1
   fi
 
@@ -391,7 +474,11 @@ PY
 
 require_cmd bash "Linux/macOS bootstrap requires bash"
 require_cmd git "required by the repository install flow"
-require_cmd "$(pick_python || echo python3)" "required for shell-native settings and MCP materialization fallback"
+PYTHON_BIN_FOR_BOOTSTRAP="$(pick_python || true)"
+if [[ -z "${PYTHON_BIN_FOR_BOOTSTRAP}" ]]; then
+  print_python_requirement_error "Shell-native settings and MCP materialization fallback"
+  exit 1
+fi
 if [[ "${SKIP_EXTERNAL_INSTALL}" != "true" ]]; then
   require_cmd node "required for npm-managed runtimes"
   require_cmd npm "required for claude-flow / external CLI provisioning"
@@ -424,49 +511,31 @@ echo "[1/5] Installing adapter payload..."
 bash "${INSTALL_SH}" "${install_args[@]}"
 
 if [[ "${ADAPTER_BOOTSTRAP_MODE}" == "governed" ]]; then
-  resolved_openai_api_key="${OPENAI_API_KEY_INPUT:-${OPENAI_API_KEY:-}}"
-  existing_openai_key=""
-  if existing_openai_key="$(read_existing_settings_env_value "${TARGET_ROOT}" "OPENAI_API_KEY" 2>/dev/null)"; then
+  resolved_intent_advice_api_key="${INTENT_ADVICE_API_KEY_INPUT:-${VCO_INTENT_ADVICE_API_KEY:-}}"
+  existing_intent_advice_key=""
+  if existing_intent_advice_key="$(read_existing_settings_env_value "${TARGET_ROOT}" "VCO_INTENT_ADVICE_API_KEY" 2>/dev/null)"; then
     :
   else
-    existing_openai_key=""
+    existing_intent_advice_key=""
   fi
-  if [[ -n "${resolved_openai_api_key}" ]]; then
-    echo "[2/5] Seeding OPENAI settings into target settings.json..."
-    if command -v pwsh >/dev/null 2>&1; then
-      pwsh -NoProfile -File "${PERSIST_OPENAI_PS1}" -CodexRoot "${TARGET_ROOT}" -BaseUrl "${OPENAI_BASE_URL}" -ApiKey "${resolved_openai_api_key}"
+  if [[ -n "${resolved_intent_advice_api_key}" ]]; then
+    echo "[2/5] Seeding intent advice settings into target settings.json..."
+    if pick_powershell >/dev/null 2>&1; then
+      run_powershell_file "${PERSIST_OPENAI_PS1}" -CodexRoot "${TARGET_ROOT}" -BaseUrl "${INTENT_ADVICE_BASE_URL}" -ApiKey "${resolved_intent_advice_api_key}"
     else
-      seed_settings_env_with_python "${TARGET_ROOT}" "openai" "${OPENAI_BASE_URL}" "${resolved_openai_api_key}"
+      seed_settings_env_with_python "${TARGET_ROOT}" "intent_advice" "${INTENT_ADVICE_BASE_URL}" "${resolved_intent_advice_api_key}"
     fi
-  elif [[ -n "${existing_openai_key}" ]]; then
-    echo "[2/5] OPENAI settings already exist in target settings.json; keeping current value."
+  elif [[ -n "${existing_intent_advice_key}" ]]; then
+    echo "[2/5] Intent advice settings already exist in target settings.json; keeping current value."
   else
-    echo "[WARN] OPENAI_API_KEY not provided and not present in the current environment. Full online readiness will remain pending."
+    echo "[WARN] VCO_INTENT_ADVICE_API_KEY not provided and not present in the current environment. Built-in intent advice readiness will remain pending."
   fi
 
-  resolved_ark_api_key="${ARK_API_KEY_INPUT:-${ARK_API_KEY:-}}"
-  existing_ark_key=""
-  if existing_ark_key="$(read_existing_settings_env_value "${TARGET_ROOT}" "ARK_API_KEY" 2>/dev/null)"; then
-    :
-  else
-    existing_ark_key=""
-  fi
-  if [[ -n "${resolved_ark_api_key}" ]]; then
-    echo "[3/5] Seeding ARK settings into target settings.json..."
-    if command -v pwsh >/dev/null 2>&1; then
-      pwsh -NoProfile -File "${PERSIST_ARK_PS1}" -CodexRoot "${TARGET_ROOT}" -BaseUrl "${ARK_BASE_URL}" -ApiKey "${resolved_ark_api_key}"
-    else
-      seed_settings_env_with_python "${TARGET_ROOT}" "ark" "${ARK_BASE_URL}" "${resolved_ark_api_key}"
-    fi
-  elif [[ -n "${existing_ark_key}" ]]; then
-    echo "[3/5] ARK settings already exist in target settings.json; keeping current value."
-  else
-    echo "[3/5] ARK settings not provided; skipping optional ARK seeding."
-  fi
+  echo "[3/5] Built-in AI governance now uses separated functional keys: intent advice uses VCO_INTENT_ADVICE_* and vector diff embeddings use VCO_VECTOR_DIFF_*."
 
   echo "[4/5] Materializing MCP profile..."
-  if command -v pwsh >/dev/null 2>&1; then
-    pwsh -NoProfile -File "${MATERIALIZE_PS1}" -TargetRoot "${TARGET_ROOT}" -Force >/dev/null
+  if pick_powershell >/dev/null 2>&1; then
+    run_powershell_file "${MATERIALIZE_PS1}" -TargetRoot "${TARGET_ROOT}" -Force >/dev/null
   else
     materialize_mcp_profile_with_python "${REPO_ROOT}" "${TARGET_ROOT}" "${PROFILE}"
   fi
@@ -481,12 +550,12 @@ elif [[ "${ADAPTER_BOOTSTRAP_MODE}" == "preview-guidance" ]]; then
     echo "[2/5] Host-specific scaffold is currently unavailable for '${HOST_ID}'."
   fi
   echo "[3/5] No hook files or extra preview settings were installed into the target root."
-  echo "[4/5] Provider settings remain host-managed for '${HOST_ID}'. Configure the real host settings surface separately (for example, Cursor commonly uses ~/.cursor/settings.json). Do not paste API keys into chat."
+  echo "[4/5] Provider settings remain host-managed for '${HOST_ID}'. Configure built-in intent advice with VCO_INTENT_ADVICE_API_KEY / VCO_INTENT_ADVICE_BASE_URL / VCO_INTENT_ADVICE_MODEL, and configure vector diff embeddings separately with VCO_VECTOR_DIFF_API_KEY / VCO_VECTOR_DIFF_BASE_URL / VCO_VECTOR_DIFF_MODEL. Do not paste API keys into chat."
   echo "[5/5] Running supported-path health check..."
   bash "${CHECK_SH}" --profile "${PROFILE}" --host "${HOST_ID}" --target-root "${TARGET_ROOT}" --deep
 else
   echo "[2/5] Runtime-adapter path does not materialize host settings."
-  echo "[3/5] Runtime-adapter path does not seed provider settings. Configure url, apikey, and model in the target agent's local settings or local environment variables. Do not paste secrets into chat."
+  echo "[3/5] Runtime-adapter path does not seed provider settings. Configure built-in intent advice with VCO_INTENT_ADVICE_API_KEY / VCO_INTENT_ADVICE_BASE_URL / VCO_INTENT_ADVICE_MODEL, and configure vector diff embeddings separately with VCO_VECTOR_DIFF_API_KEY / VCO_VECTOR_DIFF_BASE_URL / VCO_VECTOR_DIFF_MODEL. Do not paste secrets into chat."
   echo "[4/5] MCP materialization skipped for the runtime-adapter path."
   echo "[5/5] Running runtime-adapter health check..."
   bash "${CHECK_SH}" --profile "${PROFILE}" --host "${HOST_ID}" --target-root "${TARGET_ROOT}" --deep
@@ -499,10 +568,10 @@ if [[ "${ADAPTER_BOOTSTRAP_MODE}" == "governed" ]]; then
   echo "- MCP active file: ${TARGET_ROOT}/mcp/servers.active.json"
 fi
 echo "- Doctor artifacts: ${REPO_ROOT}/outputs/verify"
-if ! command -v pwsh >/dev/null 2>&1; then
+if ! pick_powershell >/dev/null 2>&1; then
   if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
-    echo "[WARN] Neither pwsh nor Python is available. Deep authoritative doctor coverage remains unavailable in this shell environment."
+    echo "[WARN] Neither a PowerShell host nor Python is available. Deep authoritative doctor coverage remains unavailable in this shell environment."
   else
-    echo "[INFO] pwsh is not installed, but the shell runtime-neutral verification path was used where supported."
+    echo "[INFO] No PowerShell host was found, but the shell runtime-neutral verification path was used where supported."
   fi
 fi

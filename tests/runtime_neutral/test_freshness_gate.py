@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import importlib.util
 import json
 import sys
@@ -86,6 +87,73 @@ class FreshnessGateTests(unittest.TestCase):
             },
         }
 
+    def switch_to_manifest_packaging(self) -> None:
+        self.governance["packaging"]["mirror"]["files"] = [
+            "SKILL.md",
+            "check.ps1",
+            "check.sh",
+            "install.ps1",
+            "install.sh",
+            "config/runtime-script-manifest.json",
+            "config/runtime-config-manifest.json",
+        ]
+        self.governance["packaging"]["mirror"]["directories"] = []
+        self.governance["packaging"]["manifests"] = [
+            {"id": "runtime_scripts", "path": "config/runtime-script-manifest.json"},
+            {"id": "runtime_configs", "path": "config/runtime-config-manifest.json"},
+        ]
+        self.governance["runtime"]["installed_runtime"]["required_runtime_markers"] = [
+            "SKILL.md",
+            "config/version-governance.json",
+            "config/runtime-script-manifest.json",
+            "config/runtime-config-manifest.json",
+            "scripts/router/resolve-pack-route.ps1",
+            "scripts/common/vibe-governance-helpers.ps1",
+        ]
+        self.write_governance()
+        (self.canonical_root / "config" / "runtime-script-manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "manifest_id": "runtime-scripts",
+                    "files": [
+                        "scripts/router/resolve-pack-route.ps1",
+                        "scripts/common/vibe-governance-helpers.ps1",
+                    ],
+                    "directories": [],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (self.canonical_root / "config" / "runtime-config-manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "manifest_id": "runtime-config",
+                    "files": [
+                        "config/version-governance.json",
+                        "config/runtime-script-manifest.json",
+                        "config/runtime-config-manifest.json",
+                    ],
+                    "directories": [],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (self.installed_root / "config" / "runtime-script-manifest.json").write_text(
+            (self.canonical_root / "config" / "runtime-script-manifest.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (self.installed_root / "config" / "runtime-config-manifest.json").write_text(
+            (self.canonical_root / "config" / "runtime-config-manifest.json").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        self.sync_runtime_governance_copies()
+
     def write_governance(self) -> None:
         path = self.root / "config" / "version-governance.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -137,6 +205,17 @@ class FreshnessGateTests(unittest.TestCase):
             write_receipt=write_receipt,
         )
 
+    def test_load_governance_context_supports_topology_only_governance(self) -> None:
+        self.governance.pop("source_of_truth", None)
+        self.write_governance()
+        self.sync_runtime_governance_copies()
+
+        context = self.module.load_governance_context(self.script_path, enforce_context=True)
+
+        self.assertEqual(self.root.resolve(), context.repo_root)
+        self.assertEqual(self.canonical_root.resolve(), context.canonical_root)
+        self.assertEqual("canonical", next(target["id"] for target in context.mirror_targets if target["is_canonical"]))
+
     def test_freshness_pass_writes_receipt_and_artifacts(self) -> None:
         gate_pass, artifact = self.evaluate(write_artifacts=True, write_receipt=True)
         self.assertTrue(gate_pass)
@@ -182,6 +261,107 @@ class FreshnessGateTests(unittest.TestCase):
         self.assertFalse(gate_pass)
         docs_entry = next(item for item in artifact["results"]["directories"] if item["path"] == "docs")
         self.assertEqual(["unexpected.md"], docs_entry["only_in_installed"])
+
+    def test_python_cache_artifacts_are_ignored_during_directory_parity(self) -> None:
+        canonical_cache = self.canonical_root / "scripts" / "common" / "__pycache__" / "helper.cpython-310.pyc"
+        canonical_cache.parent.mkdir(parents=True, exist_ok=True)
+        canonical_cache.write_bytes(b"canonical-pyc")
+
+        installed_cache = self.installed_root / "scripts" / "common" / "__pycache__" / "helper.cpython-310.pyc"
+        installed_cache.parent.mkdir(parents=True, exist_ok=True)
+        installed_cache.write_bytes(b"installed-pyc")
+
+        gate_pass, artifact = self.evaluate()
+        self.assertTrue(gate_pass)
+        scripts_entry = next(item for item in artifact["results"]["directories"] if item["path"] == "scripts")
+        self.assertEqual([], scripts_entry["only_in_canonical"])
+        self.assertEqual([], scripts_entry["only_in_installed"])
+        self.assertEqual([], scripts_entry["diff_files"])
+
+    def test_runtime_cache_directories_are_ignored_during_directory_parity(self) -> None:
+        canonical_cache = self.canonical_root / "scripts" / ".pytest_cache" / "v" / "cache"
+        canonical_cache.parent.mkdir(parents=True, exist_ok=True)
+        canonical_cache.write_text("canonical-cache\n", encoding="utf-8")
+
+        installed_cache = self.installed_root / "scripts" / ".pytest_cache" / "v" / "cache"
+        installed_cache.parent.mkdir(parents=True, exist_ok=True)
+        installed_cache.write_text("installed-cache\n", encoding="utf-8")
+
+        gate_pass, artifact = self.evaluate()
+        self.assertTrue(gate_pass)
+        scripts_entry = next(item for item in artifact["results"]["directories"] if item["path"] == "scripts")
+        self.assertEqual([], scripts_entry["only_in_canonical"])
+        self.assertEqual([], scripts_entry["only_in_installed"])
+        self.assertEqual([], scripts_entry["diff_files"])
+
+    def test_runtime_coverage_artifacts_are_ignored_during_directory_parity(self) -> None:
+        canonical_coverage = self.canonical_root / "scripts" / ".coverage"
+        canonical_coverage.parent.mkdir(parents=True, exist_ok=True)
+        canonical_coverage.write_text("canonical-coverage\n", encoding="utf-8")
+
+        installed_coverage = self.installed_root / "scripts" / ".coverage"
+        installed_coverage.parent.mkdir(parents=True, exist_ok=True)
+        installed_coverage.write_text("installed-coverage\n", encoding="utf-8")
+
+        gate_pass, artifact = self.evaluate()
+        self.assertTrue(gate_pass)
+        scripts_entry = next(item for item in artifact["results"]["directories"] if item["path"] == "scripts")
+        self.assertEqual([], scripts_entry["only_in_canonical"])
+        self.assertEqual([], scripts_entry["only_in_installed"])
+        self.assertEqual([], scripts_entry["diff_files"])
+
+    def test_manifest_driven_packaging_contract_passes_without_broad_script_directory(self) -> None:
+        self.switch_to_manifest_packaging()
+        scripts_extra = self.installed_root / "scripts" / "runtime" / "extra.ps1"
+        scripts_extra.parent.mkdir(parents=True, exist_ok=True)
+        scripts_extra.write_text("Write-Host 'extra'\n", encoding="utf-8")
+
+        gate_pass, artifact = self.evaluate()
+        self.assertFalse(gate_pass)
+        scripts_entry = next(item for item in artifact["results"]["directories"] if item["path"] == "scripts")
+        self.assertEqual(["runtime/extra.ps1"], scripts_entry["only_in_installed"])
+
+    def test_execution_context_allows_installed_runtime_without_outer_git_root(self) -> None:
+        with tempfile.TemporaryDirectory() as isolated_dir:
+            installed_context_root = Path(isolated_dir)
+            self.seed_tree(installed_context_root, canonical=False)
+            (installed_context_root / "config").mkdir(parents=True, exist_ok=True)
+            (installed_context_root / "config" / "version-governance.json").write_text(
+                json.dumps(self.governance, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            script_path = installed_context_root / "scripts" / "runtime" / "invoke-vibe-runtime.ps1"
+            script_path.parent.mkdir(parents=True, exist_ok=True)
+            script_path.write_text("Write-Host 'runtime'\n", encoding="utf-8")
+
+            context = self.module.load_governance_context(script_path, enforce_context=True)
+            self.assertEqual(installed_context_root, context.repo_root)
+
+    def test_execution_context_rejects_missing_git_and_incomplete_installed_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as isolated_dir:
+            incomplete_root = Path(isolated_dir)
+            (incomplete_root / "config").mkdir(parents=True, exist_ok=True)
+            (incomplete_root / "config" / "version-governance.json").write_text(
+                json.dumps(self.governance, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            script_path = incomplete_root / "scripts" / "runtime" / "invoke-vibe-runtime.ps1"
+            script_path.parent.mkdir(parents=True, exist_ok=True)
+            script_path.write_text("Write-Host 'runtime'\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(RuntimeError, "resolved repo root is not the outer git root"):
+                self.module.load_governance_context(script_path, enforce_context=True)
+
+    def test_mirror_topology_targets_fallback_uses_source_of_truth(self) -> None:
+        policies = importlib.import_module("vgo_verify.policies")
+        governance_copy = json.loads(json.dumps(self.governance))
+        governance_copy.pop("mirror_topology", None)
+        targets = policies.mirror_topology_targets(governance_copy, self.root)
+        canonical = next(target for target in targets if target["role"] == "canonical")
+        self.assertEqual(str(self.root.resolve()), str(canonical["full_path"]))
+        self.assertEqual("canonical", canonical["id"])
+        mirror_ids = [target["id"] for target in targets if target["role"] != "canonical"]
+        self.assertEqual(["bundled", "nested_bundled"], mirror_ids)
 
 
 if __name__ == "__main__":

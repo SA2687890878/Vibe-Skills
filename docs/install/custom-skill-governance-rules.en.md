@@ -112,19 +112,20 @@ If provider, MCP, or host-side manual items are still missing, do not claim onli
 ## Codex And Claude Code Boundaries
 
 - Codex: official governed host; hooks are not installed right now
-- Claude Code: supported install-and-use path; hooks are not installed right now, and the installer does not write `settings.vibe.preview.json`
+- Claude Code: supported install-and-use path; the installer preserves existing Claude settings while writing a bounded managed `vibeskills` stanza plus a managed `PreToolUse` write-guard hook surface
 
 For both hosts, never ask users to paste key/url/model values into chat. Only guide them to local `settings.json` `env` fields or local environment variables.
 
 ## Governance AI Online Layer Boundary
 
-`OPENAI_API_KEY` and `OPENAI_BASE_URL` represent only baseline online provider access. They do not mean the governance AI online layer is ready.
+Baseline online provider access does not automatically mean the governance AI online layer is ready.
 
-To enable the governance AI online layer, the user must configure locally:
+For the common governance-advice online path, the user should configure locally:
 
-- `VCO_AI_PROVIDER_URL`
-- `VCO_AI_PROVIDER_API_KEY`
-- `VCO_AI_PROVIDER_MODEL`
+- `VCO_INTENT_ADVICE_API_KEY`
+- optional `VCO_INTENT_ADVICE_BASE_URL`
+- `VCO_INTENT_ADVICE_MODEL`
+- `VCO_VECTOR_DIFF_API_KEY` / `VCO_VECTOR_DIFF_BASE_URL` / `VCO_VECTOR_DIFF_MODEL` when vector diff embeddings are desired
 
 Without those values, the environment may be described only as "basic online available" or "local install complete", not as "governance AI online ready".
 

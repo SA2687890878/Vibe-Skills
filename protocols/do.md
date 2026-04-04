@@ -1,5 +1,22 @@
 # vibe-do Protocol
 
+> **What this protocol does -- plain language overview**
+>
+> This is the execution protocol. It governs how VibeSkills writes code, fixes bugs,
+> and runs tests -- specifically during Stage 5 (`plan_execute`) of the runtime.
+>
+> You do not need to read this to use VibeSkills. It is reference material for advanced
+> users and contributors who want to understand how execution decisions are made.
+>
+> **Key terms used below:**
+> - **M / L / XL grade**: Task complexity level. M = quick task, L = multi-step task, XL = large parallel task.
+> - **Closure-First Contract**: The principle of reaching a working state quickly before expanding scope. Specifically: two probe steps + one verification step early in any task.
+> - **Proxy-goal drift**: When the system optimizes a visible metric instead of the actual goal. Example: making all tests pass by deleting the failing tests, not fixing the code.
+> - **P5 pattern**: "Evidence-Based Communication" -- never say "should work"; always show [Command] -> [Output] -> [Claim].
+> - **V2 pattern**: "Completion Gate" -- identify what to verify, run it, read the output, confirm correctness, then mark complete.
+> - **V7 pattern**: "Learning Capture" -- record what routing decision was made and how effective it was.
+
+
 Protocol for coding, implementation, debugging, and testing tasks.
 
 ## Governed Runtime Position
@@ -21,6 +38,7 @@ The governed runtime path remains:
 - a frozen requirement document
 - an execution plan
 - an internal execution grade
+- a frozen downstream delivery-acceptance contract
 
 The job here is to execute, verify, and hand off cleanly to `phase_cleanup`.
 
@@ -90,17 +108,19 @@ If VCO router output includes:
 
 ### L Grade
 1. Ensure design exists (from vibe-think protocol)
-2. Invoke Superpowers subagent-driven-development
-   - Fresh subagent per task
-   - Two-stage review: spec compliance + code quality
-   - Sequential execution to avoid conflicts
-3. Use runtime-neutral state_store to track progress across tasks
-4. Final review with Superpowers verification-before-completion
+2. Execute planned units in native serial order
+   - Sequence-first execution from the frozen plan
+   - No blanket multi-agent fan-out
+3. Optional delegated units must remain bounded and explicitly planned
+   - If subagents are spawned, prompts must end with `$vibe`
+   - Child lane specialist ideas stay advisory in the frozen packet; execute may same-round auto-absorb only under root-governed approval logic
+4. Use runtime-neutral state_store to track progress across tasks
+5. Final review with Superpowers verification-before-completion
 
 If subagents are spawned under the governed runtime, their prompts must end with `$vibe`.
 
 ### XL Grade
-Defer to vibe-team protocol (Codex native team orchestration + optional ruflo collaboration).
+Defer to vibe-team protocol (wave-sequential orchestration + step-level bounded parallel units + optional ruflo collaboration).
 
 ## Debug Mode
 
@@ -164,7 +184,8 @@ Before marking code task complete:
 2. Code review completed
 3. No security vulnerabilities (for user-facing code)
 4. No console.log left in production code
-5. A handoff bundle exists for runtime stage 6 `phase_cleanup`
+5. Delivery-acceptance evidence is sufficient for the claimed completion wording
+6. A handoff bundle exists for runtime stage 6 `phase_cleanup`
 
 ## Required Handoff To `phase_cleanup`
 
@@ -175,6 +196,8 @@ Before leaving this protocol, write or preserve the evidence needed for cleanup:
 - changed artifact list
 - temp artifact list
 - node or process cleanup notes when relevant
+- manual spot-check status when the frozen requirement declared them
+- completion-language downgrade notes when delivery truth is not fully passing
 - open risks or deferred follow-ups
 
 `phase_cleanup` is mandatory and owns the final closure receipt.

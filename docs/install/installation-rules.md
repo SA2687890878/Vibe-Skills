@@ -37,12 +37,24 @@
 - Linux / macOS 使用 `bash`
 - Windows 使用 `pwsh`
 
+补充约束：
+
+- Linux / macOS 的 shell 入口现在按 **macOS 自带 Bash 3.2 可运行** 这一基线维护，不能再偷偷引入 `mapfile` 这类 Bash 4+ 专属能力
+- 这些 shell 入口在进入 adapter / doctor / bootstrap Python helper 之前，会先检查 **Python 3.10+**
+- 如果用户在 macOS 的 `zsh` 里运行命令，真正决定成败的不是 `zsh` 本身，而是被调用到的 `bash` / `python3` 可执行文件版本
+
 ## 规则 6：公开版本名必须映射到真实 profile
 
 - `全量版本 + 可自定义添加治理` -> `full`
 - `仅核心框架 + 可自定义添加治理` -> `minimal`
 
 不要再把框架版本伪装成 `framework-only`，因为当前脚本真实接受的是 `minimal` / `full`。
+
+## 规则 6.5：把 bootstrap 先决条件和可选外部 runtime 区分清楚
+
+- `install.sh` / `check.sh` / `scripts/bootstrap/one-shot-setup.sh` 的基础 Python 门槛是仓库自身入口要求，当前按 **Python 3.10+** 处理
+- `ruc-nlpir` 这类外部 upstream/runtime 需要单独 venv，它不是公开安装器本体的同义词
+- 不要把 “外部 runtime 可能偏好 3.11” 说成 “整个仓库安装器硬要求 3.11”
 
 ## 规则 7：Codex 按默认推荐路径描述
 
@@ -51,9 +63,12 @@
 - 运行 `--host codex`
 - 明确说明这是当前默认推荐路径
 - hook 当前因兼容性问题被冻结；这不是安装失败
-- 如需 Codex 基础在线 provider，去本地 `~/.codex/settings.json` 的 `env` 或本地环境变量配置 `OPENAI_*`
-- 如需治理 AI 在线层，再按需补 `VCO_AI_PROVIDER_*`
-- 不能把 `OPENAI_*` 已配置偷换成“治理 AI online readiness 已完成”
+- 如需 AI 治理 advice 的常见配置路径，去本地 `~/.codex/settings.json` 的 `env` 或本地环境变量配置：
+  - `VCO_INTENT_ADVICE_API_KEY`
+  - 可选 `VCO_INTENT_ADVICE_BASE_URL`
+  - `VCO_INTENT_ADVICE_MODEL`
+- 内置 AI 治理层当前只支持 OpenAI-compatible 协议，凭据读取统一改为 `VCO_INTENT_ADVICE_*`
+- 不能把宿主基础在线能力偷换成“治理 AI online readiness 已完成”
 
 ## 规则 8：Claude Code 要按“支持的安装与使用路径”口径描述
 
@@ -61,9 +76,9 @@
 
 - 运行 `--host claude-code`
 - 明确说明当前提供支持的安装与使用路径
-- hook 当前冻结；这不是安装失败
-- 不要声称安装器会额外写入 Claude Code 的宿主 settings 文件
-- 引导用户自己补 `~/.claude/settings.json` 的 `env`
+- 明确说明安装器会在保留现有 `~/.claude/settings.json` 内容的前提下，补入受约束的 `vibeskills` 节点、受管的 `PreToolUse` hook 条目，以及受管的 `hooks/write-guard.js`
+- 不要宣传成 official runtime、Codex 满血等价或跨平台 proof 已闭环
+- 引导用户继续把 `env`、plugin enablement、MCP 注册和 provider credentials 放在 Claude 宿主侧本地维护
 
 ## 规则 9：Cursor 也按“支持的安装与使用路径”口径描述
 
@@ -80,8 +95,8 @@
 
 - 运行 `--host windsurf`
 - 明确说明当前提供支持的安装与使用路径
-- 默认目标根目录是 `WINDSURF_HOME` 或 `~/.vibeskills/targets/windsurf`
-- 当前仓库只负责共享安装内容，以及按需物化 `mcp_config.json` 与 `global_workflows/`
+- 默认宿主根目录是 `~/.codeium/windsurf`
+- 当前仓库只负责共享安装内容，以及 `.vibeskills/host-settings.json` / `.vibeskills/host-closure.json` 这类 sidecar 状态
 - Windsurf 宿主本地设置仍由用户在宿主侧完成
 
 ## 规则 11：OpenClaw 按“支持的安装与使用路径”口径描述
@@ -90,7 +105,7 @@
 
 - 运行 `--host openclaw`
 - 明确说明当前提供支持的安装与使用路径
-- 默认目标根目录是 `OPENCLAW_HOME` 或 `~/.vibeskills/targets/openclaw`
+- 默认目标根目录是 `OPENCLAW_HOME` 或 `~/.openclaw`
 - 如果用户需要 attach / copy / bundle 等更细路径，继续看 [`openclaw-path.md`](./openclaw-path.md)
 - 宿主侧本地配置仍按 OpenClaw 方式完成
 
@@ -100,19 +115,33 @@
 
 - 运行 `--host opencode`
 - 明确说明当前提供支持的安装与使用路径
-- 默认目标根目录是 `OPENCODE_HOME` 或 `~/.vibeskills/targets/opencode`
-- direct install/check 会写入 skills、command/agent wrappers 与 `opencode.json.example`
+- 默认目标根目录是 `OPENCODE_HOME`，否则是 `~/.config/opencode`
+- direct install/check 会写入 skills、`.vibeskills/*` sidecar 与 `opencode.json.example`
 - 真实 `opencode.json`、provider 凭据、plugin 安装和 MCP 信任仍由宿主侧本地完成
 
-## 规则 13：不要要求用户把密钥贴到聊天里
+## 规则 13：AI 治理在线配置要优先说真实推荐键名
+
+如需解释 AI 治理 advice 的在线配置，优先使用：
+
+- 主路径（intent advice）：
+  - `VCO_INTENT_ADVICE_API_KEY`
+  - 可选 `VCO_INTENT_ADVICE_BASE_URL`
+  - `VCO_INTENT_ADVICE_MODEL`
+- 可选增强路径（vector diff embeddings）：
+  - `VCO_VECTOR_DIFF_API_KEY`
+  - 可选 `VCO_VECTOR_DIFF_BASE_URL`
+  - `VCO_VECTOR_DIFF_MODEL`
+
+
+## 规则 14：不要要求用户把密钥贴到聊天里
 
 对六个支持宿主，都不要要求用户把密钥、URL 或 model 直接粘贴到聊天里；只引导用户去本地 settings 或本地环境变量配置。
 
-## 规则 14：区分“本地安装完成”和“在线能力就绪”
+## 规则 15：区分“本地安装完成”和“在线能力就绪”
 
 如果本地 provider 字段没有配置好，就不能把环境描述成“online ready”。
 
-## 规则 15：输出安装或更新结果时必须说清楚
+## 规则 16：输出安装或更新结果时必须说清楚
 
 结果摘要至少应包含：
 
@@ -123,7 +152,7 @@
 - 已完成的部分
 - 仍需用户手动处理的部分
 
-## 规则 16：框架版本不是开箱即用全量体验
+## 规则 17：框架版本不是开箱即用全量体验
 
 如果用户选择 `仅核心框架 + 可自定义添加治理` / `minimal`，必须额外提醒：
 

@@ -212,16 +212,11 @@ Do not ask me to paste any API key, URL, or model into chat.
 
 ## Online Configuration Reminder
 
-If you want to enable the governance AI online layer, the user must configure locally:
+If you want to enable the governance AI online layer, the user should configure the built-in key sets locally:
 
-- `VCO_AI_PROVIDER_URL`
-- `VCO_AI_PROVIDER_API_KEY`
-- `VCO_AI_PROVIDER_MODEL`
-
-These values correspond to:
-
-- provider address / compatible API base URL
-- provider access key
-- the online model used by governance analysis
+- `VCO_INTENT_ADVICE_API_KEY`
+- optional `VCO_INTENT_ADVICE_BASE_URL`
+- `VCO_INTENT_ADVICE_MODEL`
+- `VCO_VECTOR_DIFF_API_KEY` / `VCO_VECTOR_DIFF_BASE_URL` / `VCO_VECTOR_DIFF_MODEL` (vector diff is optional and will gracefully degrade when any of these are missing)
 
 Without them, the environment may only be described as "local install complete, but governance AI online capability not ready".

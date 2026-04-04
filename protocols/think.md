@@ -1,5 +1,22 @@
 # vibe-think Protocol
 
+> **What this protocol does -- plain language overview**
+>
+> This is the planning and analysis protocol. It governs how VibeSkills clarifies
+> requirements, designs architecture, and writes execution plans -- primarily during
+> Stages 2-4 of the runtime.
+>
+> You do not need to read this to use VibeSkills. It is reference material for those
+> who want to understand how the system thinks before it acts.
+>
+> **Key terms used below:**
+> - **Phase A / Phase B**: Internal protocol phases. Phase A = pre-execution analysis (classify the task); Phase B = planning and design execution (write the plan).
+> - **Proxy-goal drift**: When the system optimizes a visible metric instead of the actual goal. Planning is the cheapest place to prevent this.
+> - **GSD-Lite Preflight Hook**: An optional planning enhancement that adds a brownfield context snapshot and assumption verification step before writing the plan.
+> - **Brownfield context**: An existing codebase that already has its own architecture and conventions -- as opposed to a blank-slate new project.
+> - **Dialectic mode**: A structured multi-perspective design analysis: two groups of agents argue different viewpoints, then a coordinator synthesizes the best ideas from both.
+
+
 Pre-routing analysis and post-routing planning/design/research protocol.
 
 ## Governed Runtime Position
@@ -143,7 +160,7 @@ Phase 2: Architecture (vibe-think)
   Gate: Architecture diagram approved
 
 Phase 3: Implementation (vibe-do)
-  Tool: superpowers:subagent-driven-development
+  Tool: native serial execution lane (bounded delegated units only when planned)
   Gate: All tests pass, code reviewed
 
 Phase 4: Security Review (vibe-review)
@@ -246,8 +263,8 @@ When task is purely research (no implementation):
 
 ## Transition to Implementation
 After design is approved:
-1. L grade: Switch to vibe-do with Superpowers subagent-driven-dev
-2. XL grade: Switch to vibe-team protocol (Codex native team + optional ruflo collaboration)
+1. L grade: Switch to vibe-do serial native execution (sequence-first; bounded delegation only when explicitly planned)
+2. XL grade: Switch to vibe-team protocol (wave-sequential execution with step-level bounded parallel units + optional ruflo collaboration)
 3. Always carry the plan document forward as context
 4. Execution must hand off into runtime stage 5 `plan_execute`, not bypass directly into ad-hoc coding
 5. Process-discipline helpers may influence how work is executed, but VCO remains the only governed runtime skeleton and artifact authority

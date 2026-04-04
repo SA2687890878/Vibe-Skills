@@ -1,70 +1,49 @@
-# VCO Docs
+# VCO 文档索引
 
-`docs/` 是 VCO 的长期治理与说明文档入口。这里按“当前执行入口、运行态入口、开发者入口、长期治理正文”分层，避免把计划、证明和制度混在一起。
+`docs/` 只负责长期说明、当前状态入口和执行计划导航，不承担运行时真相本身。
 
 ## Start Here
 
-### Current Entry
+- [`install/one-click-install-release-copy.md`](./install/one-click-install-release-copy.md)：面向普通用户的唯一公开安装入口
+- [`install/README.md`](./install/README.md)：安装索引；说明公开入口、宿主模式与补充文档之间的关系
+- [`cold-start-install-paths.md`](./cold-start-install-paths.md)：当前六个公开宿主的冷启动路径与 truth-first 边界
 
-- [`plans/README.md`](./plans/README.md)：当前 active plan、支撑材料、时间线索引与历史背景入口。
-- [`plans/2026-03-11-vco-repo-simplification-remediation-plan.md`](./plans/2026-03-11-vco-repo-simplification-remediation-plan.md)：当前 repo 收敛主执行计划。
-- [`plans/2026-03-13-distribution-governance-plan.md`](./plans/2026-03-13-distribution-governance-plan.md)：分发治理总计划。
-- [`plans/2026-03-13-post-upstream-governance-repo-convergence-plan.md`](./plans/2026-03-13-post-upstream-governance-repo-convergence-plan.md)：上游治理后的仓库收敛计划。
-- [`plans/2026-03-13-post-upstream-governance-developer-entry-plan.md`](./plans/2026-03-13-post-upstream-governance-developer-entry-plan.md)：上游治理后的开发者入口计划。
+| 你要做什么 | 入口 |
+| --- | --- |
+| 安装或试用 | [`install/one-click-install-release-copy.md`](./install/one-click-install-release-copy.md) |
+| 看懂宿主模式和命令参考 | [`install/README.md`](./install/README.md) |
+| 判断自己该走哪条冷启动路径 | [`cold-start-install-paths.md`](./cold-start-install-paths.md) |
+| 查看当前状态 | [`status/README.md`](./status/README.md) |
+| 跟踪当前执行计划 | [`plans/README.md`](./plans/README.md) |
+| 理解变更规则 | [`developer-change-governance.md`](./developer-change-governance.md) |
+| 理解系统结构 | [`architecture.md`](./architecture.md) |
 
-### Runtime Entry
+## Current Runtime
 
-- [`install/one-click-install-release-copy.md`](./install/one-click-install-release-copy.md)：面向普通用户的一键安装发布文案与 AI 助手复制提示词
-- [`install/one-click-install-release-copy.en.md`](./install/one-click-install-release-copy.en.md)：ordinary-user public release copy and copy-paste onboarding prompt
+- 主技能合同：[`../SKILL.md`](../SKILL.md)
+- 运行时协议：[`../protocols/runtime.md`](../protocols/runtime.md)
+- 多代理协议：[`../protocols/team.md`](../protocols/team.md)
+- 当前 live summary：[`status/current-state.md`](./status/current-state.md)
+- 最小 proof contract：[`status/non-regression-proof-bundle.md`](./status/non-regression-proof-bundle.md)
 
-- [`status/README.md`](./status/README.md)：当前运行态、proof 入口与阶段回执总索引。
-- [`status/current-state.md`](./status/current-state.md)：当前 closure batch 的 runtime summary。
-- [`status/non-regression-proof-bundle.md`](./status/non-regression-proof-bundle.md)：minimum closure proof contract。
-- [`releases/README.md`](./releases/README.md)：受治理的 release surface 与历史 release packetization。
-- [`cold-start-install-paths.md`](./cold-start-install-paths.md)：新人冷启动安装路径，区分最小可用、推荐满血与企业治理三条入口。
-- [`one-shot-setup.md`](./one-shot-setup.md)：one-shot bootstrap、readiness states 与 deep doctor 口径。
+## Governance
 
-### Developer Entry
-
-- [`../CONTRIBUTING.md`](../CONTRIBUTING.md)：开发者总入口、禁止随意开发区域与 proof 预期。
-- [`developer-change-governance.md`](./developer-change-governance.md)：开发者变更治理规则。
-- [`distribution-governance.md`](./distribution-governance.md)：canonical truth surface 与 stop rules。
-- [`upstream-distribution-governance.md`](./upstream-distribution-governance.md)：upstream truth、披露和本地保留规则。
-- [`origin-provenance-policy.md`](./origin-provenance-policy.md)：repo-local retained upstream assets 的溯源策略。
-- [`../references/contributor-zone-decision-table.md`](../references/contributor-zone-decision-table.md)：可改区 / 受保护区判定表。
-- [`../references/change-proof-matrix.md`](../references/change-proof-matrix.md)：变更类型与验证负担矩阵。
-- [`../references/developer-entry-contract.md`](../references/developer-entry-contract.md)：开发者入口契约。
-
-### Background / Governance Entry
-
-- [`docs-information-architecture.md`](./docs-information-architecture.md)：`docs/` 目录语义、索引规则与维护约束。
-- [`architecture.md`](./architecture.md)：VCO 总体结构、边界与主执行面。
-- [`repo-cleanliness-governance.md`](./repo-cleanliness-governance.md)：canonical / mirror / runtime / archive cleanliness contract。
-- [`version-packaging-governance.md`](./version-packaging-governance.md)：canonical / bundled / nested / installed runtime packaging topology。
-- [`runtime-freshness-install-sop.md`](./runtime-freshness-install-sop.md)：install -> freshness -> coherence operator SOP。
-- [`output-artifact-boundary-governance.md`](./output-artifact-boundary-governance.md)：`outputs/**` 与 `references/fixtures/**` 的长期边界。
-- [`observability-consistency-governance.md`](./observability-consistency-governance.md)：可观测性与一致性治理。
-- [`external-tooling/README.md`](./external-tooling/README.md)：外部 tooling / provider / MCP 边界说明。
+- 文档结构规则：[`docs-information-architecture.md`](./docs-information-architecture.md)
+- 打包与兼容拓扑：[`version-packaging-governance.md`](./version-packaging-governance.md)
+- 清洁度规则：[`repo-cleanliness-governance.md`](./repo-cleanliness-governance.md)
+- 安装一致性 SOP：[`runtime-freshness-install-sop.md`](./runtime-freshness-install-sop.md)
+- 可观测性规则：[`observability-consistency-governance.md`](./observability-consistency-governance.md)
 
 ## Cross-Layer Handoff
 
-- [`../config/index.md`](../config/index.md)：machine-readable policy、routing、packaging 与 cleanliness 配置入口。
-- [`../scripts/README.md`](../scripts/README.md)：governance、verify、router、overlay 与 common script entrypoints。
-- [`../references/index.md`](../references/index.md)：contracts、matrices、ledgers、fixtures 与 overlays 导航入口。
-
-## Status Evidence Added In This Phase
-
-- [`status/distribution-governance-baseline-2026-03-13.md`](./status/distribution-governance-baseline-2026-03-13.md)
-- [`status/distribution-governance-closure-report-2026-03-13.md`](./status/distribution-governance-closure-report-2026-03-13.md)
-- [`status/repo-convergence-baseline-2026-03-13.md`](./status/repo-convergence-baseline-2026-03-13.md)
-- [`status/repo-convergence-closure-report-2026-03-13.md`](./status/repo-convergence-closure-report-2026-03-13.md)
-- [`status/developer-entry-baseline-2026-03-13.md`](./status/developer-entry-baseline-2026-03-13.md)
-- [`status/developer-entry-canary-report-2026-03-13.md`](./status/developer-entry-canary-report-2026-03-13.md)
-- [`status/developer-entry-closure-report-2026-03-13.md`](./status/developer-entry-closure-report-2026-03-13.md)
+- 机器可读配置：[`../config/index.md`](../config/index.md)
+- 脚本入口：[`../scripts/README.md`](../scripts/README.md)
+- 长期 reference：[`../references/index.md`](../references/index.md)
+- release 记录：[`releases/README.md`](./releases/README.md)
 
 ## Rules
 
-- root `docs/*.md` 只放长期治理正文、集成说明和稳定 operator SOP，不把 dated plan 或 batch report 升格成 canonical contract。
-- `docs/plans/` 负责当前执行入口与时间绑定计划；`docs/status/` 负责当前运行态与 proof；`docs/releases/` 负责 release surface 与 release history。
-- `status/current-state.md` 只做 artifact-backed 状态摘要；truth source 在 `outputs/verify/**` 与运行态回执中，而不是这份文档本身。
-- 新增 root 级治理正文时，必须更新本索引；新增时间绑定材料时，更新对应子目录的 `README.md` 即可。
+- 根目录 `docs/*.md` 只放长期文档，不把 dated plans 或 batch reports 升格为长期合同。
+- 安装口径以 [`install/README.md`](./install/README.md)、[`cold-start-install-paths.md`](./cold-start-install-paths.md) 与 [`../config/adapter-registry.json`](../config/adapter-registry.json) 对齐，不在多个入口页手写互相冲突的宿主模式说明。
+- 当前状态以 [`status/current-state.md`](./status/current-state.md) 和 `outputs/verify/**` 为准，不在索引页手工维护状态表。
+- 新增长期入口时更新本页；dated 材料只更新对应子目录 `README.md`。

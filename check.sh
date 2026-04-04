@@ -7,12 +7,71 @@ TARGET_ROOT=""
 SKIP_RUNTIME_FRESHNESS_GATE="false"
 DEEP="false"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ADAPTER_RESOLVER="${SCRIPT_DIR}/scripts/common/resolve_vgo_adapter.py"
+ADAPTER_QUERY_PY="${SCRIPT_DIR}/scripts/common/adapter_registry_query.py"
+PYTHON_MIN_MAJOR=3
+PYTHON_MIN_MINOR=10
 
-if [[ ! -f "${ADAPTER_RESOLVER}" ]]; then
-  echo "[FAIL] Missing adapter resolver: ${ADAPTER_RESOLVER}" >&2
-  exit 1
-fi
+
+python_version_of() {
+  local candidate="$1"
+  "${candidate}" - <<'PY'
+import sys
+print(f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}")
+PY
+}
+
+python_meets_minimum() {
+  local candidate="$1"
+  local version major minor patch
+  version="$(python_version_of "${candidate}" 2>/dev/null || true)"
+  [[ -n "${version}" ]] || return 1
+  IFS='.' read -r major minor patch <<EOF
+${version}
+EOF
+  [[ -n "${major}" && -n "${minor}" ]] || return 1
+  if (( major > PYTHON_MIN_MAJOR )); then
+    return 0
+  fi
+  if (( major == PYTHON_MIN_MAJOR && minor >= PYTHON_MIN_MINOR )); then
+    return 0
+  fi
+  return 1
+}
+
+pick_supported_python() {
+  local candidate resolved=""
+  for candidate in python3 python; do
+    if ! resolved="$(command -v "${candidate}" 2>/dev/null)"; then
+      continue
+    fi
+    if [[ -n "${resolved}" ]] && python_meets_minimum "${resolved}"; then
+      printf '%s' "${resolved}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+print_python_requirement_error() {
+  local context="$1"
+  local candidate resolved version found_any="false"
+  echo "[FAIL] ${context} requires Python ${PYTHON_MIN_MAJOR}.${PYTHON_MIN_MINOR}+." >&2
+  for candidate in python3 python; do
+    if resolved="$(command -v "${candidate}" 2>/dev/null)"; then
+      found_any="true"
+      version="$(python_version_of "${resolved}" 2>/dev/null || echo unknown)"
+      echo "[FAIL] Detected ${candidate} -> ${resolved} (${version})" >&2
+    fi
+  done
+  if [[ "${found_any}" != "true" ]]; then
+    echo "[FAIL] No usable python3/python executable was found in PATH." >&2
+  fi
+  if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
+    echo "[FAIL] macOS often provides zsh plus an old/missing system Python. Install a modern Python 3.10+ and ensure 'python3 --version' reports >= ${PYTHON_MIN_MAJOR}.${PYTHON_MIN_MINOR} before rerunning." >&2
+  else
+    echo "[FAIL] Install a modern Python 3.10+ and ensure 'python3 --version' reports >= ${PYTHON_MIN_MAJOR}.${PYTHON_MIN_MINOR} before rerunning." >&2
+  fi
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -26,15 +85,54 @@ while [[ $# -gt 0 ]]; do
 done
 
 pick_python_for_adapter() {
-  if command -v python3 >/dev/null 2>&1; then
-    echo "python3"
-    return 0
-  fi
-  if command -v python >/dev/null 2>&1; then
-    echo "python"
-    return 0
-  fi
+  pick_supported_python
+}
+
+pick_powershell() {
+  local candidate resolved=""
+  for candidate in pwsh pwsh.exe powershell powershell.exe; do
+    if resolved="$(command -v "${candidate}" 2>/dev/null)"; then
+      if [[ -n "${resolved}" ]]; then
+        printf '%s' "${resolved}"
+        return 0
+      fi
+    fi
+  done
   return 1
+}
+
+run_powershell_command() {
+  local command_text="$1"
+  shift
+  local shell_path=""
+  shell_path="$(pick_powershell || true)"
+  [[ -n "${shell_path}" ]] || return 127
+
+  local leaf="${shell_path##*/}"
+  leaf="$(printf '%s' "${leaf}" | tr '[:upper:]' '[:lower:]')"
+  local cmd=("${shell_path}" "-NoProfile")
+  if [[ "${leaf}" == "powershell" || "${leaf}" == "powershell.exe" ]]; then
+    cmd+=("-ExecutionPolicy" "Bypass")
+  fi
+  cmd+=("-Command" "${command_text}")
+  "${cmd[@]}" "$@"
+}
+
+run_powershell_file() {
+  local script_path="$1"
+  shift
+  local shell_path=""
+  shell_path="$(pick_powershell || true)"
+  [[ -n "${shell_path}" ]] || return 127
+
+  local leaf="${shell_path##*/}"
+  leaf="$(printf '%s' "${leaf}" | tr '[:upper:]' '[:lower:]')"
+  local cmd=("${shell_path}" "-NoProfile")
+  if [[ "${leaf}" == "powershell" || "${leaf}" == "powershell.exe" ]]; then
+    cmd+=("-ExecutionPolicy" "Bypass")
+  fi
+  cmd+=("-File" "${script_path}")
+  "${cmd[@]}" "$@"
 }
 
 adapter_query_for_host() {
@@ -43,10 +141,10 @@ adapter_query_for_host() {
   local python_bin=""
   python_bin="$(pick_python_for_adapter || true)"
   if [[ -z "${python_bin}" ]]; then
-    echo "[FAIL] Python is required for adapter-driven host resolution metadata." >&2
+    print_python_requirement_error "Adapter-driven host resolution metadata"
     exit 1
   fi
-  "${python_bin}" "${ADAPTER_RESOLVER}" --repo-root "${SCRIPT_DIR}" --host "${host_id}" --property "${property}"
+  "${python_bin}" "${ADAPTER_QUERY_PY}" --repo-root "${SCRIPT_DIR}" --host "${host_id}" --property "${property}"
 }
 
 resolve_host_id() {
@@ -80,6 +178,17 @@ resolve_default_target_root() {
   fi
 }
 
+safe_parent_dir() {
+  local path="${1:-}"
+  [[ -n "${path}" ]] || return 0
+  local parent=""
+  parent="$(cd "${path}/.." 2>/dev/null && pwd || true)"
+  if [[ -z "${parent}" || "${parent}" == "${path}" || "${parent}" == "/" ]]; then
+    return 0
+  fi
+  printf '%s' "${parent}"
+}
+
 canonical_repo_available() {
   local current="${1:-}"
   [[ -n "${current}" ]] || return 1
@@ -101,101 +210,37 @@ canonical_repo_available() {
   return 1
 }
 
+target_root_owner_for_path() {
+  local target_root="$1"
+  local python_bin=""
+  python_bin="$(pick_python_for_adapter || true)"
+  if [[ -z "${python_bin}" ]]; then
+    print_python_requirement_error "Adapter-driven target-root intent validation"
+    exit 1
+  fi
+  "${python_bin}" "${ADAPTER_QUERY_PY}" --repo-root "${SCRIPT_DIR}" --target-root-owner "${target_root}"
+}
+
 assert_target_root_matches_host_intent() {
   local target_root="$1"
   local host_id="$2"
-  local leaf normalized_target is_codex_root is_claude_root is_cursor_root is_windsurf_root is_openclaw_root
-  leaf="$(basename "${target_root}")"
-  leaf="$(printf '%s' "${leaf}" | tr '[:upper:]' '[:lower:]')"
-  normalized_target="$(printf '%s' "${target_root}" | tr '\\' '/' | tr '[:upper:]' '[:lower:]')"
-  normalized_target="${normalized_target%/}"
-  is_codex_root="false"
-  is_claude_root="false"
-  is_cursor_root="false"
-  is_windsurf_root="false"
-  is_openclaw_root="false"
-  [[ "${leaf}" == ".codex" || "${normalized_target}" == */.vibeskills/targets/codex ]] && is_codex_root="true"
-  [[ "${leaf}" == ".claude" || "${normalized_target}" == */.vibeskills/targets/claude-code ]] && is_claude_root="true"
-  [[ "${leaf}" == ".cursor" || "${normalized_target}" == */.vibeskills/targets/cursor ]] && is_cursor_root="true"
-  [[ "${normalized_target}" == */.codeium/windsurf || "${normalized_target}" == */.vibeskills/targets/windsurf ]] && is_windsurf_root="true"
-  [[ "${leaf}" == ".openclaw" || "${normalized_target}" == */.vibeskills/targets/openclaw ]] && is_openclaw_root="true"
-  local is_opencode_root="false"
-  [[ "${leaf}" == ".opencode" || "${normalized_target}" == */.config/opencode || "${normalized_target}" == */.vibeskills/targets/opencode ]] && is_opencode_root="true"
-  if [[ "${host_id}" == "codex" && ( "${is_claude_root}" == "true" || "${is_windsurf_root}" == "true" || "${is_openclaw_root}" == "true" ) ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a non-Codex host root, but host='codex'." >&2
-    exit 1
+  local foreign_host=""
+  foreign_host="$(target_root_owner_for_path "${target_root}")"
+  if [[ -z "${foreign_host}" || "${foreign_host}" == "${host_id}" ]]; then
+    return 0
   fi
-  if [[ "${host_id}" == "codex" && "${is_cursor_root}" == "true" ]]; then
+  if [[ "${host_id}" == "codex" && "${foreign_host}" == "cursor" ]]; then
     echo "[FAIL] Target root '${target_root}' looks like a Cursor home, but host='codex'." >&2
     echo "[FAIL] Pass --host cursor for preview guidance or use a Codex target root." >&2
     exit 1
   fi
-  if [[ "${host_id}" == "claude-code" && ( "${is_codex_root}" == "true" || "${is_windsurf_root}" == "true" || "${is_openclaw_root}" == "true" ) ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a non-Claude host root, but host='claude-code'." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "codex" && "${is_opencode_root}" == "true" ]]; then
+  if [[ "${host_id}" == "codex" && "${foreign_host}" == "opencode" ]]; then
     echo "[FAIL] Target root '${target_root}' looks like an OpenCode root, but host='codex'." >&2
     echo "[FAIL] Pass --host opencode for the OpenCode preview lane or use a Codex target root." >&2
     exit 1
   fi
-  if [[ "${host_id}" == "claude-code" && "${is_codex_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Codex home, but host='claude-code'." >&2
-    echo "[FAIL] Use --host codex for the official closure lane or choose a Claude Code target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "claude-code" && "${is_opencode_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like an OpenCode root, but host='claude-code'." >&2
-    echo "[FAIL] Use --host opencode for the OpenCode preview lane or choose a Claude Code target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "claude-code" && "${is_cursor_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Cursor home, but host='claude-code'." >&2
-    echo "[FAIL] Pass --host cursor for Cursor preview guidance or choose a Claude Code target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "cursor" && "${is_codex_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Codex home, but host='cursor'." >&2
-    echo "[FAIL] Use --host codex for the official closure lane or choose a Cursor target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "cursor" && "${is_claude_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Claude Code home, but host='cursor'." >&2
-    echo "[FAIL] Pass --host claude-code for Claude preview guidance or choose a Cursor target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "cursor" && "${is_windsurf_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Windsurf home, but host='cursor'." >&2
-    echo "[FAIL] Pass --host windsurf for preview runtime-core or choose a Cursor target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "cursor" && "${is_openclaw_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like an OpenClaw home, but host='cursor'." >&2
-    echo "[FAIL] Pass --host openclaw for runtime-core guidance or choose a Cursor target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "windsurf" && ( "${is_codex_root}" == "true" || "${is_claude_root}" == "true" || "${is_openclaw_root}" == "true" ) ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a non-Windsurf host root, but host='windsurf'." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "windsurf" && "${is_cursor_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Cursor home, but host='windsurf'." >&2
-    echo "[FAIL] Pass --host cursor for preview guidance or choose a Windsurf target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "openclaw" && ( "${is_codex_root}" == "true" || "${is_claude_root}" == "true" || "${is_windsurf_root}" == "true" ) ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a non-OpenClaw host root, but host='openclaw'." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "openclaw" && "${is_cursor_root}" == "true" ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a Cursor home, but host='openclaw'." >&2
-    echo "[FAIL] Pass --host cursor for preview guidance or choose an OpenClaw target root." >&2
-    exit 1
-  fi
-  if [[ "${host_id}" == "opencode" && ( "${is_codex_root}" == "true" || "${is_claude_root}" == "true" || "${is_cursor_root}" == "true" || "${is_windsurf_root}" == "true" || "${is_openclaw_root}" == "true" ) ]]; then
-    echo "[FAIL] Target root '${target_root}' looks like a non-OpenCode host root, but host='opencode'." >&2
-    exit 1
-  fi
+  echo "[FAIL] Target root '${target_root}' looks like the default target root for host='${foreign_host}', but host='${host_id}'." >&2
+  exit 1
 }
 
 HOST_ID="$(resolve_host_id "${HOST_ID}")"
@@ -203,6 +248,54 @@ if [[ -z "${TARGET_ROOT}" ]]; then
   TARGET_ROOT="$(resolve_default_target_root "${HOST_ID}")"
 fi
 assert_target_root_matches_host_intent "${TARGET_ROOT}" "${HOST_ID}"
+
+resolve_codex_duplicate_skill_root() {
+  if [[ "${HOST_ID}" != "codex" ]]; then
+    return 1
+  fi
+
+  local leaf=""
+  leaf="$(basename "${TARGET_ROOT}")"
+  leaf="$(printf '%s' "${leaf}" | tr '[:upper:]' '[:lower:]')"
+  if [[ "${leaf}" != ".codex" ]]; then
+    return 1
+  fi
+
+  local parent=""
+  parent="$(safe_parent_dir "${TARGET_ROOT}")"
+  if [[ -z "${parent}" ]]; then
+    return 1
+  fi
+
+  printf '%s' "${parent}/.agents/skills/vibe"
+}
+
+test_vibe_skill_dir() {
+  local root="${1:-}"
+  local skill_md="${root}/SKILL.md"
+  [[ -f "${skill_md}" ]] || return 1
+  if grep -Eq '^[[:space:]]*name:[[:space:]]*vibe[[:space:]]*$' "${skill_md}"; then
+    return 0
+  fi
+  return 1
+}
+
+check_codex_duplicate_skill_surface() {
+  local duplicate_root=""
+  duplicate_root="$(resolve_codex_duplicate_skill_root || true)"
+  if [[ -z "${duplicate_root}" || ! -d "${duplicate_root}" ]]; then
+    return 0
+  fi
+
+  if test_vibe_skill_dir "${duplicate_root}"; then
+    echo "[FAIL] duplicate Codex-discovered vibe skill surface -> ${duplicate_root}"
+    echo "[FAIL] Re-run install.sh for the default Codex root to quarantine the legacy .agents copy, or move it out of .agents/skills manually."
+    FAIL=$((FAIL+1))
+    return 0
+  fi
+
+  warn_note "unexpected directory exists at Codex duplicate-surface path: ${duplicate_root}"
+}
 
 PASS=0
 FAIL=0
@@ -219,6 +312,17 @@ check_path() {
   else
     echo "[WARN] $label -> $path"
     WARN=$((WARN+1))
+  fi
+}
+
+check_absent_path() {
+  local label="$1"; local path="$2"
+  if [[ -e "$path" ]]; then
+    echo "[FAIL] $label -> $path"
+    FAIL=$((FAIL+1))
+  else
+    echo "[OK] $label"
+    PASS=$((PASS+1))
   fi
 }
 
@@ -334,8 +438,8 @@ else:
     print(value)
 PY
     return $?
-  elif command -v pwsh >/dev/null 2>&1; then
-    pwsh -NoProfile -Command '
+  elif pick_powershell >/dev/null 2>&1; then
+    run_powershell_command '
 param([string]$Path,[string]$Expr)
 $raw = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
 $value = $raw | ConvertFrom-Json
@@ -369,26 +473,12 @@ json_query_scalar_from_file() {
 }
 
 pick_python() {
-  if command -v python3 >/dev/null 2>&1; then
-    echo "python3"
-    return 0
-  fi
-  if command -v python >/dev/null 2>&1; then
-    echo "python"
-    return 0
-  fi
-  return 1
+  pick_supported_python
 }
 
 adapter_query() {
   local property="$1"
-  local python_bin=""
-  python_bin="$(pick_python || true)"
-  if [[ -z "${python_bin}" ]]; then
-    echo "[FAIL] Python is required for adapter-driven health-check metadata." >&2
-    exit 1
-  fi
-  "${python_bin}" "${ADAPTER_RESOLVER}" --repo-root "${SCRIPT_DIR}" --host "${HOST_ID}" --property "${property}"
+  adapter_query_for_host "${HOST_ID}" "${property}"
 }
 
 run_runtime_neutral_freshness_gate() {
@@ -471,8 +561,8 @@ validate_runtime_receipt() {
       warn_note "vibe runtime freshness receipt unavailable because check.sh is not running from the canonical repo root."
       return
     fi
-    if ! command -v pwsh >/dev/null 2>&1; then
-      warn_note "vibe runtime freshness receipt unavailable because pwsh is not installed in this shell environment."
+    if ! pick_powershell >/dev/null 2>&1; then
+      warn_note "vibe runtime freshness receipt unavailable because pwsh is not installed and no compatible PowerShell host is available in this shell environment."
       return
     fi
     echo "[FAIL] vibe runtime freshness receipt -> $receipt_path"
@@ -583,11 +673,11 @@ run_runtime_freshness_gate() {
     echo "[OK] vibe installed runtime freshness gate"
     PASS=$((PASS+1))
   elif [[ $? -eq 127 ]]; then
-    if ! command -v pwsh >/dev/null 2>&1; then
-      warn_note 'runtime freshness gate skipped: neither Python runtime-neutral gate nor pwsh fallback is available.'
+    if ! pick_powershell >/dev/null 2>&1; then
+      warn_note 'runtime freshness gate skipped: neither Python runtime-neutral gate nor a PowerShell fallback is available.'
       return
     fi
-    if pwsh -NoProfile -File "$gate_path" -TargetRoot "$TARGET_ROOT"; then
+    if run_powershell_file "$gate_path" -TargetRoot "$TARGET_ROOT"; then
       echo "[OK] vibe installed runtime freshness gate"
       PASS=$((PASS+1))
     else
@@ -627,11 +717,11 @@ run_runtime_coherence_gate() {
     echo "[OK] vibe release/install/runtime coherence gate"
     PASS=$((PASS+1))
   elif [[ $? -eq 127 ]]; then
-    if ! command -v pwsh >/dev/null 2>&1; then
-      warn_note 'runtime coherence gate skipped: neither Python runtime-neutral gate nor pwsh fallback is available.'
+    if ! pick_powershell >/dev/null 2>&1; then
+      warn_note 'runtime coherence gate skipped: neither Python runtime-neutral gate nor a PowerShell fallback is available.'
       return
     fi
-    if pwsh -NoProfile -File "$gate_path" -TargetRoot "$TARGET_ROOT"; then
+    if run_powershell_file "$gate_path" -TargetRoot "$TARGET_ROOT"; then
       echo "[OK] vibe release/install/runtime coherence gate"
       PASS=$((PASS+1))
     else
@@ -670,25 +760,109 @@ if [[ "${ADAPTER_CHECK_MODE}" == "governed" ]]; then
 fi
 if [[ "${ADAPTER_CHECK_MODE}" == "preview-guidance" ]]; then
   if [[ "${HOST_ID}" == "opencode" ]]; then
-    warn_note "opencode preview keeps the real opencode.json host-managed; only skills, commands, agents, and an example config scaffold are verified"
+    info_note "opencode preview now runs as skills-only activation; the real opencode.json stays untouched and sidecar state is verified"
+  elif [[ "${HOST_ID}" == "claude-code" ]]; then
+    info_note "claude-code preview now verifies sidecar state plus a managed settings.json and hook surface"
   else
-    info_note "${HOST_ID} preview hook/settings scaffold remains intentionally unavailable while the author works through compatibility issues; this is a current product boundary, not an install failure"
+    info_note "${HOST_ID} preview now runs as skills-only activation; host-native config files stay untouched and sidecar state is verified"
   fi
 fi
 if [[ "${ADAPTER_CHECK_MODE}" == "runtime-core" ]]; then
-  if [[ -d "${SCRIPT_DIR}/commands" ]]; then
-    check_path "global workflows" "${TARGET_ROOT}/global_workflows"
+  info_note "${HOST_ID} runtime-core now verifies skill-native activation and sidecar state only; host-native workflow/config files are intentionally absent"
+fi
+if [[ "${HOST_ID}" == "claude-code" || "${HOST_ID}" == "cursor" || "${HOST_ID}" == "windsurf" || "${HOST_ID}" == "openclaw" || "${HOST_ID}" == "opencode" ]]; then
+  check_path "host settings sidecar" "${TARGET_ROOT}/.vibeskills/host-settings.json"
+fi
+if [[ "${HOST_ID}" == "claude-code" ]]; then
+  check_path "settings.json" "${TARGET_ROOT}/settings.json"
+  managed_host_id="$(json_query_scalar_from_file "${TARGET_ROOT}/settings.json" 'vibeskills.host_id' 2>/dev/null || true)"
+  if [[ "${managed_host_id}" == "claude-code" ]]; then
+    echo "[OK] settings.json managed vibeskills node"
+    PASS=$((PASS+1))
+  else
+    echo "[FAIL] settings.json managed vibeskills node"
+    FAIL=$((FAIL+1))
   fi
-  if [[ -f "${SCRIPT_DIR}/mcp/servers.template.json" ]]; then
-    check_path "mcp_config.json" "${TARGET_ROOT}/mcp_config.json"
+  hook_script_path="${TARGET_ROOT}/hooks/write-guard.js"
+  check_path "managed Claude hook script" "${hook_script_path}"
+  python_bin_for_hook_check="$(pick_python_for_adapter || true)"
+  if [[ -z "${python_bin_for_hook_check}" ]]; then
+    print_python_requirement_error "Claude hook verification"
+    echo "[FAIL] settings.json managed Claude hook command"
+    FAIL=$((FAIL+1))
+  else
+    hook_check_result="$(
+    "${python_bin_for_hook_check}" - "${TARGET_ROOT}/settings.json" "${hook_script_path}" <<'PY' 2>/dev/null || true
+import json, sys
+settings_path, hook_path = sys.argv[1], sys.argv[2]
+with open(settings_path, encoding='utf-8-sig') as fh:
+    payload = json.load(fh)
+hooks = payload.get("hooks", {})
+entries = hooks.get("PreToolUse", [])
+expected = f"node {hook_path}"
+for entry in entries:
+    if not isinstance(entry, dict):
+        continue
+    if str(entry.get("description") or "").strip() != "VibeSkills managed write guard":
+        continue
+    nested = entry.get("hooks")
+    if not isinstance(nested, list) or not nested:
+        continue
+    first = nested[0]
+    if not isinstance(first, dict):
+        continue
+    if str(first.get("command") or "").strip() == expected:
+        print("ok")
+        raise SystemExit(0)
+print("missing")
+raise SystemExit(1)
+PY
+    )"
+    if [[ "${hook_check_result}" == "ok" ]]; then
+      echo "[OK] settings.json managed Claude hook command"
+      PASS=$((PASS+1))
+    else
+      echo "[FAIL] settings.json managed Claude hook command"
+      FAIL=$((FAIL+1))
+    fi
+  fi
+fi
+check_path "host closure manifest" "${TARGET_ROOT}/.vibeskills/host-closure.json"
+if [[ -f "${TARGET_ROOT}/.vibeskills/host-closure.json" ]]; then
+  closure_state="$(json_query_scalar_from_file "${TARGET_ROOT}/.vibeskills/host-closure.json" 'host_closure_state' 2>/dev/null || true)"
+  if [[ -n "${closure_state}" ]]; then
+    if [[ "${closure_state}" == "closed_ready" ]]; then
+      echo "[OK] host closure state -> ${closure_state}"
+      PASS=$((PASS+1))
+    else
+      warn_note "host closure state -> ${closure_state}"
+    fi
+  fi
+  wrapper_launcher="$(json_query_scalar_from_file "${TARGET_ROOT}/.vibeskills/host-closure.json" 'specialist_wrapper.launcher_path' 2>/dev/null || true)"
+  if [[ -n "${wrapper_launcher}" ]]; then
+    check_path "specialist wrapper launcher" "${wrapper_launcher}"
   fi
 fi
 if [[ "${ADAPTER_CHECK_MODE}" == "governed" ]]; then
   check_path "plugins manifest" "${TARGET_ROOT}/config/plugins-manifest.codex.json"
 fi
+check_codex_duplicate_skill_surface
 check_path "upstream lock" "${TARGET_ROOT}/config/upstream-lock.json"
 check_path "vibe version governance config" "${TARGET_ROOT}/${runtime_target_rel}/config/version-governance.json"
-check_path "vibe release ledger" "${runtime_skill_root}/references/release-ledger.jsonl"
+installed_runtime_governance="${runtime_skill_root}/config/version-governance.json"
+runtime_release_ledger_required="true"
+if [[ -f "${installed_runtime_governance}" ]]; then
+  if ! json_query_lines_from_file "${installed_runtime_governance}" 'packaging.mirror.directories' 2>/dev/null | grep -Fxq 'references' && \
+     ! json_query_lines_from_file "${installed_runtime_governance}" 'packaging.allow_bundled_only' 2>/dev/null | grep -Fxq 'references/release-ledger.jsonl'; then
+    runtime_release_ledger_required="false"
+  fi
+fi
+if [[ "${runtime_release_ledger_required}" == "true" ]]; then
+  check_path "vibe release ledger" "${runtime_skill_root}/references/release-ledger.jsonl"
+else
+  echo "[OK] vibe release ledger skipped (not packaged into installed runtime contract)"
+  PASS=$((PASS+1))
+fi
 for n in vibe dialectic local-vco-roles spec-kit-vibe-compat superclaude-framework-compat ralph-loop cancel-ralph tdd-guide think-harder; do
   check_path "skill/${n}" "${TARGET_ROOT}/skills/${n}/SKILL.md"
 done
@@ -721,6 +895,8 @@ if [[ -d "${runtime_nested_skill_root}" ]]; then
   check_path "vibe bundled exploration intent profiles config" "${runtime_nested_skill_root}/config/exploration-intent-profiles.json"
   check_path "vibe bundled exploration domain map config" "${runtime_nested_skill_root}/config/exploration-domain-map.json"
   check_path "vibe bundled llm acceleration policy config" "${runtime_nested_skill_root}/config/llm-acceleration-policy.json"
+  check_absent_path "vibe nested bundled skill entrypoint hidden" "${runtime_nested_skill_root}/SKILL.md"
+  check_path "vibe nested bundled skill runtime mirror" "${runtime_nested_skill_root}/SKILL.runtime-mirror.md"
 else
   echo "[OK] vibe nested bundled config checks skipped (target absent; policy=optional)"
   PASS=$((PASS+1))
@@ -734,14 +910,16 @@ if [[ "${PROFILE}" == "full" ]]; then
   done
 fi
 if [[ "${HOST_ID}" == "opencode" ]]; then
-  for n in vibe vibe-implement vibe-review; do
-    check_path "opencode command/${n}" "${TARGET_ROOT}/commands/${n}.md"
-    check_path "opencode compat command/${n}" "${TARGET_ROOT}/command/${n}.md"
-  done
-  for n in vibe-plan vibe-implement vibe-review; do
-    check_path "opencode agent/${n}" "${TARGET_ROOT}/agents/${n}.md"
-    check_path "opencode compat agent/${n}" "${TARGET_ROOT}/agent/${n}.md"
-  done
+  if [[ "${ADAPTER_CHECK_MODE}" != "preview-guidance" ]]; then
+    for n in vibe vibe-implement vibe-review; do
+      check_path "opencode command/${n}" "${TARGET_ROOT}/commands/${n}.md"
+      check_path "opencode compat command/${n}" "${TARGET_ROOT}/command/${n}.md"
+    done
+    for n in vibe-plan vibe-implement vibe-review; do
+      check_path "opencode agent/${n}" "${TARGET_ROOT}/agents/${n}.md"
+      check_path "opencode compat agent/${n}" "${TARGET_ROOT}/agent/${n}.md"
+    done
+  fi
   check_path "opencode preview config example" "${TARGET_ROOT}/opencode.json.example"
 fi
 if [[ "${ADAPTER_CHECK_MODE}" == "governed" ]]; then
@@ -778,10 +956,10 @@ if [[ "${DEEP}" == "true" ]]; then
       echo "[OK] vibe bootstrap doctor gate"
       PASS=$((PASS+1))
     elif [[ $? -eq 127 ]]; then
-      if ! command -v pwsh >/dev/null 2>&1; then
-        echo "[WARN] vibe bootstrap doctor gate skipped because neither the Python runtime-neutral doctor nor pwsh is available in this shell environment."
+      if ! pick_powershell >/dev/null 2>&1; then
+        echo "[WARN] vibe bootstrap doctor gate skipped because neither the Python runtime-neutral doctor nor a PowerShell host is available in this shell environment."
         WARN=$((WARN+1))
-      elif pwsh -NoProfile -File "${doctor_path}" -TargetRoot "${TARGET_ROOT}" -WriteArtifacts; then
+      elif run_powershell_file "${doctor_path}" -TargetRoot "${TARGET_ROOT}" -WriteArtifacts; then
         echo "[OK] vibe bootstrap doctor gate"
         PASS=$((PASS+1))
       else

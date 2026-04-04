@@ -114,6 +114,7 @@ $bundleReadmePath = Join-Path $repoRoot 'references\proof-bundles\official-runti
 $manifestPath = Join-Path $repoRoot 'references\proof-bundles\official-runtime-baseline\baseline-manifest.json'
 
 $installPs1 = Join-Path $repoRoot 'install.ps1'
+$installAdapterPs1 = Join-Path $repoRoot 'scripts\install\Install-VgoAdapter.ps1'
 $checkPs1 = Join-Path $repoRoot 'check.ps1'
 $installSh = Join-Path $repoRoot 'install.sh'
 $checkSh = Join-Path $repoRoot 'check.sh'
@@ -146,6 +147,7 @@ $results = [ordered]@{
         packaging = [ordered]@{
             mirror_files = @($packaging.mirror.files)
             mirror_directories = @($packaging.mirror.directories)
+            manifests = @($packaging.manifests)
         }
     }
     assertions = @()
@@ -214,11 +216,13 @@ if ($null -ne $manifest) {
         'scripts/verify/vibe-pack-routing-smoke.ps1',
         'scripts/verify/vibe-router-contract-gate.ps1',
         'scripts/verify/vibe-version-consistency-gate.ps1',
-        'scripts/verify/vibe-version-packaging-gate.ps1',
-        'scripts/verify/vibe-installed-runtime-freshness-gate.ps1',
-        'scripts/verify/vibe-bom-frontmatter-gate.ps1',
-        'scripts/verify/vibe-release-install-runtime-coherence-gate.ps1'
+        'scripts/verify/vibe-version-packaging-gate.ps1'
     )
+    foreach ($runtimeGate in @([string]$runtimeConfig.post_install_gate, [string]$runtimeConfig.frontmatter_gate, [string]$runtimeConfig.coherence_gate)) {
+        if (-not [string]::IsNullOrWhiteSpace($runtimeGate) -and -not (@($requiredGates) -contains $runtimeGate)) {
+            $requiredGates += $runtimeGate
+        }
+    }
     foreach ($requiredGate in $requiredGates) {
         Add-Assertion -Collection $assertions -Condition (@($manifest.minimum_non_regression_gates) -contains [string]$requiredGate) -Message ("[manifest] minimum_non_regression_gates includes {0}" -f $requiredGate)
         Add-Assertion -Collection $assertions -Condition (Test-Path -LiteralPath (Join-Path $repoRoot $requiredGate)) -Message ("[repo] required gate exists: {0}" -f $requiredGate)
@@ -230,9 +234,25 @@ foreach ($file in $expectedMirrorFiles) {
     Add-Assertion -Collection $assertions -Condition (@($packaging.mirror.files) -contains [string]$file) -Message ("[packaging] mirror.files includes {0}" -f $file)
 }
 
-$expectedMirrorDirs = @('config', 'protocols', 'references', 'docs', 'scripts', 'mcp')
+$expectedMirrorDirs = @('templates', 'mcp')
 foreach ($dir in $expectedMirrorDirs) {
     Add-Assertion -Collection $assertions -Condition (@($packaging.mirror.directories) -contains [string]$dir) -Message ("[packaging] mirror.directories includes {0}" -f $dir)
+}
+
+$forbiddenMirrorDirs = @('config', 'scripts', 'docs', 'references', 'protocols')
+foreach ($dir in $forbiddenMirrorDirs) {
+    Add-Assertion -Collection $assertions -Condition (-not (@($packaging.mirror.directories) -contains [string]$dir)) -Message ("[packaging] mirror.directories excludes broad root {0}" -f $dir)
+}
+
+$expectedManifestFiles = @('config/runtime-script-manifest.json', 'config/runtime-config-manifest.json')
+foreach ($file in $expectedManifestFiles) {
+    Add-Assertion -Collection $assertions -Condition (@($packaging.mirror.files) -contains [string]$file) -Message ("[packaging] mirror.files includes manifest {0}" -f $file)
+    Add-Assertion -Collection $assertions -Condition (Test-Path -LiteralPath (Join-Path $repoRoot $file)) -Message ("[repo] manifest exists: {0}" -f $file)
+}
+
+$manifestPaths = @($packaging.manifests | ForEach-Object { [string]$_.path })
+foreach ($manifestPath in $expectedManifestFiles) {
+    Add-Assertion -Collection $assertions -Condition ($manifestPaths -contains $manifestPath) -Message ("[packaging] manifests declares {0}" -f $manifestPath)
 }
 
 Add-Assertion -Collection $assertions -Condition (-not [string]::IsNullOrWhiteSpace([string]$runtimeConfig.target_relpath)) -Message '[runtime] target_relpath is present'
@@ -254,17 +274,19 @@ if ($governance.PSObject.Properties.Name -contains 'runtime' -and $null -ne $gov
 }
 Add-Assertion -Collection $assertions -Condition (-not [string]::IsNullOrWhiteSpace([string]$declaredFrontmatterGate)) -Message '[runtime] frontmatter_gate is declared in config/version-governance.json'
 if (-not [string]::IsNullOrWhiteSpace([string]$declaredFrontmatterGate)) {
-    Add-Assertion -Collection $assertions -Condition ([string]$declaredFrontmatterGate -eq 'scripts/verify/vibe-bom-frontmatter-gate.ps1') -Message '[runtime] frontmatter_gate points to vibe-bom-frontmatter-gate.ps1'
+    Add-Assertion -Collection $assertions -Condition ([string]$declaredFrontmatterGate -eq [string]$runtimeConfig.frontmatter_gate) -Message '[runtime] frontmatter_gate declaration matches effective runtime contract'
 }
 
 $postInstallGatePath = if (-not [string]::IsNullOrWhiteSpace([string]$runtimeConfig.post_install_gate)) { Join-Path $repoRoot ([string]$runtimeConfig.post_install_gate) } else { $null }
-$frontmatterGatePath = if ($runtimeConfig.PSObject.Properties.Name -contains 'frontmatter_gate' -and -not [string]::IsNullOrWhiteSpace([string]$runtimeConfig.frontmatter_gate)) { Join-Path $repoRoot ([string]$runtimeConfig.frontmatter_gate) } else { Join-Path $repoRoot 'scripts/verify/vibe-bom-frontmatter-gate.ps1' }
+$frontmatterGatePath = if ($runtimeConfig.PSObject.Properties.Name -contains 'frontmatter_gate' -and -not [string]::IsNullOrWhiteSpace([string]$runtimeConfig.frontmatter_gate)) { Join-Path $repoRoot ([string]$runtimeConfig.frontmatter_gate) } else { $null }
 $coherenceGatePath = if (-not [string]::IsNullOrWhiteSpace([string]$runtimeConfig.coherence_gate)) { Join-Path $repoRoot ([string]$runtimeConfig.coherence_gate) } else { $null }
 
 if ($null -ne $postInstallGatePath) {
     Add-Assertion -Collection $assertions -Condition (Test-Path -LiteralPath $postInstallGatePath) -Message '[runtime] post-install gate script exists'
 }
-Add-Assertion -Collection $assertions -Condition (Test-Path -LiteralPath $frontmatterGatePath) -Message '[runtime] BOM/frontmatter gate script exists'
+if ($null -ne $frontmatterGatePath) {
+    Add-Assertion -Collection $assertions -Condition (Test-Path -LiteralPath $frontmatterGatePath) -Message '[runtime] BOM/frontmatter gate script exists'
+}
 if ($null -ne $coherenceGatePath) {
     Add-Assertion -Collection $assertions -Condition (Test-Path -LiteralPath $coherenceGatePath) -Message '[runtime] coherence gate script exists'
 }
@@ -289,7 +311,7 @@ if (-not [string]::IsNullOrWhiteSpace([string]$runtimeConfig.coherence_gate)) {
 Add-Assertion -Collection $assertions -Condition (Test-Path -LiteralPath $installPs1) -Message '[install.ps1] exists'
 Add-Assertion -Collection $assertions -Condition (Test-ContentPattern -Path $installPs1 -Pattern 'Invoke-InstalledRuntimeFreshnessGate') -Message '[install.ps1] references Invoke-InstalledRuntimeFreshnessGate'
 Add-Assertion -Collection $assertions -Condition (Test-ContentPattern -Path $installPs1 -Pattern 'plugins-manifest.codex.json') -Message '[install.ps1] references plugins-manifest.codex.json'
-Add-Assertion -Collection $assertions -Condition (Test-ContentPattern -Path $installPs1 -Pattern 'settings.template.codex.json') -Message '[install.ps1] references settings template'
+Add-Assertion -Collection $assertions -Condition ((Test-ContentPattern -Path $installPs1 -Pattern 'settings.template.codex.json') -or (Test-ContentPattern -Path $installAdapterPs1 -Pattern 'settings.template.codex.json')) -Message '[install flow] references settings template'
 
 Add-Assertion -Collection $assertions -Condition (Test-Path -LiteralPath $checkPs1) -Message '[check.ps1] exists'
 Add-Assertion -Collection $assertions -Condition (Test-ContentPattern -Path $checkPs1 -Pattern 'Invoke-RuntimeFreshnessCheck') -Message '[check.ps1] references runtime freshness check'

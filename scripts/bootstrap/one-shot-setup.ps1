@@ -6,10 +6,10 @@ param(
     [switch]$SkipExternalInstall,
     [switch]$StrictOffline,
     [switch]$SyncUserEnv,
-    [string]$OpenAIBaseUrl = '',
-    [string]$OpenAIApiKey = '',
-    [string]$ArkBaseUrl = '',
-    [string]$ArkApiKey = ''
+    [Alias('OpenAIBaseUrl')]
+    [string]$IntentAdviceBaseUrl = '',
+    [Alias('OpenAIApiKey')]
+    [string]$IntentAdviceApiKey = ''
 )
 
 Set-StrictMode -Version Latest
@@ -29,48 +29,50 @@ function Test-IsInteractiveBootstrap {
 }
 
 function Prompt-VgoHostId {
+    $choices = @(Get-VgoBootstrapHostChoices -StartPath $PSScriptRoot)
+    if ($choices.Count -eq 0) {
+        throw 'No bootstrap host choices were available from the adapter registry.'
+    }
+
     while ($true) {
         Write-Host 'Select the install target before bootstrap:'
-        Write-Host '  1) codex        - strongest governed lane'
-        Write-Host '  2) claude-code  - supported install/use path'
-        Write-Host '  3) cursor       - supported install/use path'
-        Write-Host '  4) windsurf     - supported path + runtime adapter'
-        Write-Host '  5) openclaw     - preview runtime-core adapter'
-        $choice = [string](Read-Host 'Install into which agent? [1-5]')
-        $normalized = $choice.Trim().ToLowerInvariant()
-        switch ($normalized) {
-            '1' { return 'codex' }
-            'codex' { return 'codex' }
-            '2' { return 'claude-code' }
-            'claude' { return 'claude-code' }
-            'claude-code' { return 'claude-code' }
-            '3' { return 'cursor' }
-            'cursor' { return 'cursor' }
-            '4' { return 'windsurf' }
-            'windsurf' { return 'windsurf' }
-            '5' { return 'openclaw' }
-            'openclaw' { return 'openclaw' }
-            default { Write-Warning "Unsupported choice: $choice. Enter 1, 2, 3, 4, 5, or a supported host name." }
+        foreach ($entry in $choices) {
+            Write-Host ("  {0}) {1,-12} - {2}" -f $entry.index, $entry.id, $entry.summary)
         }
+
+        $choice = [string](Read-Host ("Install into which agent? [1-{0}]" -f $choices.Count))
+        $normalized = $choice.Trim().ToLowerInvariant()
+        foreach ($entry in $choices) {
+            if ($normalized -eq [string]$entry.index -or $normalized -eq [string]$entry.id) {
+                return [string]$entry.id
+            }
+            foreach ($alias in @($entry.aliases)) {
+                if ($normalized -eq [string]$alias) {
+                    return [string]$entry.id
+                }
+            }
+        }
+
+        Write-Warning ("Unsupported choice: {0}. Enter 1-{1}, or a supported host name." -f $choice, $choices.Count)
     }
 }
 
 . (Join-Path $PSScriptRoot '..\common\vibe-governance-helpers.ps1')
-. (Join-Path $PSScriptRoot '..\common\Resolve-VgoAdapter.ps1')
+
 if (-not (Test-NonEmptyString -Value $HostId)) {
     if (Test-NonEmptyString -Value $env:VCO_HOST_ID) {
         $HostId = $env:VCO_HOST_ID
     } elseif (Test-IsInteractiveBootstrap) {
         $HostId = Prompt-VgoHostId
     } else {
-        throw 'No host was provided for one-shot bootstrap. Pass -HostId codex|claude-code|cursor|windsurf|openclaw when running non-interactively.'
+        throw ("No host was provided for one-shot bootstrap. Pass -HostId {0} when running non-interactively." -f (Get-VgoSupportedHostHint -StartPath $PSScriptRoot))
     }
 }
 $HostId = Resolve-VgoHostId -HostId $HostId
 $TargetRoot = Resolve-VgoTargetRoot -TargetRoot $TargetRoot -HostId $HostId
 Assert-VgoTargetRootMatchesHostIntent -TargetRoot $TargetRoot -HostId $HostId
 $repoRoot = Resolve-VgoRepoRoot -StartPath $PSCommandPath
-$Adapter = Resolve-VgoAdapterDescriptor -RepoRoot $repoRoot -HostId $HostId
+$Adapter = Resolve-VgoAdapterEntry -StartPath $repoRoot -HostId $HostId
 
 function Get-ExistingSettingEnvValue {
     param(
@@ -107,7 +109,6 @@ $installPath = Join-Path $repoRoot 'install.ps1'
 $checkPath = Join-Path $repoRoot 'check.ps1'
 $materializePath = Join-Path $repoRoot 'scripts\setup\materialize-codex-mcp-profile.ps1'
 $persistOpenAiPath = Join-Path $repoRoot 'scripts\setup\persist-codex-openai-env.ps1'
-$persistArkPath = Join-Path $repoRoot 'scripts\setup\persist-codex-ark-env.ps1'
 $syncEnvPath = Join-Path $repoRoot 'scripts\setup\sync-codex-settings-to-user-env.ps1'
 $claudeScaffoldPath = Join-Path $repoRoot 'scripts\bootstrap\scaffold-claude-preview.ps1'
 
@@ -143,33 +144,21 @@ Write-Host '[1/5] Installing adapter payload...' -ForegroundColor Yellow
 
 switch ([string]$Adapter.bootstrap_mode) {
     'governed' {
-        $existingOpenAiKey = Get-ExistingSettingEnvValue -CodexRoot $TargetRoot -Name 'OPENAI_API_KEY'
-        $hasOpenAiSeed = (Test-NonEmptyString -Value $OpenAIApiKey) -or (Test-NonEmptyString -Value $env:OPENAI_API_KEY)
-        if ($hasOpenAiSeed) {
-            Write-Host '[2/5] Seeding OPENAI settings into target settings.json...' -ForegroundColor Yellow
-            $openAiArgs = @{ CodexRoot = $TargetRoot }
-            if (Test-NonEmptyString -Value $OpenAIBaseUrl) { $openAiArgs.BaseUrl = $OpenAIBaseUrl }
-            if (Test-NonEmptyString -Value $OpenAIApiKey) { $openAiArgs.ApiKey = $OpenAIApiKey }
-            & $persistOpenAiPath @openAiArgs
-        } elseif (Test-NonEmptyString -Value $existingOpenAiKey) {
-            Write-Host '[2/5] OPENAI settings already exist in target settings.json; keeping current value.' -ForegroundColor DarkGray
+        $existingIntentAdviceKey = Get-ExistingSettingEnvValue -CodexRoot $TargetRoot -Name 'VCO_INTENT_ADVICE_API_KEY'
+        $hasIntentAdviceSeed = (Test-NonEmptyString -Value $IntentAdviceApiKey) -or (Test-NonEmptyString -Value $env:VCO_INTENT_ADVICE_API_KEY)
+        if ($hasIntentAdviceSeed) {
+            Write-Host '[2/5] Seeding intent advice settings into target settings.json...' -ForegroundColor Yellow
+            $intentAdviceArgs = @{ CodexRoot = $TargetRoot }
+            if (Test-NonEmptyString -Value $IntentAdviceBaseUrl) { $intentAdviceArgs.BaseUrl = $IntentAdviceBaseUrl }
+            if (Test-NonEmptyString -Value $IntentAdviceApiKey) { $intentAdviceArgs.ApiKey = $IntentAdviceApiKey }
+            & $persistOpenAiPath @intentAdviceArgs
+        } elseif (Test-NonEmptyString -Value $existingIntentAdviceKey) {
+            Write-Host '[2/5] Intent advice settings already exist in target settings.json; keeping current value.' -ForegroundColor DarkGray
         } else {
-            Write-Warning 'OPENAI_API_KEY not provided and not present in the current environment. Full online readiness will remain pending.'
+            Write-Warning 'VCO_INTENT_ADVICE_API_KEY not provided and not present in the current environment. Built-in intent advice readiness will remain pending.'
         }
 
-        $existingArkKey = Get-ExistingSettingEnvValue -CodexRoot $TargetRoot -Name 'ARK_API_KEY'
-        $hasArkSeed = (Test-NonEmptyString -Value $ArkApiKey) -or (Test-NonEmptyString -Value $env:ARK_API_KEY)
-        if ($hasArkSeed) {
-            Write-Host '[3/5] Seeding ARK settings into target settings.json...' -ForegroundColor Yellow
-            $arkArgs = @{ CodexRoot = $TargetRoot }
-            if (Test-NonEmptyString -Value $ArkBaseUrl) { $arkArgs.BaseUrl = $ArkBaseUrl }
-            if (Test-NonEmptyString -Value $ArkApiKey) { $arkArgs.ApiKey = $ArkApiKey }
-            & $persistArkPath @arkArgs
-        } elseif (Test-NonEmptyString -Value $existingArkKey) {
-            Write-Host '[3/5] ARK settings already exist in target settings.json; keeping current value.' -ForegroundColor DarkGray
-        } else {
-            Write-Host '[3/5] ARK settings not provided; skipping optional ARK seeding.' -ForegroundColor DarkGray
-        }
+        Write-Host '[3/5] Built-in AI governance now uses separated functional keys: intent advice uses VCO_INTENT_ADVICE_* and vector diff embeddings use VCO_VECTOR_DIFF_*.' -ForegroundColor DarkGray
 
         if ($SyncUserEnv) {
             Write-Host '[4/5] Syncing configured settings.json env values into the user environment...' -ForegroundColor Yellow
@@ -190,13 +179,13 @@ switch ([string]$Adapter.bootstrap_mode) {
             Write-Host ("[2/5] Host-specific scaffold is currently unavailable for '{0}'." -f $HostId) -ForegroundColor Yellow
         }
         Write-Host '[3/5] No hook files or extra preview settings were installed into the target root.' -ForegroundColor DarkGray
-        Write-Host ("[4/5] Provider settings remain host-managed for '{0}'. Configure the real host settings surface separately (for example, Cursor commonly uses ~/.cursor/settings.json). Do not paste API keys into chat." -f $HostId) -ForegroundColor DarkGray
+        Write-Host ("[4/5] Provider settings remain host-managed for '{0}'. Configure built-in intent advice with VCO_INTENT_ADVICE_API_KEY / VCO_INTENT_ADVICE_BASE_URL / VCO_INTENT_ADVICE_MODEL, and configure vector diff embeddings separately with VCO_VECTOR_DIFF_API_KEY / VCO_VECTOR_DIFF_BASE_URL / VCO_VECTOR_DIFF_MODEL. Do not paste API keys into chat." -f $HostId) -ForegroundColor DarkGray
         Write-Host '[5/5] Running supported-path health check...' -ForegroundColor Yellow
         & $checkPath -Profile $Profile -HostId $HostId -TargetRoot $TargetRoot -Deep
     }
     'runtime-core' {
         Write-Host '[2/5] Runtime-adapter path does not materialize host settings.' -ForegroundColor DarkGray
-        Write-Host '[3/5] Runtime-adapter path does not seed provider settings. Configure url, apikey, and model in the target agent''s local settings or local environment variables. Do not paste secrets into chat.' -ForegroundColor DarkGray
+        Write-Host '[3/5] Runtime-adapter path does not seed provider settings. Configure built-in intent advice with VCO_INTENT_ADVICE_API_KEY / VCO_INTENT_ADVICE_BASE_URL / VCO_INTENT_ADVICE_MODEL, and configure vector diff embeddings separately with VCO_VECTOR_DIFF_API_KEY / VCO_VECTOR_DIFF_BASE_URL / VCO_VECTOR_DIFF_MODEL. Do not paste secrets into chat.' -ForegroundColor DarkGray
         Write-Host '[4/5] User environment sync skipped for the runtime-adapter path.' -ForegroundColor DarkGray
         Write-Host '[5/5] Running runtime-adapter health check...' -ForegroundColor Yellow
         & $checkPath -Profile $Profile -HostId $HostId -TargetRoot $TargetRoot -Deep
@@ -208,7 +197,22 @@ switch ([string]$Adapter.bootstrap_mode) {
 
 Write-Host ''
 Write-Host 'One-shot setup completed.' -ForegroundColor Green
-Write-Host ('- Re-run deep doctor anytime with: pwsh -File "{0}" -Profile {1} -HostId {2} -TargetRoot "{3}" -Deep' -f $checkPath, $Profile, $HostId, $TargetRoot)
+$checkShellPath = Get-VgoPowerShellCommand
+$checkShellLeaf = [System.IO.Path]::GetFileName($checkShellPath).ToLowerInvariant()
+$checkCommandParts = @($checkShellLeaf, '-NoProfile')
+if ($checkShellLeaf -like 'powershell*') {
+    $checkCommandParts += @('-ExecutionPolicy', 'Bypass')
+}
+$checkCommandParts += @('-File', $checkPath, '-Profile', $Profile, '-HostId', $HostId, '-TargetRoot', $TargetRoot, '-Deep')
+$checkCommand = ($checkCommandParts | ForEach-Object {
+    $text = [string]$_
+    if ($text -match '\s') {
+        '"' + ($text -replace '"', '\"') + '"'
+    } else {
+        $text
+    }
+}) -join ' '
+Write-Host ('- Re-run deep doctor anytime with: {0}' -f $checkCommand)
 if ($Adapter.bootstrap_mode -eq 'governed') {
     Write-Host ('- MCP active file: {0}' -f (Join-Path $TargetRoot 'mcp\servers.active.json'))
 }

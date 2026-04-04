@@ -10,9 +10,10 @@
 
 - repo-distributed content
 - Vibe-Skills skill content
-- OpenCode command wrappers
-- OpenCode agent wrappers
-- an example `opencode.json` scaffold
+- `.vibeskills/host-settings.json`
+- `.vibeskills/host-closure.json`
+- `.vibeskills/bin/*-specialist-wrapper.*`
+- an `opencode.json.example` scaffold
 
 ## What Still Stays Host-Local
 
@@ -64,13 +65,14 @@ For the framework-only variant, also append `-Profile minimal` explicitly.
 The install writes:
 
 - `skills/**`
-- `commands/*.md`
-- `command/*.md`
-- `agents/*.md`
-- `agent/*.md`
+- `.vibeskills/host-settings.json`
+- `.vibeskills/host-closure.json`
+- `.vibeskills/install-ledger.json`
+- `.vibeskills/bin/*-specialist-wrapper.*`
 - `opencode.json.example`
 
-Plural and singular command/agent directories are both materialized because the current OpenCode docs treat plural directories as the primary layout while still supporting singular names for backwards compatibility.
+The install does not create a new real `opencode.json`, and it does not take ownership of that file.
+If you need to change native OpenCode settings, keep doing that on the host side.
 
 ## How To Use
 
@@ -84,6 +86,8 @@ You can also invoke the skill directly in chat, for example:
 
 - `Use the vibe skill to plan this change.`
 - `Use the vibe skill to implement the approved plan.`
+
+These entrypoints stay skill-native. When Vibe is not explicitly invoked, the sidecar state remains silent and does not try to take over native OpenCode configuration.
 
 Custom agents installed by this path:
 
@@ -110,7 +114,13 @@ python3 ./scripts/verify/runtime_neutral/opencode_preview_smoke.py --repo-root .
 The committed smoke verifier has been validated on local OpenCode CLI `1.2.27` and confirms that:
 
 - `opencode debug paths` resolves the isolated OpenCode root correctly
-- `opencode debug skill` detects the installed `vibe` skill
+- `opencode debug config` still parses successfully after install
+- `opencode debug skill --pure` detects the installed `vibe` skill
 - `opencode debug agent vibe-plan` detects the installed agent
+
+Additional note:
+
+- `opencode debug skill` can emit a truncated oversized skill dump when many skills are installed, so it is currently kept as a telemetry/warning surface instead of a hard startup-recovery gate
+- startup recovery is judged primarily through `debug config` and `debug agent`, because those directly validate config parsing and agent loading
 
 If you need the deeper adapter contract and proof details, continue with `dist/*`, `adapters/*`, and `docs/universalization/*`.

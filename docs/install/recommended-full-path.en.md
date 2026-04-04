@@ -7,18 +7,24 @@
 > - [`openclaw-path.en.md`](./openclaw-path.en.md)
 > - [`opencode-path.en.md`](./opencode-path.en.md)
 
-This document summarizes the install commands and default target roots for the six supported hosts.
+This document summarizes the install commands, default roots, and current host-mode wording for the six public hosts.
 
-## Supported Hosts and Install Styles
+Public Linux / macOS prerequisites:
 
-| Host          | Install style          | Default target root                                  | Notes                                                                 |
-| ------------- | ---------------------- | ---------------------------------------------------- | --------------------------------------------------------------------- |
-| `codex`       | one-shot setup + check | `CODEX_HOME` or `~/.vibeskills/targets/codex`        | default recommended path                                              |
-| `claude-code` | one-shot setup + check | `CLAUDE_HOME` or `~/.vibeskills/targets/claude-code` | supported install-and-use path                                        |
-| `cursor`      | one-shot setup + check | `CURSOR_HOME` or `~/.vibeskills/targets/cursor`      | supported install-and-use path                                        |
-| `windsurf`    | one-shot setup + check | `WINDSURF_HOME` or `~/.vibeskills/targets/windsurf`  | supported install-and-use path                                        |
-| `openclaw`    | one-shot setup + check | `OPENCLAW_HOME` or `~/.vibeskills/targets/openclaw`  | host-specific details: [`openclaw-path.en.md`](./openclaw-path.en.md) |
-| `opencode`    | direct install + check | `OPENCODE_HOME` or `~/.vibeskills/targets/opencode`  | host-specific details: [`opencode-path.en.md`](./opencode-path.en.md) |
+- the shell entrypoints are maintained against the macOS system Bash 3.2 baseline
+- `python3` / `python` must satisfy **Python 3.10+**
+- launching from `zsh` is not the actual problem; the real compatibility boundary is the resolved `bash` / `python3` version
+
+## Supported Hosts and Default Paths
+
+| Host | Default command surface | Default root | Current wording |
+| --- | --- | --- | --- |
+| `codex` | one-shot setup + check | `~/.codex` | strongest governed lane |
+| `claude-code` | one-shot setup + check | `~/.claude` | supported install/use path with bounded managed closure |
+| `cursor` | one-shot setup + check | `~/.cursor` | preview-guidance path |
+| `windsurf` | one-shot setup + check | `~/.codeium/windsurf` | runtime-core path |
+| `openclaw` | one-shot setup + check | `OPENCLAW_HOME` or `~/.openclaw` | preview runtime-core adapter path |
+| `opencode` | direct install + check (thinner) or one-shot wrapper | `OPENCODE_HOME` or `~/.config/opencode` | preview-guidance adapter path |
 
 `TargetRoot` is only a path.
 `HostId` / `--host` decides host semantics.
@@ -89,6 +95,8 @@ bash ./check.sh --host openclaw --profile full --deep
 
 ### OpenCode
 
+The thinner default path is:
+
 ```powershell
 pwsh -NoProfile -File .\install.ps1 -HostId opencode -Profile full
 pwsh -NoProfile -File .\check.ps1 -HostId opencode -Profile full
@@ -97,6 +105,18 @@ pwsh -NoProfile -File .\check.ps1 -HostId opencode -Profile full
 ```bash
 bash ./install.sh --host opencode --profile full
 bash ./check.sh --host opencode --profile full
+```
+
+If you prefer to keep the same bootstrap wrapper as other hosts, this is also valid:
+
+```powershell
+pwsh -File .\scripts\bootstrap\one-shot-setup.ps1 -HostId opencode -Profile full
+pwsh -File .\check.ps1 -HostId opencode -Profile full -Deep
+```
+
+```bash
+bash ./scripts/bootstrap/one-shot-setup.sh --host opencode --profile full
+bash ./check.sh --host opencode --profile full --deep
 ```
 
 If you want the “Framework Only + Customizable Governance” variant, replace `full` with `minimal`.
@@ -121,36 +141,39 @@ git checkout vX.Y.Z
 ### Codex
 
 - hooks remain frozen; that is not an install failure
-- `OPENAI_*` only covers Codex base online provider access
-- `VCO_AI_PROVIDER_*` is the optional governance-AI online layer
+- for the built-in governance-advice path, prefer:
+  - `VCO_INTENT_ADVICE_API_KEY`
+  - optional `VCO_INTENT_ADVICE_BASE_URL`
+  - `VCO_INTENT_ADVICE_MODEL`
+- add `VCO_VECTOR_DIFF_*` only when you also want vector diff embeddings
 
 ### Claude Code
 
-- this host has a supported install-and-use path
-- it does not overwrite the real `~/.claude/settings.json`
-- hooks remain frozen; that is not an install failure
+- it preserves the real `~/.claude/settings.json` while merging a bounded managed `vibeskills` + write-guard hook surface
+- broader Claude plugins, MCP registration, credentials, and host behavior remain host-managed
+- AI governance advice uses `VCO_INTENT_ADVICE_*`, with optional `VCO_VECTOR_DIFF_*`
 
 ### Cursor
 
-- this host has a supported install-and-use path
+- this host is currently a preview-guidance path
 - it does not overwrite the real `~/.cursor/settings.json`
 - Cursor-native settings and extension surfaces remain managed on the Cursor side
 
 ### Windsurf
 
-- the default target root is `WINDSURF_HOME` or `~/.vibeskills/targets/windsurf`
-- the repo currently owns only shared runtime payload plus optional materialization of `mcp_config.json` and `global_workflows/`
+- the default root is `~/.codeium/windsurf`
+- the repo currently owns only shared runtime payload plus sidecar state such as `.vibeskills/host-settings.json` and `.vibeskills/host-closure.json`
 - Windsurf-native local settings remain managed on the Windsurf side
 
 ### OpenClaw
 
-- the default target root is `OPENCLAW_HOME` or `~/.vibeskills/targets/openclaw`
+- the default target root is `OPENCLAW_HOME` or `~/.openclaw`
 - the dedicated host guide expands attach / copy / bundle details
 - OpenClaw-local configuration remains managed on the OpenClaw side
 
 ### OpenCode
 
-- the default target root is `OPENCODE_HOME` or `~/.vibeskills/targets/opencode`
-- direct install/check writes skills, command/agent wrappers, and `opencode.json.example`
+- the default target root is `OPENCODE_HOME`, otherwise `~/.config/opencode`
+- both direct install/check and the one-shot wrapper keep host-managed boundaries intact
 - the real `opencode.json`, provider credentials, plugin installation, and MCP trust remain host-managed
 - use `--target-root ./.opencode` when you want project-local isolation

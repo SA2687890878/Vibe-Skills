@@ -49,11 +49,11 @@ If your AI supports skills, VibeSkills works. 340+ skills spanning coding, resea
 
 <br/>
 
-<a href="./docs/install/one-click-install-release-copy.en.md">
+<a href="https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/one-click-install-release-copy.en.md">
   <img src="https://img.shields.io/badge/⚡_Get_Started-7B61FF?style=for-the-badge" alt="Install">
 </a>
 &nbsp;
-<a href="./docs/quick-start.en.md">
+<a href="https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/quick-start.en.md">
   <img src="https://img.shields.io/badge/📖_Quick_Start-2d3748?style=for-the-badge" alt="Docs">
 </a>
 &nbsp;
@@ -81,6 +81,25 @@ If your AI supports skills, VibeSkills works. 340+ skills spanning coding, resea
 - [Full Capability Map](#-full-capability-map-your-all-in-one-workbench)
 - [Installation & Management](#️-installation--skills-management)
 - [Getting Started](#-getting-started)
+
+
+<details>
+<summary><b>🔑 New here? Quick glossary of key terms (click to expand)</b></summary>
+
+<br/>
+
+| Term | Plain-English Meaning |
+|:---|:---|
+| **VibeSkills / VCO** | This project. VCO = Vibe Code Orchestrator — the runtime engine behind the skills. |
+| **Skill** | A focused capability module (e.g., `tdd-guide`, `code-review`). Think of skills as expert assistants the system calls on demand. |
+| **Governed runtime** | When you invoke `/vibe`, the system follows a structured process — clarify → plan → execute → verify — instead of diving in blindly. |
+| **Canonical Router** | The internal logic that decides which skill to activate for your task. Just invoke `/vibe` and let it route automatically. |
+| **M / L / XL grade** | Task complexity level. M = quick focused task, L = multi-step task, XL = large task with parallel work. Automatically selected. |
+| **Frozen requirement** | Once you confirm the plan, it is "frozen" — the system will not silently change scope mid-task. |
+| **Root / Child lane** | In XL tasks, there is a "root" coordinator and "child" worker agents. Prevents conflicting outputs from parallel agents. |
+| **Proof bundle** | Evidence that a task was actually completed correctly — test results, output, verification logs. |
+
+</details>
 
 > [!IMPORTANT]
 > ### 🎯 Core Vision
@@ -112,7 +131,7 @@ If your AI supports skills, VibeSkills works. 340+ skills spanning coding, resea
 | **Blind execution**: AI dives in without clarifying requirements — fast but off-target, projects gradually become black boxes. | **🧭 Governed Workflow**: Clarify → Verify → Trace is enforced in a unified process; every step is auditable. |
 | **Conflicting tools**: Lack of coordination between plugins and workflows leads to environment pollution or infinite loops. | **🧩 Global Governance**: 129 contract rules define safety boundaries and fallback mechanisms for long-term stability. |
 | **Messy workspace**: After extended use, repos become cluttered; new Agents miss project details when taking over, causing handoff gaps. | **📁 Semantic Directory Governance**: Fixed-architecture file storage so any new AI conversation instantly understands the project context. |
-| **AI bad habits**: Deletes main files while clearing backups; writes silent fallbacks then confidently claims "it's done". | **🛡️ Built-in Safety Rules**: Batch file deletion is prohibited (one file at a time only); fallback mechanisms must always show explicit warnings. |
+| **AI bad habits**: Deletes main files while clearing backups; writes silent fallbacks then confidently claims "it's done". | **🛡️ Built-in Safety Rules**: Governed execution blocks dangerous bulk deletion and blind recursive wipes by default; fallback mechanisms must always show explicit warnings. |
 | **Manual workflow discipline**: Users must maintain their own AI collaboration process from experience — high learning cost. | **🚦 Framework-guided end-to-end**: Requirements → Plan → Multi-agent execution → Automated test iteration — fully managed. |
 | **Skill dispatch chaos in multi-agent runs**: Hard to assign the right skills to each agent for different tasks. | **🤖 Automatic Skill Dispatch**: Multi-agent workflows automatically assign the corresponding Skills to each Agent's task. |
 
@@ -184,12 +203,6 @@ VibeSkills follows a `Clarify ➔ Plan ➔ Execute ➔ Verify` governed workflow
 - **Execution Layer**: 340+ skills called on demand to complete the actual work
 - **Quality Verification**: Skills like `tdd-guide` and `code-review` ensure delivery quality
 
-> [!TIP]
-> **Built-in CRON support**: Explicitly enable it in your request to let vibe continuously advance tasks on a schedule.
-> ```
-> I want you to continuously push forward XXX task based on cron, completing: XXXX $vibe
-> ```
-
 ---
 
 ### Why this design?
@@ -218,12 +231,14 @@ After selecting the primary skill, the router also automatically determines the 
 | Level | Use Case | Characteristics |
 |:---:|:---|:---|
 | **M** | Narrow-scope work with clear boundaries | Single-agent, token-efficient, fast response |
-| **L** | Medium complexity requiring design, planning, and review | Multi-phase, restrained, controllable |
-| **XL** | Large tasks — parallelizable, long-running, multi-agent wave execution | Auto-dispatches corresponding Skills, high parallelism |
+| **L** | Medium complexity requiring design, planning, and review | Native serial execution by planned steps; bounded delegated units only when explicitly planned |
+| **XL** | Large tasks — parallelizable, long-running, multi-agent wave execution | Wave-sequential orchestration with step-level bounded parallelism for independent units only |
 
 </div>
 
 > The system automatically selects the level after requirements clarification, before plan execution. Users only need to invoke `/vibe` or `$vibe`.
+>
+> When the system calls a specialist skill internally (like `tdd-guide` or `code-review`), it is always scoped to a specific phase — they assist without taking over the overall coordination. In XL tasks with multiple agents, worker agents (child lanes) can suggest specialist help, but the coordinator (root) approves it before execution.
 >
 > You can also express an explicit preference:
 > ```text
@@ -489,21 +504,34 @@ The runtime core behind **VibeSkills** is **VCO**. This is not a single-point to
 
 _Skills keep growing — but you don't need to manage them individually._
 
+### Uninstall: Owned-only cleanup
+
+Running `uninstall.ps1` or `uninstall.sh --host <host>` is the partner surface to install. By default it performs a ledger-first, owned-only cleanup that only touches paths recorded in `.vibeskills/install-ledger.json`, `*.host-closure.json`, or the documented legacy surfaces. The bundled runtime keeps only the executable contract; the full governance explainer lives in the canonical repo at [`docs/uninstall-governance.md`](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/uninstall-governance.md).
+
+The `.vibeskills` brand is now split into two layers on purpose:
+
+- host-sidecar: `<target-root>/.vibeskills/host-settings.json`, `host-closure.json`, `install-ledger.json`, `bin/*`
+- workspace-sidecar: `<workspace-root>/.vibeskills/project.json`, `.vibeskills/docs/requirements/*`, `.vibeskills/docs/plans/*`, `.vibeskills/outputs/runtime/vibe-sessions/*`
+
+This keeps host install state separate from governed workspace/runtime artifacts while preserving the existing relative runtime contract. Explicit `ArtifactRoot` overrides still work when operators need a different artifact location.
+
 ### Install: One entry, two public versions
 
 <div align="center">
 
 | | Single Public Entry |
 |:---:|:---|
-| **Install** | [⚡ Prompt-based install (recommended)](./docs/install/one-click-install-release-copy.en.md) |
+| **Install** | [⚡ Prompt-based install (recommended)](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/one-click-install-release-copy.en.md) |
 | **Public versions inside the same entry** | `Full Version + Customizable Governance` / `Framework Only + Customizable Governance` |
 | **Result** | choose host + action + version in one place, then copy the matching prompt |
 
 </div>
 
+The install surface is now registry-driven. `HostId` / `--host` selects host semantics, and the same public entry can resolve into `governed`, `preview-guidance`, or `runtime-core` depending on the adapter. If you are not sure which path matches your host, start with the [cold-start host matrix](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/cold-start-install-paths.en.md) or the [multi-host command reference](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/recommended-full-path.en.md).
+
 ### Customize: Add your own skills
 
-→ [Custom workflow & skill onboarding guide](./docs/install/custom-workflow-onboarding.en.md)
+→ [Custom workflow & skill onboarding guide](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/custom-workflow-onboarding.en.md)
 
 ## 📦 Standing on the Shoulders of Giants
 
@@ -546,9 +574,9 @@ _You know what this is now. All it takes from here is one prompt:_
 
 <br/>
 
-> 💡 **Recommended practice**: If you want every subsequent turn to be explicitly governed by the VibeSkills runtime, keep appending `$vibe` or `/vibe` in each turn. If you don't include the invocation syntax in a turn, that turn should not be treated as "explicitly locked in vibe runtime".
+> 💡 **Tip**: To keep every message within the VibeSkills governed workflow, append `$vibe` or `/vibe` to each of your messages. A message without the invocation syntax is treated as a regular request outside the governed runtime.
 
-**Currently supported platforms**: `codex` (most complete governed path) · `claude-code` · `cursor` · `windsurf` (supported install-and-use path with runtime-adapter integration) · `openclaw` (preview runtime-core path) · `opencode` (preview adapter path)
+**Currently supported public host surface**: `codex` (strongest governed lane) · `claude-code` (supported install-and-use path with bounded managed closure) · `cursor` (preview-guidance path) · `windsurf` (runtime-core path with sidecar host-adapter state) · `openclaw` (preview runtime-core adapter path) · `opencode` (preview-guidance adapter path; direct install/check remains the thinner public path)
 
 <br/>
 
@@ -561,18 +589,18 @@ _You know what this is now. All it takes from here is one prompt:_
 
 **Understand the system**
 
-- 📖 [System architecture & philosophy](./docs/quick-start.en.md)
-- 📜 [VibeSkills Manifesto](./docs/manifesto.en.md)
+- 📖 [System architecture & philosophy](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/quick-start.en.md)
+- 📜 [VibeSkills Manifesto](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/manifesto.en.md)
 
 **Installation & Configuration**
 
-- ⚡️ [Prompt-based install (recommended)](./docs/install/one-click-install-release-copy.en.md)
-- 🧩 [Custom workflow onboarding](./docs/install/custom-workflow-onboarding.en.md)
-- 📄 [OpenClaw host notes](./docs/install/openclaw-path.en.md)
-- 📄 [OpenCode host notes](./docs/install/opencode-path.en.md)
-- 📁 [Manual copy install (offline)](./docs/install/manual-copy-install.en.md)
-- 🛠 [Advanced install command reference](./docs/install/recommended-full-path.en.md)
-- 🧊 [Cold start & other environments](./docs/cold-start-install-paths.en.md)
+- ⚡️ [Prompt-based install (recommended)](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/one-click-install-release-copy.en.md)
+- 🧩 [Custom workflow onboarding](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/custom-workflow-onboarding.en.md)
+- 📄 [OpenClaw host notes](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/openclaw-path.en.md)
+- 📄 [OpenCode host notes](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/opencode-path.en.md)
+- 📁 [Manual copy install (offline)](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/manual-copy-install.en.md)
+- 🛠 [Advanced install command reference](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/recommended-full-path.en.md)
+- 🧊 [Cold start & other environments](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/cold-start-install-paths.en.md)
 
 </details>
 

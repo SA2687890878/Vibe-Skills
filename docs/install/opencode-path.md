@@ -10,9 +10,10 @@
 
 - 仓库分发内容
 - Vibe-Skills 技能内容
-- OpenCode 命令包装器
-- OpenCode agent 包装器
-- `opencode.json` 示例配置
+- `.vibeskills/host-settings.json`
+- `.vibeskills/host-closure.json`
+- `.vibeskills/bin/*-specialist-wrapper.*`
+- `opencode.json.example` 示例配置
 
 ## 仍由宿主本地完成
 
@@ -64,13 +65,14 @@ PowerShell 对应参数为 `-TargetRoot .\.opencode`。
 当前安装会写入：
 
 - `skills/**`
-- `commands/*.md`
-- `command/*.md`
-- `agents/*.md`
-- `agent/*.md`
+- `.vibeskills/host-settings.json`
+- `.vibeskills/host-closure.json`
+- `.vibeskills/install-ledger.json`
+- `.vibeskills/bin/*-specialist-wrapper.*`
 - `opencode.json.example`
 
-当前会同时写入 plural 和 singular 的 command/agent 目录，因为 OpenCode 官方配置文档以 plural 目录为主，同时说明 singular 目录仍保留向后兼容支持。
+当前安装不会创建新的真实 `opencode.json`，也不会接管它。
+如果你需要调整 OpenCode 原生配置，请继续在宿主侧自行维护真实 `opencode.json`。
 
 ## 使用方式
 
@@ -79,6 +81,8 @@ PowerShell 对应参数为 `-TargetRoot .\.opencode`。
 - `/vibe`
 - `/vibe-implement`
 - `/vibe-review`
+
+这些入口走的是宿主原生 skill 调用；未显式调用 Vibe 时，sidecar 配置会保持静默，不会主动接管 OpenCode 原生配置。
 
 也可以直接在对话里显式要求：
 
@@ -110,7 +114,13 @@ python3 ./scripts/verify/runtime_neutral/opencode_preview_smoke.py --repo-root .
 仓库内置的 smoke verifier 已经在本地 OpenCode CLI `1.2.27` 上验证：
 
 - `opencode debug paths` 能正确解析隔离的 OpenCode 根目录
-- `opencode debug skill` 能识别安装后的 `vibe` skill
+- `opencode debug config` 能在安装后继续通过配置解析
+- `opencode debug skill --pure` 能识别安装后的 `vibe` skill
 - `opencode debug agent vibe-plan` 能识别安装后的 agent
+
+补充说明：
+
+- `opencode debug skill` 在大体量 skill 安装下可能输出被截断的超长列表，因此当前把它保留为 telemetry / warning 面，而不是启动恢复的硬阻断条件
+- 启动是否恢复，优先以 `debug config` 和 `debug agent` 为准，因为它们直接覆盖配置解析与 agent 装载链
 
 如果你需要查看更细的适配契约和 proof 信息，可继续看 `dist/*`、`adapters/*` 与 `docs/universalization/*`。

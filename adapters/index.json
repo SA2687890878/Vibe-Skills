@@ -11,6 +11,7 @@
       "install_mode": "governed",
       "check_mode": "governed",
       "bootstrap_mode": "governed",
+      "bootstrap_summary": "strongest governed lane",
       "default_target_root": {
         "env": "CODEX_HOME",
         "rel": ".vibeskills/targets/codex",
@@ -23,10 +24,11 @@
     },
     {
       "id": "claude-code",
-      "status": "preview",
+      "status": "supported-with-constraints",
       "install_mode": "preview-guidance",
       "check_mode": "preview-guidance",
       "bootstrap_mode": "preview-guidance",
+      "bootstrap_summary": "supported install/use path",
       "default_target_root": {
         "env": "CLAUDE_HOME",
         "rel": ".vibeskills/targets/claude-code",
@@ -43,6 +45,7 @@
       "install_mode": "preview-guidance",
       "check_mode": "preview-guidance",
       "bootstrap_mode": "preview-guidance",
+      "bootstrap_summary": "supported install/use path",
       "default_target_root": {
         "env": "CURSOR_HOME",
         "rel": ".vibeskills/targets/cursor",
@@ -59,6 +62,7 @@
       "install_mode": "runtime-core",
       "check_mode": "runtime-core",
       "bootstrap_mode": "runtime-core",
+      "bootstrap_summary": "supported path + runtime adapter",
       "default_target_root": {
         "env": "WINDSURF_HOME",
         "rel": ".vibeskills/targets/windsurf",
@@ -75,6 +79,7 @@
       "install_mode": "runtime-core",
       "check_mode": "runtime-core",
       "bootstrap_mode": "runtime-core",
+      "bootstrap_summary": "preview runtime-core adapter",
       "default_target_root": {
         "env": "OPENCLAW_HOME",
         "rel": ".vibeskills/targets/openclaw",
@@ -91,6 +96,7 @@
       "install_mode": "preview-guidance",
       "check_mode": "preview-guidance",
       "bootstrap_mode": "preview-guidance",
+      "bootstrap_summary": "preview guidance adapter",
       "default_target_root": {
         "env": "OPENCODE_HOME",
         "rel": ".vibeskills/targets/opencode",

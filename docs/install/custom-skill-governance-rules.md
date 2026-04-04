@@ -112,21 +112,20 @@
 ## Codex 与 Claude Code 边界
 
 - Codex：官方 governed 宿主；当前不安装 hook
-- Claude Code：提供支持的安装与使用路径；当前不安装 hook，也不写 `settings.vibe.preview.json`
+- Claude Code：提供支持的安装与使用路径；安装器会在保留原有 Claude 设置的前提下写入受约束的 `vibeskills` 节点和受管 `PreToolUse` write-guard hook 面
 
 两者都不应要求用户把 key/url/model 贴到聊天里。只允许用户在本地 `settings.json` 的 `env` 或本地环境变量配置。
 
 ## 治理 AI online layer 边界
 
-`OPENAI_API_KEY`、`OPENAI_BASE_URL` 只代表基础在线 provider，不等于治理 AI online layer 完成。
+基础在线 provider 可用，不等于治理 AI online layer 已完成。
 
-要启用治理 AI online layer，用户需本地补：
+要启用治理 AI advice 的常见在线路径，用户需本地配置：
 
-- `VCO_AI_PROVIDER_URL`
-- `VCO_AI_PROVIDER_API_KEY`
-- `VCO_AI_PROVIDER_MODEL`
+- intent advice：`VCO_INTENT_ADVICE_API_KEY` + 可选 `VCO_INTENT_ADVICE_BASE_URL` + `VCO_INTENT_ADVICE_MODEL`
+- vector diff embeddings（可选）：`VCO_VECTOR_DIFF_API_KEY` + 可选 `VCO_VECTOR_DIFF_BASE_URL` + `VCO_VECTOR_DIFF_MODEL`
 
-未配置时只能宣称“基础在线可用”或“本地安装完成”，不能宣称“治理 AI online readiness 已完成”。
+未配置上述 `VCO_*` 时只能宣称“基础在线可用”或“本地安装完成”，不能宣称“治理 AI online readiness 已完成”；旧 `OPENAI_*` 不再自动回填。
 
 ## 最小验收清单
 

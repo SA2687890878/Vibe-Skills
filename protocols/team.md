@@ -1,5 +1,24 @@
 # vibe-team Protocol
 
+> **What this protocol does -- plain language overview**
+>
+> This is the multi-agent orchestration protocol. It governs how VibeSkills
+> coordinates multiple AI agents working on large (XL-grade) tasks.
+>
+> You do not need to read this to use VibeSkills. It is reference material for
+> contributors and advanced users building on VibeSkills or investigating how
+> large tasks are coordinated internally.
+>
+> **Key terms used below:**
+> - **Root/Child lane**: One coordinator (root lane) and multiple workers (child lanes). Only root makes the final completion claim for the whole task.
+> - **Wave-sequential execution**: Large tasks are split into sequential "waves." Within a wave, independent sub-tasks may run in parallel.
+> - **Scatter-gather**: Fan-out (assign task variants to multiple agents in parallel) then fan-in (collect all results and synthesize one output).
+> - **Specialist dispatch**: Using a specific skill (e.g. `tdd-guide`, `code-review`) for a bounded sub-task. Must be approved by root in the frozen plan before execution.
+> - **Dialectic mode**: A structured design analysis where two groups of agents argue different perspectives, then a coordinator synthesizes the best ideas from both.
+> - **ruflo**: An optional memory and workflow orchestration component for vector memory, session persistence, and formal consensus.
+> - **spawn_agent / send_input / wait / close_agent**: Internal XL orchestration API calls. Users do not call these directly.
+
+
 Protocol for XL-grade multi-agent tasks requiring coordination.
 
 ## Governed Runtime Position
@@ -20,7 +39,8 @@ This protocol only activates after the requirement and plan are already frozen.
 
 ## Scope
 Activated for XL grade tasks that require:
-- Multiple agents working in parallel
+- Multi-agent coordination with dependency-aware waves
+- Step-level bounded parallelism for independent units (not blanket always-on concurrency)
 - Workflow-based execution with phases
 - Swarm or hive-mind coordination
 - Long-running iterative tasks
@@ -31,6 +51,31 @@ Codex native agent APIs manage lifecycle + task assignment (primary path).
 ruflo remains optional for workflow/memory enhancements.
 
 All spawned subagent prompts must end with `$vibe` so the governed runtime remains the active contract inside delegated work.
+
+## Root/Child Authority Model
+
+XL delegation uses two governance scopes:
+
+- `root_governed`: one lane per user task; owns canonical requirement/plan truth and final completion claims
+- `child_governed`: delegated lane; inherits frozen context and emits local execution evidence
+
+Child-governed lanes keep `vibe` discipline but are not new top-level governors.
+
+Child-governed lanes must not:
+
+- create a second canonical requirement surface
+- create a second canonical execution-plan surface
+- emit final completion claims for the full root task
+- self-approve new global specialist dispatch
+
+## Execution Topology Truth
+
+- `L` execution is handled in `do.md` as serial native execution; this protocol is not the default L executor.
+- `XL` execution is wave-sequential by dependency.
+- Parallel work in `XL` is step-scoped and bounded to independent units only.
+- Specialist dispatch can be executable as bounded units only when root-approved in the frozen plan.
+- Specialist dispatch is phase-bound: `pre_execution`, `in_execution`, `post_execution`, `verification`.
+- In `XL`, specialist lanes may join bounded parallel windows only when their write scopes are disjoint and their lane policy allows it.
 
 ### Role Division
 
@@ -59,6 +104,32 @@ Lead-agent rules:
 - subagents may surface report-only warnings, but must not invent a new hard gate,
 - if an existing approved policy or failed gate truly blocks progress, cite that exact surface,
 - aggregation must not flatten bounded-specialization outputs into generalized completion claims.
+- when a specialist skill is dispatched, keep its native workflow intact instead of rewriting it into generic lead-agent prose.
+- only root-governed aggregation may publish final completion claims for the full task.
+
+## Native Specialist Dispatch
+
+Within XL execution, a specialist skill is a bounded helper, not a replacement runtime.
+
+Rules:
+
+- `vibe` keeps final control of stage order, plan authority, and completion claims
+- specialist dispatch should be declared in the frozen plan before execution
+- each specialist receives a bounded subtask contract plus the frozen requirement context
+- specialist outputs must stay in the native format or workflow expected by that specialist skill
+- each approved specialist also carries phase binding, lane policy, write scope, and review mode
+- lead aggregation may summarize specialist output, but must not erase specialist-specific verification notes
+- a specialist recommendation is advisory until the governed plan chooses to dispatch it
+
+Hierarchy-specific dispatch semantics:
+
+- `approved_dispatch`: specialist usage approved by root and frozen in plan; child lanes may execute directly
+- `local_suggestion`: child-lane specialist suggestion; advisory until explicit root escalation approval
+
+Escalation rule:
+
+- child lanes needing non-approved specialists must emit explicit escalation evidence to root
+- no silent specialist activation is allowed in child lanes
 
 ## Orchestration Options
 
@@ -182,6 +253,7 @@ Contract rules:
 - Prefer `verification` that is command-shaped (copy/paste runnable).
 - If required info is missing, return `status=blocked` with `handoff_questions` (do not guess).
 - The same contract maps cleanly to the GSD wave contract (`entry_criteria`/`exit_criteria`/`verify_commands`).
+- If the subtask is owned by a specialist skill, keep the contract narrow enough that native specialist workflow still applies without improvising a new method.
 
 ## Shared Memory Contract (3-Tier)
 
@@ -269,7 +341,7 @@ Contract output:
   - `verify_commands`
 
 Execution semantics:
-1. Independent units run in parallel within a wave.
+1. Independent units may run in bounded parallel within a wave.
 2. Waves run sequentially by dependency.
 3. Verification gates must pass before advancing to next wave.
 4. This contract does not alter grade/task assignment.
@@ -441,7 +513,7 @@ Limitations vs XL: no intra-group dialogue (only 1 agent per perspective), no Ph
 
 ## Wave19-30 Specialist Roles
 
-在 XL 多智能体执行中，Wave19-30 新增以下“治理型角色”，它们提供建议与验证，不接管 VCO 总编排：
+在 XL 多智能体执行中，Wave19-30 新增以下"治理型角色"，它们提供建议与验证，不接管 VCO 总编排：
 
 - **Memory Contract Steward**：检查 Memory Runtime v2、`mem0`、`Letta` 是否越权。
 - **Prompt Intelligence Steward**：检查 prompt cards / risk checklist 是否只停留在 advisory 层。

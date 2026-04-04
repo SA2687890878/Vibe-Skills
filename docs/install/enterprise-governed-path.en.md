@@ -59,13 +59,17 @@ pwsh -File .\scripts\verify\vibe-offline-skills-gate.ps1
 pwsh -File .\scripts\verify\vibe-version-packaging-gate.ps1
 ```
 
+`vibe-version-packaging-gate.ps1` keeps its legacy name, but in the current
+contract it validates canonical-only packaging governance and generated
+compatibility wiring rather than repo-tracked mirror parity.
+
 ## Host-Managed Surfaces That Must Enter The Enterprise Checklist
 
 According to `docs/universalization/host-capability-matrix.md` and `adapters/*/host-profile.json`, your internal checklist should at least include the following items with clear ownership:
 
 - whether host-side plugins are enabled and version-controlled
 - whether MCP registration and authorization are complete, especially for plugin-backed MCP
-- provider-secret distribution, rotation, and permission policy for values such as `OPENAI_API_KEY`
+- provider-secret distribution, rotation, and permission policy for values such as `VCO_INTENT_ADVICE_API_KEY` (and optional `VCO_VECTOR_DIFF_API_KEY`)
 - whether external CLIs such as `node`, `npm`, and `gh` are consistent across target machines or images
 
 If those items are incomplete, the final status should honestly remain `manual_actions_pending`. Do not describe it as "fully ready".

@@ -1,5 +1,65 @@
 # VCO Changelog
 
+## v2.3.56 (2026-04-04)
+
+- Completed the frozen `remaining-architecture-closure` program and moved the repository to a regression-backed low-coupling / high-cohesion baseline instead of leaving the closure work as an open-ended refactor stream.
+- Added a dedicated owner-consumer architecture proof surface so contracts, runtime-core, verification-core, CLI, governance wrappers, packaging, and live status pages now point at one explicit sign-off source.
+- Realigned the live status spine and closure language around the same 2026-04-04 truth: the scoped closure work is complete, residual fallbacks are explicit, and deferred cleanup tracks are no longer hidden inside the finished plan.
+- Preserved compatibility honestly rather than over-pruning: retained shims, optional nested topology, release/operator fallbacks, outputs evidence, and protected third-party roots all stay bounded and non-authoritative.
+- Detailed release notes: `docs/releases/v2.3.56.md`.
+
+
+## v2.3.55 (2026-03-30)
+
+- Promoted the unified owned-only uninstall surface and aligned supported hosts around explicit skill-only / sidecar-first activation, so install and uninstall touch only Vibe-managed content in the normal path.
+- Fixed the OpenCode startup regression by preserving compatibility with pre-existing OpenCode config surfaces instead of writing managed state into locations that could stop the host from booting.
+- Split built-in intent advice from optional vector diff embeddings under explicit `VCO_INTENT_ADVICE_*` and `VCO_VECTOR_DIFF_*` key families, without backfilling legacy `OPENAI_*` names.
+- Hardened macOS shell bootstrap compatibility by removing Bash 4-only assumptions from active entrypoints and by enforcing a clear Python 3.10+ prerequisite before helper dispatch.
+- Detailed release notes: `docs/releases/v2.3.55.md`.
+
+
+## v2.3.54 (2026-03-30)
+
+- Closed the release-surface truth gap by making `scripts/governance/release-cut.ps1` the authoritative path for version governance, changelog / ledger writes, release README updates, dist manifest `source_release` alignment, and bundled / nested bundled sync during release apply.
+- Added a stable runtime-contract proof baseline through shared packet projection, contract references, schema/golden tests, and host/runtime projection coverage so later refactors can move with less hidden drift risk.
+- Completed the currently targeted tracked outputs-boundary migration and install-time generated nested compatibility path while preserving installed-runtime behavior and parity gates.
+- Added release-note quality enforcement and re-cut the governed release surface so `v2.3.54` accurately describes the code and verification state that now exists in the repository.
+- Detailed release notes: `docs/releases/v2.3.54.md`.
+
+
+## v2.3.53 (2026-03-30)
+
+- Closed governed specialist dispatch with explicit custom-admission handling, and restored delegated-lane payload plus host-adapter metadata continuity across router admission, runtime packets, and specialist execution closure gates.
+- Hardened Windows PowerShell host resolution for install, check, and bootstrap surfaces, and tightened managed-host install guarantees across the current preview / runtime-core adapter lanes.
+- Tightened cleanup-truth wording and policy so public release claims and runtime cleanup semantics stay aligned with what the governed runtime can actually prove.
+- Detailed release notes: `docs/releases/v2.3.53.md`.
+
+
+## v2.3.52 (2026-03-29)
+
+- Landed stage-aware memory activation inside the standard six-stage `vibe` runtime, including per-run memory activation reports and bounded context injection into governed artifacts.
+- Added real governed backend adapter read/write paths for `Serena`, `ruflo`, and `Cognee`, with session-local request/response receipts instead of policy-only ownership claims.
+- Kept memory-scope boundaries explicit: `ruflo` remains XL-scoped, `knowledge-steward` remains explicit-only, and the runtime cleanup fold is local governed compaction rather than silent skill auto-invocation.
+- Detailed release notes: `docs/releases/v2.3.52.md`.
+
+
+## v2.3.51 (2026-03-28)
+
+- Integrated downstream delivery acceptance into the normal `vibe` main chain so governed runs now freeze product acceptance semantics, plan delivery checks, and emit a per-run delivery-acceptance report during cleanup.
+- Completed the recent specialist-governance sequence on `main`: stage-bound specialist dispatch, child-lane same-round auto-absorb under root approval, and stronger native-specialist failure proofing.
+- Fixed Windows specialist runtime handoff so governed specialist execution stays usable on current Windows environments instead of breaking at the boundary between orchestration and native specialist lanes.
+- Added benchmark/scenario-backed workflow acceptance and release-truth helpers to support stricter completion-language honesty beyond pure runtime/process success.
+- Detailed release notes: `docs/releases/v2.3.51.md`.
+
+
+## v2.3.50 (2026-03-26)
+
+- Added router AI connectivity proofing for the governance advice path, including a PowerShell gate, a runtime-neutral Python probe, and install-entry quick-check guidance that reports structured readiness states.
+- Hardened LLM acceleration overlay optional-field handling and aligned the default Windows verification command with `powershell.exe` so stock Windows environments can run the router gate without requiring `pwsh`.
+- Landed the current host-adapter and install-surface closure now present on main: OpenClaw runtime-core normalization, OpenCode preview adapter/install surface, Cursor/Windsurf preview support alignment, and a single public install entry with bilingual parity.
+- Detailed release notes: `docs/releases/v2.3.50.md`.
+
+
 ## v2.3.49 (2026-03-23)
 
 - Hardened install/check path resolution so PowerShell and shell entrypoints no longer assume deep parent-directory layouts when launched from shallow release worktrees under `/tmp`.

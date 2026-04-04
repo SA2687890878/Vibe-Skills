@@ -29,9 +29,9 @@
       ],
       "offline_state": "heuristic-only",
       "offline_contract": {
-        "abstain_reason": "missing_openai_api_key",
+        "abstain_reason": "missing_intent_advice_api_key",
         "required_env_any": [
-          "OPENAI_API_KEY"
+          "VCO_INTENT_ADVICE_API_KEY"
         ],
         "no_network_without_credentials": true
       },
@@ -39,38 +39,6 @@
         "scripts/router/modules/01-openai-responses.ps1",
         "config/settings.template.codex.json",
         "config/ruc-nlpir-runtime.json"
-      ]
-    },
-    {
-      "id": "ark-compatible",
-      "provider_id": "ark-compatible",
-      "kind": "provider-assisted",
-      "status": "provider-assisted",
-      "module_relpath": "scripts/router/modules/02-volc-ark.ps1",
-      "roles_allowed": [
-        "semantic_extraction",
-        "candidate_rerank",
-        "route_advice",
-        "shadow_evaluation",
-        "route_explainability"
-      ],
-      "roles_forbidden": [
-        "canonical_assignment_owner",
-        "second_router",
-        "live_router_takeover",
-        "explicit_command_override",
-        "release_chain_owner"
-      ],
-      "offline_state": "heuristic-only",
-      "offline_contract": {
-        "abstain_reason": "missing_ark_api_key",
-        "required_env_any": [
-          "ARK_API_KEY"
-        ],
-        "no_network_without_credentials": true
-      },
-      "binding_examples": [
-        "scripts/router/modules/02-volc-ark.ps1"
       ]
     },
     {

@@ -50,27 +50,6 @@ function Get-GitStatusEntries {
     return @($entries)
 }
 
-function Test-GovernedMirrorRelativePath {
-    param(
-        [Parameter(Mandatory)] [string]$RelativePath,
-        [Parameter(Mandatory)] [psobject]$Packaging
-    )
-
-    $rel = $RelativePath.Replace('\\', '/')
-    if (@($Packaging.mirror.files) -contains $rel) {
-        return $true
-    }
-
-    foreach ($dir in @($Packaging.mirror.directories)) {
-        $prefix = ('{0}/' -f $dir).Replace('\\', '/')
-        if ($rel.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-            return $true
-        }
-    }
-
-    return $false
-}
-
 function Test-MirrorMatchesCanonical {
     param(
         [Parameter(Mandatory)] [string]$RepoRoot,
@@ -93,6 +72,15 @@ function Test-MirrorMatchesCanonical {
     $canonicalHash = (Get-FileHash -LiteralPath $canonicalPath -Algorithm SHA256).Hash
     $mirrorHash = (Get-FileHash -LiteralPath $resolvedMirrorPath -Algorithm SHA256).Hash
     return ($canonicalHash -eq $mirrorHash)
+}
+
+function Test-CanonicalCounterpartExists {
+    param(
+        [Parameter(Mandatory)] [string]$RepoRoot,
+        [Parameter(Mandatory)] [string]$CanonicalRelativePath
+    )
+
+    return (Test-Path -LiteralPath (Join-Path $RepoRoot $CanonicalRelativePath))
 }
 
 function Write-Artifacts {
@@ -167,6 +155,8 @@ $context = Get-VgoGovernanceContext -ScriptPath $PSCommandPath -EnforceExecution
 $packaging = $context.packaging
 $allowBundledOnly = @($packaging.allow_bundled_only)
 $mirrorTargets = @($context.mirrorTargets | Where-Object { -not $_.isCanonical } | Sort-Object { $_.path.Length } -Descending)
+$trackedMirrorRetired = ($mirrorTargets.Count -eq 0)
+$legacyMirrorPrefixes = @('bundled/skills/vibe', 'bundled/skills/vibe/bundled/skills/vibe')
 $gitEntries = @(Get-GitStatusEntries -RepoRoot $context.repoRoot)
 $mirrorPaths = New-Object System.Collections.Generic.HashSet[string]([System.StringComparer]::OrdinalIgnoreCase)
 $canonicalPaths = New-Object System.Collections.Generic.HashSet[string]([System.StringComparer]::OrdinalIgnoreCase)
@@ -175,6 +165,7 @@ $results = [ordered]@{
     repo_root = $context.repoRoot
     generated_at = (Get-Date).ToString('s')
     gate_result = 'FAIL'
+    mode = if ($trackedMirrorRetired) { 'canonical_only_retired_tracked_mirror' } else { 'legacy_bundled_hygiene' }
     changed_entries = @($gitEntries)
     mirror_only_edits = @()
     paired_mirror_edits = @()
@@ -191,9 +182,29 @@ $results = [ordered]@{
 }
 
 foreach ($entry in $gitEntries) {
-    $matchedMirror = $mirrorTargets | Where-Object {
-        $_.path -and ($entry.path -eq $_.path -or $entry.path.StartsWith(('{0}/' -f $_.path).Replace('\', '/'), [System.StringComparison]::OrdinalIgnoreCase))
-    } | Select-Object -First 1
+    $matchedMirror = if ($trackedMirrorRetired) {
+        $legacyId = $null
+        foreach ($prefix in $legacyMirrorPrefixes) {
+            if ($entry.path -eq $prefix -or $entry.path.StartsWith((('{0}/' -f $prefix).Replace('\', '/')), [System.StringComparison]::OrdinalIgnoreCase)) {
+                $legacyId = if ($prefix -like '*/bundled/skills/vibe') { 'nested_bundled' } else { 'bundled' }
+                break
+            }
+        }
+        if ($null -eq $legacyId) {
+            $null
+        } else {
+            [pscustomobject]@{
+                id = $legacyId
+                path = if ($legacyId -eq 'nested_bundled') { 'bundled/skills/vibe/bundled/skills/vibe' } else { 'bundled/skills/vibe' }
+                required = $false
+                presence_policy = 'retired'
+            }
+        }
+    } else {
+        $mirrorTargets | Where-Object {
+            $_.path -and ($entry.path -eq $_.path -or $entry.path.StartsWith(('{0}/' -f $_.path).Replace('\', '/'), [System.StringComparison]::OrdinalIgnoreCase))
+        } | Select-Object -First 1
+    }
 
     if ($null -ne $matchedMirror) {
         [void]$mirrorPaths.Add($entry.path)
@@ -209,9 +220,29 @@ Write-Host ("Changed   : {0}" -f $gitEntries.Count)
 Write-Host ''
 
 foreach ($entry in $gitEntries) {
-    $matchedMirror = $mirrorTargets | Where-Object {
-        $_.path -and ($entry.path -eq $_.path -or $entry.path.StartsWith(('{0}/' -f $_.path).Replace('\', '/'), [System.StringComparison]::OrdinalIgnoreCase))
-    } | Select-Object -First 1
+    $matchedMirror = if ($trackedMirrorRetired) {
+        $legacyId = $null
+        foreach ($prefix in $legacyMirrorPrefixes) {
+            if ($entry.path -eq $prefix -or $entry.path.StartsWith((('{0}/' -f $prefix).Replace('\', '/')), [System.StringComparison]::OrdinalIgnoreCase)) {
+                $legacyId = if ($prefix -like '*/bundled/skills/vibe') { 'nested_bundled' } else { 'bundled' }
+                break
+            }
+        }
+        if ($null -eq $legacyId) {
+            $null
+        } else {
+            [pscustomobject]@{
+                id = $legacyId
+                path = if ($legacyId -eq 'nested_bundled') { 'bundled/skills/vibe/bundled/skills/vibe' } else { 'bundled/skills/vibe' }
+                required = $false
+                presence_policy = 'retired'
+            }
+        }
+    } else {
+        $mirrorTargets | Where-Object {
+            $_.path -and ($entry.path -eq $_.path -or $entry.path.StartsWith(('{0}/' -f $_.path).Replace('\', '/'), [System.StringComparison]::OrdinalIgnoreCase))
+        } | Select-Object -First 1
+    }
 
     if ($null -eq $matchedMirror) {
         continue
@@ -232,6 +263,16 @@ foreach ($entry in $gitEntries) {
         canonical_counterpart = $canonicalCounterpart
     }
 
+    if ($trackedMirrorRetired) {
+        $legacyPathStillExists = Test-Path -LiteralPath (Join-Path $context.repoRoot $entry.path)
+        if ($entry.status -eq 'D' -or -not $legacyPathStillExists) {
+            $results.reconciled_mirror_edits += [pscustomobject]$classification
+        } else {
+            $results.mirror_only_edits += [pscustomobject]$classification
+        }
+        continue
+    }
+
     $isOptionalNestedRemoval = (
         $matchedMirror.id -eq 'nested_bundled' -and
         $entry.status -eq 'D' -and
@@ -249,7 +290,15 @@ foreach ($entry in $gitEntries) {
         continue
     }
 
-    if (-not (Test-GovernedMirrorRelativePath -RelativePath $canonicalCounterpart -Packaging $packaging)) {
+    if (-not (Test-VgoGovernedMirrorRelativePath -RelativePath $canonicalCounterpart -Packaging $packaging -TargetId ([string]$matchedMirror.id))) {
+        $legacyContractDrop = (
+            $entry.status -eq 'D' -and
+            (Test-CanonicalCounterpartExists -RepoRoot $context.repoRoot -CanonicalRelativePath $canonicalCounterpart)
+        )
+        if ($legacyContractDrop) {
+            $results.reconciled_mirror_edits += [pscustomobject]$classification
+            continue
+        }
         $results.mirror_only_edits += [pscustomobject]$classification
         continue
     }

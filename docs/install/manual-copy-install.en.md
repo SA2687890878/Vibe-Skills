@@ -22,25 +22,25 @@ Copy these into the target root:
 
 ## Default Host Roots
 
-- `codex` -> `CODEX_HOME` or `~/.vibeskills/targets/codex`
-- `claude-code` -> `CLAUDE_HOME` or `~/.vibeskills/targets/claude-code`
-- `cursor` -> `CURSOR_HOME` or `~/.vibeskills/targets/cursor`
-- `windsurf` -> `WINDSURF_HOME` or `~/.vibeskills/targets/windsurf`
-- `openclaw` -> `OPENCLAW_HOME` or `~/.vibeskills/targets/openclaw`
-- `opencode` -> `OPENCODE_HOME` or `~/.vibeskills/targets/opencode`
+- `codex` -> `~/.codex`
+- `claude-code` -> `~/.claude`
+- `cursor` -> `~/.cursor`
+- `windsurf` -> `~/.codeium/windsurf`
+- `openclaw` -> `OPENCLAW_HOME` or `~/.openclaw`
+- `opencode` -> `OPENCODE_HOME` or `~/.config/opencode`
 
 If the target is `windsurf`, also note:
 
-- mirror `commands/` into `global_workflows/` if you want parity with the scripted result
-- copy `mcp/servers.template.json` to `mcp_config.json` when it is missing
+- if you need exact parity with the current scripted result, prefer rerunning `install.* --host windsurf`
+- the current public contract uses `.vibeskills/host-settings.json` and `.vibeskills/host-closure.json` as the host sidecars instead of `mcp_config.json` / `global_workflows/`
 
 If the target is `opencode`, switch to the OpenCode preview payload:
 
 - `skills/`
-- `commands/*.md`
-- `command/*.md`
-- `agents/*.md`
-- `agent/*.md`
+- `.vibeskills/host-settings.json`
+- `.vibeskills/host-closure.json`
+- `.vibeskills/install-ledger.json`
+- `.vibeskills/bin/*-specialist-wrapper.*`
 - `opencode.json.example`
 
 Then use [`opencode-path.en.md`](./opencode-path.en.md) for the preview-adapter follow-up steps.
@@ -50,13 +50,20 @@ Then use [`opencode-path.en.md`](./opencode-path.en.md) for the preview-adapter 
 ### Codex
 
 - maintain `~/.codex/settings.json`
-- configure `OPENAI_*` if needed
-- add `VCO_AI_PROVIDER_*` if you also want the governance-AI online layer
+- for the built-in governance-advice path, prefer:
+  - `VCO_INTENT_ADVICE_API_KEY`
+  - optional `VCO_INTENT_ADVICE_BASE_URL`
+  - `VCO_INTENT_ADVICE_MODEL`
+  - `VCO_VECTOR_DIFF_API_KEY` / `VCO_VECTOR_DIFF_BASE_URL` / `VCO_VECTOR_DIFF_MODEL` when embedding-powered diff context is desired
 
 ### Claude Code
 
 - maintain `~/.claude/settings.json`
-- add `VCO_AI_PROVIDER_*` if needed
+- for the built-in governance-advice path, prefer:
+  - `VCO_INTENT_ADVICE_API_KEY`
+  - optional `VCO_INTENT_ADVICE_BASE_URL`
+  - `VCO_INTENT_ADVICE_MODEL`
+  - `VCO_VECTOR_DIFF_*` keys only when vector diff embeddings are configured; otherwise the advice path still works
 
 ### Cursor
 
@@ -65,18 +72,18 @@ Then use [`opencode-path.en.md`](./opencode-path.en.md) for the preview-adapter 
 
 ### Windsurf
 
-- confirm `mcp_config.json` and `global_workflows/` under `WINDSURF_HOME` or `~/.vibeskills/targets/windsurf`
+- confirm `.vibeskills/host-settings.json` and `.vibeskills/host-closure.json` under `~/.codeium/windsurf`
 - finish host-local configuration inside Windsurf itself
 
 ### OpenClaw
 
-- confirm the runtime-core payload under `OPENCLAW_HOME` or `~/.vibeskills/targets/openclaw`
+- confirm the runtime-core payload under `OPENCLAW_HOME` or `~/.openclaw`
 - use the attach / copy / bundle guidance when you want parity with the scripted path
 - finish host-local configuration inside OpenClaw itself
 
 ### OpenCode
 
-- confirm the preview payload under `OPENCODE_HOME` or `~/.vibeskills/targets/opencode`
+- confirm the preview payload under `OPENCODE_HOME` or `~/.config/opencode`
 - keep the real `opencode.json`, provider credentials, plugin installation, and MCP trust host-managed
 - use `./.opencode` when you want a project-local isolated target
 

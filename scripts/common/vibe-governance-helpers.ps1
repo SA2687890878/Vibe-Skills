@@ -1,5 +1,7 @@
 Set-StrictMode -Version Latest
 
+$script:VgoGovernanceHelpersRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+
 function New-VgoUtf8NoBomEncoding {
     return [System.Text.UTF8Encoding]::new($false)
 }
@@ -166,6 +168,247 @@ function Test-VgoCanonicalRepoExecution {
     return (Test-Path -LiteralPath (Join-Path $repoRoot '.git'))
 }
 
+function Read-VgoJsonFile {
+    param([Parameter(Mandatory)] [string]$Path)
+
+    $raw = Get-Content -LiteralPath $Path -Raw -Encoding UTF8
+    return ($raw | ConvertFrom-Json)
+}
+
+function Get-VgoOperatorPreviewStringListProperty {
+    param(
+        [Parameter(Mandatory)] [string]$RepoRoot,
+        [Parameter(Mandatory)] [string]$OperatorId,
+        [Parameter(Mandatory)] [string]$PropertyName
+    )
+
+    $contractPath = Join-Path $RepoRoot 'config\operator-preview-contract.json'
+    if (-not (Test-Path -LiteralPath $contractPath)) {
+        return @()
+    }
+
+    try {
+        $contract = Read-VgoJsonFile -Path $contractPath
+    } catch {
+        return @()
+    }
+
+    if ($null -eq $contract -or
+        $contract.PSObject.Properties.Name -notcontains 'operators' -or
+        $null -eq $contract.operators) {
+        return @()
+    }
+
+    $operators = $contract.operators
+    $operator = $null
+    if ($operators -is [System.Collections.IDictionary]) {
+        if ($operators.Contains($OperatorId)) {
+            $operator = $operators[$OperatorId]
+        }
+    } elseif ($null -ne $operators.PSObject -and $operators.PSObject.Properties.Name -contains $OperatorId) {
+        $operator = $operators.$OperatorId
+    }
+
+    if ($null -eq $operator -or
+        $operator.PSObject.Properties.Name -notcontains $PropertyName -or
+        $null -eq $operator.$PropertyName) {
+        return @()
+    }
+
+    return @($operator.$PropertyName | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+}
+
+function Get-VgoAdapterRegistryPayload {
+    param(
+        [AllowEmptyString()] [string]$StartPath = ''
+    )
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($StartPath)) {
+        [void]$candidates.Add($StartPath)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($script:VgoGovernanceHelpersRoot)) {
+        [void]$candidates.Add($script:VgoGovernanceHelpersRoot)
+    }
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+
+        $current = [System.IO.Path]::GetFullPath($candidate)
+        if (Test-Path -LiteralPath $current -PathType Leaf) {
+            $current = Split-Path -Parent $current
+        }
+
+        while (-not [string]::IsNullOrWhiteSpace($current)) {
+            foreach ($relativePath in @('config\adapter-registry.json', 'adapters\index.json')) {
+                $registryPath = Join-Path $current $relativePath
+                if (Test-Path -LiteralPath $registryPath) {
+                    return (Read-VgoJsonFile -Path $registryPath)
+                }
+            }
+
+            $parent = Split-Path -Parent $current
+            if ([string]::IsNullOrWhiteSpace($parent) -or $parent -eq $current) {
+                break
+            }
+            $current = $parent
+        }
+    }
+
+    throw 'Unable to resolve adapter registry for VGO governance helpers.'
+}
+
+function Resolve-VgoHostCatalog {
+    param(
+        [AllowEmptyString()] [string]$StartPath = ''
+    )
+
+    $registry = Get-VgoAdapterRegistryPayload -StartPath $StartPath
+    $entries = @{}
+    $aliases = @{}
+
+    foreach ($alias in $registry.aliases.PSObject.Properties) {
+        $aliases[[string]$alias.Name] = [string]$alias.Value
+    }
+
+    foreach ($adapter in @($registry.adapters)) {
+        $hostName = [string]$adapter.id
+        $hostProfile = $null
+        if ($adapter.PSObject.Properties.Name -contains 'host_profile' -and -not [string]::IsNullOrWhiteSpace([string]$adapter.host_profile)) {
+            $profilePath = Join-Path (Resolve-VgoRepoRoot -StartPath $script:VgoGovernanceHelpersRoot) ([string]$adapter.host_profile)
+            if (Test-Path -LiteralPath $profilePath) {
+                try {
+                    $hostProfile = Read-VgoJsonFile -Path $profilePath
+                } catch {
+                    $hostProfile = $null
+                }
+            }
+        }
+        if ($null -ne $hostProfile -and $hostProfile.PSObject.Properties.Name -contains 'host_name' -and -not [string]::IsNullOrWhiteSpace([string]$hostProfile.host_name)) {
+            $hostName = [string]$hostProfile.host_name
+        }
+
+        $entries[[string]$adapter.id] = [pscustomobject]@{
+            id = [string]$adapter.id
+            host_name = $hostName
+            env = if ($adapter.default_target_root.PSObject.Properties.Name -contains 'env') { [string]$adapter.default_target_root.env } else { '' }
+            rel = if ($adapter.default_target_root.PSObject.Properties.Name -contains 'rel') { [string]$adapter.default_target_root.rel } else { '' }
+            kind = if ($adapter.default_target_root.PSObject.Properties.Name -contains 'kind') { [string]$adapter.default_target_root.kind } else { '' }
+        }
+    }
+
+    $entries['generic'] = [pscustomobject]@{
+        id = 'generic'
+        host_name = 'Generic Host'
+        env = ''
+        rel = '.vibe-skills/generic'
+        kind = 'host-home'
+    }
+
+    if (-not $aliases.Contains('claude')) {
+        $aliases['claude'] = 'claude-code'
+    }
+
+    return [pscustomobject]@{
+        default_adapter_id = [string]$registry.default_adapter_id
+        entries = $entries
+        aliases = $aliases
+    }
+}
+
+function Get-VgoBootstrapSummary {
+    param(
+        [Parameter(Mandatory)] [psobject]$Adapter
+    )
+
+    if ($Adapter.PSObject.Properties.Name -contains 'bootstrap_summary' -and -not [string]::IsNullOrWhiteSpace([string]$Adapter.bootstrap_summary)) {
+        return [string]$Adapter.bootstrap_summary
+    }
+
+    switch ([string]$Adapter.id) {
+        'codex' { return 'strongest governed lane' }
+        'windsurf' { return 'supported path + runtime adapter' }
+        'openclaw' { return 'preview runtime-core adapter' }
+        'opencode' { return 'preview guidance adapter' }
+        default { return 'supported install/use path' }
+    }
+}
+
+function Get-VgoBootstrapHostChoices {
+    param(
+        [AllowEmptyString()] [string]$StartPath = ''
+    )
+
+    $registry = Get-VgoAdapterRegistryPayload -StartPath $StartPath
+    $choices = New-Object System.Collections.Generic.List[object]
+    $index = 1
+
+    foreach ($adapter in @($registry.adapters)) {
+        $hostId = [string]$adapter.id
+        if ([string]::IsNullOrWhiteSpace($hostId)) {
+            continue
+        }
+
+        $aliases = New-Object System.Collections.Generic.List[string]
+        [void]$aliases.Add($hostId)
+        if ($registry.PSObject.Properties.Name -contains 'aliases' -and $null -ne $registry.aliases) {
+            foreach ($alias in $registry.aliases.PSObject.Properties) {
+                if ([string]$alias.Value -eq $hostId -and -not $aliases.Contains([string]$alias.Name)) {
+                    [void]$aliases.Add([string]$alias.Name)
+                }
+            }
+        }
+
+        [void]$choices.Add([pscustomobject]@{
+            index = $index
+            id = $hostId
+            summary = Get-VgoBootstrapSummary -Adapter $adapter
+            aliases = @($aliases)
+        })
+        $index += 1
+    }
+
+    return $choices.ToArray()
+}
+
+function Get-VgoSupportedHostList {
+    param(
+        [AllowEmptyString()] [string]$StartPath = ''
+    )
+
+    return @((Get-VgoBootstrapHostChoices -StartPath $StartPath) | ForEach-Object { [string]$_.id })
+}
+
+function Get-VgoSupportedHostHint {
+    param(
+        [AllowEmptyString()] [string]$StartPath = ''
+    )
+
+    return ((Get-VgoSupportedHostList -StartPath $StartPath) -join '|')
+}
+
+function Test-VgoTargetRootMatchesRelativeSignature {
+    param(
+        [Parameter(Mandatory)] [string]$TargetRoot,
+        [Parameter(Mandatory)] [string]$RelativeSignature
+    )
+
+    $normalizedTarget = [System.IO.Path]::GetFullPath($TargetRoot).Replace('\', '/').TrimEnd('/').ToLowerInvariant()
+    $normalizedSignature = ([string]$RelativeSignature).Replace('\', '/').Trim('/').ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($normalizedSignature)) {
+        return $false
+    }
+
+    $leaf = Split-Path -Leaf $normalizedTarget
+    if ($normalizedSignature -notlike '*/*') {
+        return ($leaf -eq $normalizedSignature) -or $normalizedTarget.EndsWith('/' + $normalizedSignature)
+    }
+
+    return $normalizedTarget.EndsWith('/' + $normalizedSignature)
+}
+
 function Resolve-VgoHomeDirectory {
     param(
         [AllowEmptyString()] [string]$HomePath = ''
@@ -208,33 +451,60 @@ function Resolve-VgoHomeDirectory {
     throw 'Unable to resolve a platform-neutral user home directory.'
 }
 
+function Resolve-VgoAdapterEntry {
+    param(
+        [AllowEmptyString()] [string]$StartPath = '',
+        [AllowEmptyString()] [string]$HostId = ''
+    )
+
+    $registry = Get-VgoAdapterRegistryPayload -StartPath $StartPath
+    $requestedHostId = $HostId
+    $resolvedHostId = Resolve-VgoHostId -HostId $requestedHostId
+    $adapter = @($registry.adapters | Where-Object { [string]$_.id -eq $resolvedHostId } | Select-Object -First 1)[0]
+    if ($null -eq $adapter) {
+        throw "Unsupported VCO host id: $resolvedHostId"
+    }
+
+    return [pscustomobject]@{
+        requested_id = if ([string]::IsNullOrWhiteSpace($requestedHostId)) { $null } else { [string]$requestedHostId }
+        id = [string]$adapter.id
+        status = if ($adapter.PSObject.Properties.Name -contains 'status') { [string]$adapter.status } else { $null }
+        install_mode = if ($adapter.PSObject.Properties.Name -contains 'install_mode') { [string]$adapter.install_mode } else { $null }
+        check_mode = if ($adapter.PSObject.Properties.Name -contains 'check_mode') { [string]$adapter.check_mode } else { $null }
+        bootstrap_mode = if ($adapter.PSObject.Properties.Name -contains 'bootstrap_mode') { [string]$adapter.bootstrap_mode } else { $null }
+        default_target_root = if ($adapter.PSObject.Properties.Name -contains 'default_target_root') { $adapter.default_target_root } else { $null }
+        host_profile = if ($adapter.PSObject.Properties.Name -contains 'host_profile') { [string]$adapter.host_profile } else { $null }
+        settings_map = if ($adapter.PSObject.Properties.Name -contains 'settings_map') { [string]$adapter.settings_map } else { $null }
+        closure = if ($adapter.PSObject.Properties.Name -contains 'closure') { [string]$adapter.closure } else { $null }
+        manifest = if ($adapter.PSObject.Properties.Name -contains 'manifest') { [string]$adapter.manifest } else { $null }
+    }
+}
+
 function Resolve-VgoHostId {
     param(
         [AllowEmptyString()] [string]$HostId = ''
     )
 
+    $catalog = Resolve-VgoHostCatalog -StartPath $script:VgoGovernanceHelpersRoot
     $resolved = $HostId
     if ([string]::IsNullOrWhiteSpace($resolved)) {
         $resolved = $env:VCO_HOST_ID
     }
     if ([string]::IsNullOrWhiteSpace($resolved)) {
-        $resolved = 'codex'
+        $resolved = if (-not [string]::IsNullOrWhiteSpace([string]$catalog.default_adapter_id)) { [string]$catalog.default_adapter_id } else { 'codex' }
     }
 
     $normalized = $resolved.Trim().ToLowerInvariant()
-    switch ($normalized) {
-        'codex' { return 'codex' }
-        'claude' { return 'claude-code' }
-        'claude-code' { return 'claude-code' }
-        'cursor' { return 'cursor' }
-        'windsurf' { return 'windsurf' }
-        'openclaw' { return 'openclaw' }
-        'opencode' { return 'opencode' }
-        'generic' { return 'generic' }
-        default {
-            throw "Unsupported VCO host id: $resolved. Supported values: codex, claude-code, cursor, windsurf, openclaw, opencode, generic"
-        }
+    if ($catalog.aliases.Contains($normalized)) {
+        $normalized = [string]$catalog.aliases[$normalized]
     }
+
+    if ($catalog.entries.Contains($normalized)) {
+        return $normalized
+    }
+
+    $supported = @($catalog.entries.Keys | Sort-Object)
+    throw "Unsupported VCO host id: $resolved. Supported values: $($supported -join ', ')"
 }
 
 function Resolve-VgoDefaultTargetRoot {
@@ -243,52 +513,21 @@ function Resolve-VgoDefaultTargetRoot {
     )
 
     $resolvedHostId = Resolve-VgoHostId -HostId $HostId
-    $homeDir = Resolve-VgoHomeDirectory
-    $isolatedTargetsRoot = Join-Path (Join-Path $homeDir '.vibeskills') 'targets'
-    switch ($resolvedHostId) {
-        'codex' {
-            if (-not [string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
-                return [System.IO.Path]::GetFullPath($env:CODEX_HOME)
-            }
-            return [System.IO.Path]::GetFullPath((Join-Path $isolatedTargetsRoot 'codex'))
-        }
-        'claude-code' {
-            if (-not [string]::IsNullOrWhiteSpace($env:CLAUDE_HOME)) {
-                return [System.IO.Path]::GetFullPath($env:CLAUDE_HOME)
-            }
-            return [System.IO.Path]::GetFullPath((Join-Path $isolatedTargetsRoot 'claude-code'))
-        }
-        'cursor' {
-            if (-not [string]::IsNullOrWhiteSpace($env:CURSOR_HOME)) {
-                return [System.IO.Path]::GetFullPath($env:CURSOR_HOME)
-            }
-            return [System.IO.Path]::GetFullPath((Join-Path $isolatedTargetsRoot 'cursor'))
-        }
-        'windsurf' {
-            if (-not [string]::IsNullOrWhiteSpace($env:WINDSURF_HOME)) {
-                return [System.IO.Path]::GetFullPath($env:WINDSURF_HOME)
-            }
-            return [System.IO.Path]::GetFullPath((Join-Path $isolatedTargetsRoot 'windsurf'))
-        }
-        'openclaw' {
-            if (-not [string]::IsNullOrWhiteSpace($env:OPENCLAW_HOME)) {
-                return [System.IO.Path]::GetFullPath($env:OPENCLAW_HOME)
-            }
-            return [System.IO.Path]::GetFullPath((Join-Path $isolatedTargetsRoot 'openclaw'))
-        }
-        'opencode' {
-            if (-not [string]::IsNullOrWhiteSpace($env:OPENCODE_HOME)) {
-                return [System.IO.Path]::GetFullPath($env:OPENCODE_HOME)
-            }
-            return [System.IO.Path]::GetFullPath((Join-Path $isolatedTargetsRoot 'opencode'))
-        }
-        'generic' {
-            return [System.IO.Path]::GetFullPath((Join-Path (Join-Path $homeDir '.vibe-skills') 'generic'))
-        }
-        default {
-            throw "Unsupported VCO host id: $resolvedHostId"
+    $catalog = Resolve-VgoHostCatalog -StartPath $script:VgoGovernanceHelpersRoot
+    $entry = $catalog.entries[$resolvedHostId]
+    if ($null -eq $entry) {
+        throw "Unsupported VCO host id: $resolvedHostId"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$entry.env)) {
+        $envValue = [Environment]::GetEnvironmentVariable([string]$entry.env)
+        if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+            return [System.IO.Path]::GetFullPath($envValue)
         }
     }
+
+    $homeDir = Resolve-VgoHomeDirectory
+    return [System.IO.Path]::GetFullPath((Join-Path $homeDir ([string]$entry.rel)))
 }
 
 function Resolve-VgoTargetRoot {
@@ -325,145 +564,45 @@ function Assert-VgoTargetRootMatchesHostIntent {
     )
 
     $resolvedHostId = Resolve-VgoHostId -HostId $HostId
-    $fullTargetRoot = [System.IO.Path]::GetFullPath($TargetRoot)
-    $leaf = Split-Path -Leaf $fullTargetRoot
-    $normalizedLeaf = if ([string]::IsNullOrWhiteSpace($leaf)) { '' } else { $leaf.Trim().ToLowerInvariant() }
-    $normalizedTargetPath = [System.IO.Path]::GetFullPath($TargetRoot).Replace('\', '/').TrimEnd('/').ToLowerInvariant()
-    $isClaudeRoot = ($normalizedLeaf -eq '.claude') -or $normalizedTargetPath.EndsWith('/.vibeskills/targets/claude-code')
-    $isCodexRoot = ($normalizedLeaf -eq '.codex') -or $normalizedTargetPath.EndsWith('/.vibeskills/targets/codex')
-    $isCursorRoot = ($normalizedLeaf -eq '.cursor') -or $normalizedTargetPath.EndsWith('/.vibeskills/targets/cursor')
-    $isWindsurfRoot = $normalizedTargetPath.EndsWith('/.codeium/windsurf') -or $normalizedTargetPath.EndsWith('/.vibeskills/targets/windsurf')
-    $isOpenClawRoot = ($normalizedLeaf -eq '.openclaw') -or $normalizedTargetPath.EndsWith('/.vibeskills/targets/openclaw')
-    $looksLikeOpenCodeRoot = ($normalizedLeaf -eq '.opencode') -or $normalizedTargetPath.EndsWith('/.config/opencode') -or $normalizedTargetPath.EndsWith('/.vibeskills/targets/opencode')
+    $catalog = Resolve-VgoHostCatalog -StartPath $script:VgoGovernanceHelpersRoot
+    $currentEntry = $catalog.entries[$resolvedHostId]
+    if ($null -eq $currentEntry) {
+        throw "Unsupported VCO host id: $resolvedHostId"
+    }
 
-    switch ($resolvedHostId) {
-        'codex' {
-            if ($isClaudeRoot -or $isWindsurfRoot -or $isOpenClawRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a non-Codex host root, but HostId resolved to 'codex'. Pass the matching host id or use a Codex target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($isCursorRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a Cursor home, but HostId resolved to 'codex'. Pass -HostId cursor or use a Codex target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($looksLikeOpenCodeRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like an OpenCode root, but HostId resolved to 'codex'. Pass -HostId opencode for the OpenCode preview lane or use a Codex target root.",
-                    $TargetRoot
-                ))
-            }
+    foreach ($entry in @($catalog.entries.Values)) {
+        if ([string]$entry.id -eq $resolvedHostId) {
+            continue
         }
-        'claude-code' {
-            if ($isCodexRoot -or $isWindsurfRoot -or $isOpenClawRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a non-Claude host root, but HostId resolved to 'claude-code'. Pass the matching host id or use a Claude Code target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($isCursorRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a Cursor home, but HostId resolved to 'claude-code'. Pass -HostId cursor or choose a Claude Code target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($looksLikeOpenCodeRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like an OpenCode root, but HostId resolved to 'claude-code'. Use -HostId opencode for the OpenCode preview lane or choose a Claude Code target root.",
-                    $TargetRoot
-                ))
-            }
+        if ([string]$entry.id -eq 'generic') {
+            continue
         }
-        'windsurf' {
-            if ($isCodexRoot -or $isClaudeRoot -or $isOpenClawRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a non-Windsurf host root, but HostId resolved to 'windsurf'. Pass the matching host id or use a Windsurf target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($isCursorRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a Cursor home, but HostId resolved to 'windsurf'. Pass -HostId cursor or choose a Windsurf target root.",
-                    $TargetRoot
-                ))
-            }
+
+        $signatures = @([string]$entry.rel)
+        if ([string]$entry.id -eq 'opencode') {
+            $signatures += '.opencode'
         }
-        'cursor' {
-            if ($isCodexRoot) {
+
+        foreach ($signature in $signatures) {
+            if (-not (Test-VgoTargetRootMatchesRelativeSignature -TargetRoot $TargetRoot -RelativeSignature $signature)) {
+                continue
+            }
+
+            if ($resolvedHostId -eq 'generic') {
                 throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a Codex home, but HostId resolved to 'cursor'. Use -HostId codex for the official closure lane or choose a Cursor target root.",
-                    $TargetRoot
+                    "TargetRoot '{0}' looks like a host-native root ({1}), but HostId resolved to 'generic'. Use a neutral generic target root instead.",
+                    $TargetRoot,
+                    [string]$entry.host_name
                 ))
             }
-            if ($isClaudeRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a Claude Code home, but HostId resolved to 'cursor'. Use -HostId claude-code or choose a Cursor target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($isWindsurfRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a Windsurf home, but HostId resolved to 'cursor'. Use -HostId windsurf or choose a Cursor target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($isOpenClawRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like an OpenClaw home, but HostId resolved to 'cursor'. Use -HostId openclaw or choose a Cursor target root.",
-                    $TargetRoot
-                ))
-            }
-        }
-        'openclaw' {
-            if ($isCodexRoot -or $isClaudeRoot -or $isWindsurfRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a non-OpenClaw host root, but HostId resolved to 'openclaw'. Pass the matching host id or use an OpenClaw target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($isCursorRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a Cursor home, but HostId resolved to 'openclaw'. Use -HostId cursor or choose an OpenClaw target root.",
-                    $TargetRoot
-                ))
-            }
-        }
-        'opencode' {
-            if ($isCodexRoot -or $isWindsurfRoot -or $isOpenClawRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a non-OpenCode host root, but HostId resolved to 'opencode'. Pass the matching host id or use an OpenCode target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($isCodexRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a Codex home, but HostId resolved to 'opencode'. Use -HostId codex for the official closure lane or choose an OpenCode target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($isClaudeRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a Claude Code home, but HostId resolved to 'opencode'. Use -HostId claude-code for Claude preview guidance or choose an OpenCode target root.",
-                    $TargetRoot
-                ))
-            }
-            if ($isCursorRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a Cursor home, but HostId resolved to 'opencode'. Use -HostId cursor or choose an OpenCode target root.",
-                    $TargetRoot
-                ))
-            }
-        }
-        'generic' {
-            if ($isCodexRoot -or $isClaudeRoot -or $isCursorRoot -or $isOpenClawRoot -or $isWindsurfRoot -or $looksLikeOpenCodeRoot) {
-                throw ([string]::Format(
-                    "TargetRoot '{0}' looks like a host-native root, but HostId resolved to 'generic'. Use a neutral generic target root instead.",
-                    $TargetRoot
-                ))
-            }
+
+            throw ([string]::Format(
+                "TargetRoot '{0}' looks like a {1} root, but HostId resolved to '{2}'. Pass the matching host id or use a {3} target root.",
+                $TargetRoot,
+                [string]$entry.host_name,
+                $resolvedHostId,
+                [string]$currentEntry.host_name
+            ))
         }
     }
 }
@@ -813,17 +952,77 @@ function Get-VgoLatestJsonlRecord {
     return $null
 }
 
+function Get-VgoPackagingManifestSpecs {
+    param(
+        [Parameter(Mandatory)] [psobject]$Packaging
+    )
+
+    $manifestInput = if ($Packaging.PSObject.Properties.Name -contains 'manifests') { $Packaging.manifests } else { $null }
+    $specs = @()
+    if ($null -eq $manifestInput) {
+        return @()
+    }
+
+    if ($manifestInput -is [System.Collections.IEnumerable] -and -not ($manifestInput -is [string])) {
+        foreach ($item in @($manifestInput)) {
+            if ($null -eq $item) {
+                continue
+            }
+
+            $manifestId = if ($item.PSObject.Properties.Name -contains 'id') { [string]$item.id } else { '' }
+            $manifestPath = if ($item.PSObject.Properties.Name -contains 'path') { [string]$item.path } else { '' }
+            if ([string]::IsNullOrWhiteSpace($manifestPath)) {
+                continue
+            }
+
+            $specs += [pscustomobject]@{
+                id = $manifestId
+                path = $manifestPath.Replace('\', '/')
+            }
+        }
+        return @($specs)
+    }
+
+    $names = @()
+    if ($manifestInput -is [System.Collections.IDictionary]) {
+        $names = @($manifestInput.Keys)
+    } else {
+        $names = @($manifestInput.PSObject.Properties.Name)
+    }
+
+    foreach ($name in $names) {
+        $value = if ($manifestInput -is [System.Collections.IDictionary]) { $manifestInput[$name] } else { $manifestInput.$name }
+        if ($null -eq $value) {
+            continue
+        }
+
+        $manifestPath = if ($value.PSObject.Properties.Name -contains 'path') { [string]$value.path } else { [string]$value }
+        if ([string]::IsNullOrWhiteSpace($manifestPath)) {
+            continue
+        }
+
+        $specs += [pscustomobject]@{
+            id = [string]$name
+            path = $manifestPath.Replace('\', '/')
+        }
+    }
+
+    return @($specs)
+}
+
 function Get-VgoPackagingContract {
     param(
-        [Parameter(Mandatory)] [psobject]$Governance
+        [Parameter(Mandatory)] [psobject]$Governance,
+        [AllowEmptyString()] [string]$RepoRoot = ''
     )
 
     $defaults = [ordered]@{
-        mirror = [ordered]@{
+        runtime_payload = [ordered]@{
             files = @('SKILL.md', 'check.ps1', 'check.sh', 'install.ps1', 'install.sh')
             directories = @('config', 'protocols', 'references', 'docs', 'scripts')
         }
-        allow_bundled_only = @()
+        target_overrides = [ordered]@{}
+        allow_installed_only = @()
         normalized_json_ignore_keys = @('updated', 'generated_at')
     }
 
@@ -832,20 +1031,195 @@ function Get-VgoPackagingContract {
         return [pscustomobject]$defaults
     }
 
-    $mirror = if ($packaging.PSObject.Properties.Name -contains 'mirror' -and $null -ne $packaging.mirror) { $packaging.mirror } else { $null }
-    $mirrorFiles = if ($null -ne $mirror -and $mirror.PSObject.Properties.Name -contains 'files') { @($mirror.files) } else { @($defaults.mirror.files) }
-    $mirrorDirs = if ($null -ne $mirror -and $mirror.PSObject.Properties.Name -contains 'directories') { @($mirror.directories) } else { @($defaults.mirror.directories) }
-    $allowBundledOnly = if ($packaging.PSObject.Properties.Name -contains 'allow_bundled_only') { @($packaging.allow_bundled_only) } else { @($defaults.allow_bundled_only) }
+    $runtimePayload = $null
+    if ($packaging.PSObject.Properties.Name -contains 'runtime_payload' -and $null -ne $packaging.runtime_payload) {
+        $runtimePayload = $packaging.runtime_payload
+    } elseif ($packaging.PSObject.Properties.Name -contains 'mirror' -and $null -ne $packaging.mirror) {
+        $runtimePayload = $packaging.mirror
+    }
+    $mirrorFiles = if ($null -ne $runtimePayload -and $runtimePayload.PSObject.Properties.Name -contains 'files') { @($runtimePayload.files) } else { @($defaults.runtime_payload.files) }
+    $mirrorDirs = if ($null -ne $runtimePayload -and $runtimePayload.PSObject.Properties.Name -contains 'directories') { @($runtimePayload.directories) } else { @($defaults.runtime_payload.directories) }
+    $targetOverridesInput = if ($packaging.PSObject.Properties.Name -contains 'target_overrides' -and $null -ne $packaging.target_overrides) { $packaging.target_overrides } else { $null }
+    $manifestSpecs = Get-VgoPackagingManifestSpecs -Packaging $packaging
+    $allowBundledOnly = if ($packaging.PSObject.Properties.Name -contains 'allow_installed_only') {
+        @($packaging.allow_installed_only)
+    } elseif ($packaging.PSObject.Properties.Name -contains 'allow_bundled_only') {
+        @($packaging.allow_bundled_only)
+    } else {
+        @($defaults.allow_installed_only)
+    }
     $ignoreKeys = if ($packaging.PSObject.Properties.Name -contains 'normalized_json_ignore_keys') { @($packaging.normalized_json_ignore_keys) } else { @($defaults.normalized_json_ignore_keys) }
 
-    return [pscustomobject]@{
-        mirror = [pscustomobject]@{
-            files = @($mirrorFiles)
-            directories = @($mirrorDirs)
+    if (-not [string]::IsNullOrWhiteSpace($RepoRoot)) {
+        foreach ($manifestSpec in $manifestSpecs) {
+            $manifestPath = Join-Path $RepoRoot $manifestSpec.path
+            if (-not (Test-Path -LiteralPath $manifestPath)) {
+                throw "packaging manifest not found: $manifestPath"
+            }
+
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($manifest.PSObject.Properties.Name -contains 'files' -and $null -ne $manifest.files) {
+                $mirrorFiles += @($manifest.files)
+            }
+            if ($manifest.PSObject.Properties.Name -contains 'directories' -and $null -ne $manifest.directories) {
+                $mirrorDirs += @($manifest.directories)
+            }
         }
+    }
+
+    $targetOverrides = [ordered]@{}
+    if ($null -ne $targetOverridesInput) {
+        $targetNames = @()
+        if ($targetOverridesInput -is [System.Collections.IDictionary]) {
+            $targetNames = @($targetOverridesInput.Keys)
+        } else {
+            if ($null -ne $targetOverridesInput.PSObject -and $null -ne $targetOverridesInput.PSObject.Properties) {
+                $targetNames = @($targetOverridesInput.PSObject.Properties | ForEach-Object { $_.Name })
+            }
+        }
+
+        foreach ($targetName in $targetNames) {
+            $targetValue = if ($targetOverridesInput -is [System.Collections.IDictionary]) { $targetOverridesInput[$targetName] } else { $targetOverridesInput.$targetName }
+            if ($null -eq $targetValue) {
+                continue
+            }
+
+            $targetFiles = if ($targetValue.PSObject.Properties.Name -contains 'files') { @($targetValue.files) } else { @() }
+            $targetDirs = if ($targetValue.PSObject.Properties.Name -contains 'directories') { @($targetValue.directories) } else { @() }
+            $targetOverrides[[string]$targetName] = [pscustomobject]@{
+                files = @($targetFiles)
+                directories = @($targetDirs)
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        runtime_payload = [pscustomobject]@{
+            files = @($mirrorFiles | ForEach-Object { ([string]$_).Replace('\', '/') } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+            directories = @($mirrorDirs | ForEach-Object { ([string]$_).Replace('\', '/') } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+        }
+        mirror = [pscustomobject]@{
+            files = @($mirrorFiles | ForEach-Object { ([string]$_).Replace('\', '/') } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+            directories = @($mirrorDirs | ForEach-Object { ([string]$_).Replace('\', '/') } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+        }
+        manifests = @($manifestSpecs)
+        target_overrides = [pscustomobject]$targetOverrides
+        allow_installed_only = @($allowBundledOnly)
         allow_bundled_only = @($allowBundledOnly)
         normalized_json_ignore_keys = @($ignoreKeys)
     }
+}
+
+function Get-VgoEffectiveTargetPackaging {
+    param(
+        [Parameter(Mandatory)] [psobject]$Packaging,
+        [AllowEmptyString()] [string]$TargetId = ''
+    )
+
+    $baseFiles = @($Packaging.mirror.files)
+    $baseDirs = @($Packaging.mirror.directories)
+    $targetOnlyFiles = @()
+    $targetOnlyDirs = @()
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetId) -and $Packaging.PSObject.Properties.Name -contains 'target_overrides' -and $null -ne $Packaging.target_overrides) {
+        $targetOverrides = $Packaging.target_overrides
+        $override = $null
+        if ($targetOverrides -is [System.Collections.IDictionary]) {
+            if ($targetOverrides.Contains($TargetId)) {
+                $override = $targetOverrides[$TargetId]
+            }
+        } else {
+            $overrideNames = @()
+            if ($null -ne $targetOverrides.PSObject -and $null -ne $targetOverrides.PSObject.Properties) {
+                $overrideNames = @($targetOverrides.PSObject.Properties | ForEach-Object { $_.Name })
+            }
+            if ($overrideNames -contains $TargetId) {
+                $override = $targetOverrides.$TargetId
+            }
+        }
+
+        if ($null -ne $override) {
+            $targetOnlyFiles = if ($override.PSObject.Properties.Name -contains 'files') { @($override.files) } else { @() }
+            $targetOnlyDirs = if ($override.PSObject.Properties.Name -contains 'directories') { @($override.directories) } else { @() }
+        }
+    }
+
+    return [pscustomobject]@{
+        files = @($baseFiles + $targetOnlyFiles | Select-Object -Unique)
+        directories = @($baseDirs + $targetOnlyDirs | Select-Object -Unique)
+        target_only_files = @($targetOnlyFiles)
+        target_only_directories = @($targetOnlyDirs)
+    }
+}
+
+function Test-VgoGovernedMirrorRelativePath {
+    param(
+        [Parameter(Mandatory)] [string]$RelativePath,
+        [Parameter(Mandatory)] [psobject]$Packaging,
+        [AllowEmptyString()] [string]$TargetId = ''
+    )
+
+    $rel = $RelativePath.Replace('\', '/')
+    $effective = Get-VgoEffectiveTargetPackaging -Packaging $Packaging -TargetId $TargetId
+    if (@($effective.files) -contains $rel) {
+        return $true
+    }
+
+    foreach ($dir in @($effective.directories)) {
+        $prefix = ('{0}/' -f $dir).Replace('\', '/')
+        if ($rel.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-VgoInstalledRuntimeEmergencyFallbackDefaults {
+    return [pscustomobject][ordered]@{
+        target_relpath = 'skills/vibe'
+        receipt_relpath = 'skills/vibe/outputs/runtime-freshness-receipt.json'
+        post_install_gate = 'scripts/verify/vibe-installed-runtime-freshness-gate.ps1'
+        coherence_gate = 'scripts/verify/vibe-release-install-runtime-coherence-gate.ps1'
+        frontmatter_gate = 'scripts/verify/vibe-bom-frontmatter-gate.ps1'
+        neutral_freshness_gate = 'scripts/verify/runtime_neutral/freshness_gate.py'
+        runtime_entrypoint = 'scripts/runtime/invoke-vibe-runtime.ps1'
+        receipt_contract_version = 1
+        shell_degraded_behavior = 'warn_and_skip_authoritative_runtime_gate'
+        required_runtime_markers = @(
+            'SKILL.md',
+            'config/version-governance.json',
+            'scripts/common/vibe-governance-helpers.ps1',
+            'scripts/runtime/invoke-vibe-runtime.ps1',
+            'scripts/router/resolve-pack-route.ps1'
+        )
+        require_nested_bundled_root = $false
+    }
+}
+
+function Get-VgoInstalledRuntimeFallbackDefaults {
+    return Get-VgoInstalledRuntimeEmergencyFallbackDefaults
+}
+
+function Get-VgoInstalledRuntimeDefaultsFromContracts {
+    $helperPath = Join-Path $PSScriptRoot 'runtime_contracts.py'
+    if (-not (Test-Path -LiteralPath $helperPath)) {
+        throw "Installed-runtime contract bridge missing: $helperPath"
+    }
+
+    $python = Get-VgoPythonCommand
+    $args = @()
+    if ($null -ne $python.prefix_arguments) {
+        $args += @($python.prefix_arguments)
+    }
+    $args += @($helperPath, 'installed-runtime-config', '--mode', 'installed')
+
+    $raw = & $python.host_path @args
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($raw | Out-String))) {
+        throw 'Unable to load installed-runtime defaults from scripts/common/runtime_contracts.py.'
+    }
+
+    return ($raw | ConvertFrom-Json)
 }
 
 function Get-VgoInstalledRuntimeConfig {
@@ -853,24 +1227,10 @@ function Get-VgoInstalledRuntimeConfig {
         [Parameter(Mandatory)] [psobject]$Governance
     )
 
-    $defaults = [ordered]@{
-        target_relpath = 'skills/vibe'
-        receipt_relpath = 'skills/vibe/outputs/runtime-freshness-receipt.json'
-        post_install_gate = 'scripts/verify/vibe-installed-runtime-freshness-gate.ps1'
-        coherence_gate = 'scripts/verify/vibe-release-install-runtime-coherence-gate.ps1'
-        receipt_contract_version = 1
-        shell_degraded_behavior = 'warn_and_skip_authoritative_runtime_gate'
-        required_runtime_markers = @(
-            'SKILL.md',
-            'config/version-governance.json',
-            'install.ps1',
-            'check.ps1',
-            'scripts/common/vibe-governance-helpers.ps1',
-            'scripts/verify/vibe-installed-runtime-freshness-gate.ps1',
-            'scripts/verify/vibe-release-install-runtime-coherence-gate.ps1',
-            'scripts/router/resolve-pack-route.ps1'
-        )
-        require_nested_bundled_root = $false
+    try {
+        $defaults = Get-VgoInstalledRuntimeDefaultsFromContracts
+    } catch {
+        $defaults = Get-VgoInstalledRuntimeEmergencyFallbackDefaults
     }
 
     $runtimeConfig = $null
@@ -881,16 +1241,18 @@ function Get-VgoInstalledRuntimeConfig {
     }
 
     if ($null -eq $runtimeConfig) {
-        return [pscustomobject]$defaults
+        return $defaults
     }
 
     $merged = [ordered]@{}
-    foreach ($key in $defaults.Keys) {
+    $defaultKeys = @($defaults.PSObject.Properties | ForEach-Object { [string]$_.Name })
+    foreach ($key in $defaultKeys) {
+        $defaultValue = $defaults.$key
         if ($key -eq 'required_runtime_markers') {
             if ($runtimeConfig.PSObject.Properties.Name -contains $key -and $null -ne $runtimeConfig.$key) {
                 $merged[$key] = @($runtimeConfig.$key)
             } else {
-                $merged[$key] = @($defaults[$key])
+                $merged[$key] = @($defaultValue)
             }
             continue
         }
@@ -898,11 +1260,30 @@ function Get-VgoInstalledRuntimeConfig {
         if ($runtimeConfig.PSObject.Properties.Name -contains $key -and $null -ne $runtimeConfig.$key -and -not (($runtimeConfig.$key -is [string]) -and [string]::IsNullOrWhiteSpace([string]$runtimeConfig.$key))) {
             $merged[$key] = $runtimeConfig.$key
         } else {
-            $merged[$key] = $defaults[$key]
+            $merged[$key] = $defaultValue
         }
     }
 
     return [pscustomobject]$merged
+}
+
+function Get-VgoRuntimeEntrypointPath {
+    param(
+        [Parameter(Mandatory)] [string]$RepoRoot,
+        [AllowNull()] [psobject]$RuntimeConfig
+    )
+
+    if ($null -ne $RuntimeConfig -and $RuntimeConfig.PSObject.Properties.Name -contains 'runtime_entrypoint' -and -not [string]::IsNullOrWhiteSpace([string]$RuntimeConfig.runtime_entrypoint)) {
+        $runtimeEntrypointRel = [string]$RuntimeConfig.runtime_entrypoint
+    } else {
+        try {
+            $runtimeEntrypointRel = [string](Get-VgoInstalledRuntimeDefaultsFromContracts).runtime_entrypoint
+        } catch {
+            $runtimeEntrypointRel = [string](Get-VgoInstalledRuntimeEmergencyFallbackDefaults).runtime_entrypoint
+        }
+    }
+
+    return Join-Path $RepoRoot $runtimeEntrypointRel
 }
 
 function Get-VgoMirrorTopologyTargets {
@@ -923,20 +1304,17 @@ function Get-VgoMirrorTopologyTargets {
         if ([string]::IsNullOrWhiteSpace($canonicalRel)) {
             $canonicalRel = '.'
         }
-        $bundledRel = if ($null -ne $legacy -and $legacy.PSObject.Properties.Name -contains 'bundled_root') { [string]$legacy.bundled_root } else { 'bundled/skills/vibe' }
-        if ([string]::IsNullOrWhiteSpace($bundledRel)) {
-            $bundledRel = 'bundled/skills/vibe'
+        $targets = @(
+            [pscustomobject]@{ id = 'canonical'; path = $canonicalRel; role = 'canonical'; required = $true; presence_policy = 'required'; sync_enabled = $false; parity_policy = 'authoritative' }
+        )
+        $bundledRel = if ($null -ne $legacy -and $legacy.PSObject.Properties.Name -contains 'bundled_root') { [string]$legacy.bundled_root } else { $null }
+        if (-not [string]::IsNullOrWhiteSpace($bundledRel)) {
+            $targets += [pscustomobject]@{ id = 'bundled'; path = $bundledRel; role = 'mirror'; required = $true; presence_policy = 'required'; sync_enabled = $true; parity_policy = 'full' }
         }
         $nestedRel = if ($null -ne $legacy -and $legacy.PSObject.Properties.Name -contains 'nested_bundled_root') { [string]$legacy.nested_bundled_root } else { $null }
-        if ([string]::IsNullOrWhiteSpace($nestedRel)) {
-            $nestedRel = Join-Path $bundledRel $bundledRel
+        if (-not [string]::IsNullOrWhiteSpace($nestedRel)) {
+            $targets += [pscustomobject]@{ id = 'nested_bundled'; path = $nestedRel; role = 'mirror'; required = $false; presence_policy = 'if_present_must_match'; sync_enabled = $false; parity_policy = 'full'; materialization_mode = 'release_install_only' }
         }
-
-        $targets = @(
-            [pscustomobject]@{ id = 'canonical'; path = $canonicalRel; role = 'canonical'; required = $true; presence_policy = 'required'; sync_enabled = $false; parity_policy = 'authoritative' },
-            [pscustomobject]@{ id = 'bundled'; path = $bundledRel; role = 'mirror'; required = $true; presence_policy = 'required'; sync_enabled = $true; parity_policy = 'full' },
-            [pscustomobject]@{ id = 'nested_bundled'; path = $nestedRel; role = 'mirror'; required = $false; presence_policy = 'if_present_must_match'; sync_enabled = $true; parity_policy = 'full' }
-        )
     }
 
     $topologyTargets = @()
@@ -957,6 +1335,7 @@ function Get-VgoMirrorTopologyTargets {
         $presencePolicy = if ($target.PSObject.Properties.Name -contains 'presence_policy' -and -not [string]::IsNullOrWhiteSpace([string]$target.presence_policy)) { [string]$target.presence_policy } else { if ($required) { 'required' } else { 'optional' } }
         $syncEnabled = if ($target.PSObject.Properties.Name -contains 'sync_enabled') { [bool]$target.sync_enabled } else { -not ($role -eq 'canonical') }
         $parityPolicy = if ($target.PSObject.Properties.Name -contains 'parity_policy' -and -not [string]::IsNullOrWhiteSpace([string]$target.parity_policy)) { [string]$target.parity_policy } else { if ($role -eq 'canonical') { 'authoritative' } else { 'full' } }
+        $materializationMode = if ($target.PSObject.Properties.Name -contains 'materialization_mode' -and -not [string]::IsNullOrWhiteSpace([string]$target.materialization_mode)) { [string]$target.materialization_mode } else { if ($targetId -eq 'nested_bundled' -and -not $syncEnabled) { 'release_install_only' } else { 'tracked_mirror' } }
 
         $materializationMarker = Join-Path $fullPath 'SKILL.md'
         $targetExists = (Test-Path -LiteralPath $fullPath)
@@ -973,6 +1352,7 @@ function Get-VgoMirrorTopologyTargets {
             presence_policy = $presencePolicy
             sync_enabled = $syncEnabled
             parity_policy = $parityPolicy
+            materialization_mode = $materializationMode
             exists = $targetExists
             isCanonical = ($role -eq 'canonical')
         }
@@ -987,7 +1367,12 @@ function Get-VgoMirrorTarget {
         [Parameter(Mandatory)] [string]$Id
     )
 
-    return @($Targets | Where-Object { $_.id -eq $Id } | Select-Object -First 1)[0]
+    $match = @($Targets | Where-Object { $_.id -eq $Id } | Select-Object -First 1)
+    if ($match.Count -eq 0) {
+        return $null
+    }
+
+    return $match[0]
 }
 
 function Get-VgoLegacySourceOfTruthCompatibility {
@@ -1039,6 +1424,38 @@ function Get-VgoLegacySourceOfTruthCompatibility {
     }
 }
 
+function Test-VgoInstalledRuntimeMaterialization {
+    param(
+        [AllowEmptyString()] [string]$RepoRoot,
+        [AllowNull()] [psobject]$RuntimeConfig
+    )
+
+    if ([string]::IsNullOrWhiteSpace($RepoRoot) -or $null -eq $RuntimeConfig) {
+        return $false
+    }
+
+    $requiredMarkers = @()
+    if ($RuntimeConfig.PSObject.Properties.Name -contains 'required_runtime_markers' -and $null -ne $RuntimeConfig.required_runtime_markers) {
+        $requiredMarkers = @($RuntimeConfig.required_runtime_markers)
+    }
+    if (@($requiredMarkers).Count -eq 0) {
+        return $false
+    }
+
+    foreach ($marker in @($requiredMarkers)) {
+        if ([string]::IsNullOrWhiteSpace([string]$marker)) {
+            continue
+        }
+
+        $markerPath = Join-Path $RepoRoot ([string]$marker)
+        if (-not (Test-Path -LiteralPath $markerPath)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
 function Assert-VgoCanonicalExecutionContext {
     param(
         [Parameter(Mandatory)] [psobject]$Context
@@ -1057,7 +1474,9 @@ function Assert-VgoCanonicalExecutionContext {
         }
     }
 
-    if ($requireOuterGitRoot -and -not (Test-Path -LiteralPath (Join-Path $Context.repoRoot '.git'))) {
+    $hasOuterGitRoot = (Test-Path -LiteralPath (Join-Path $Context.repoRoot '.git'))
+    $hasInstalledRuntimeMaterialization = Test-VgoInstalledRuntimeMaterialization -RepoRoot ([string]$Context.repoRoot) -RuntimeConfig $Context.runtimeConfig
+    if ($requireOuterGitRoot -and -not $hasOuterGitRoot -and -not $hasInstalledRuntimeMaterialization) {
         throw "Execution-context lock failed: resolved repo root is not the outer git root -> $($Context.repoRoot)"
     }
 
@@ -1092,7 +1511,7 @@ function Get-VgoGovernanceContext {
     }
 
     $governance = Get-Content -LiteralPath $governancePath -Raw -Encoding UTF8 | ConvertFrom-Json
-    $packaging = Get-VgoPackagingContract -Governance $governance
+    $packaging = Get-VgoPackagingContract -Governance $governance -RepoRoot $repoRoot
     $runtimeConfig = Get-VgoInstalledRuntimeConfig -Governance $governance
     $mirrorTargets = Get-VgoMirrorTopologyTargets -Governance $governance -RepoRoot $repoRoot
 

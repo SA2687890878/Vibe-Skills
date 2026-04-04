@@ -17,12 +17,12 @@ It does **not** promise that all host dependencies can be installed in one shot.
 | --- | --- | --- | --- | --- |
 | `official-runtime` | `install.ps1`, `install.sh` | `check.ps1`, `check.sh` | governed | Tier-1 reference lane |
 | `host-codex` | `install.* --host codex` | `check.* --host codex` | governed-with-constraints | strongest current lane |
-| `host-claude-code` | `install.* --host claude-code` | `check.* --host claude-code` | preview-scaffold | writes truthful scaffold only |
+| `host-claude-code` | `install.* --host claude-code` | `check.* --host claude-code` | managed-with-constraints | writes and verifies a bounded Claude settings + hook surface |
 | `host-cursor` | `install.* --host cursor` | `check.* --host cursor` | preview-scaffold | exposes preview guidance and truthful readiness checks only |
 | `host-windsurf` | `install.* --host windsurf` | `check.* --host windsurf` | runtime-core-preview | documented host root with shared runtime-core payload only |
 | `host-openclaw` | `install.* --host openclaw` | `check.* --host openclaw` | runtime-core-preview | documented host root with shared runtime-core payload only |
 | `generic` | `install.* --host generic` | `check.* --host generic` | runtime-core-only | neutral target root only |
-| `host-opencode` | `install.* --host opencode` | `check.* --host opencode` | preview-scaffold | writes skills + command/agent wrappers + example config into OpenCode roots, but does not own the real `opencode.json` |
+| `host-opencode` | `install.* --host opencode` | `check.* --host opencode` | preview-scaffold | writes skills + `.vibeskills/*` sidecars + example config into OpenCode roots, but does not own the real `opencode.json` |
 | `core` | none | none | none | contracts only |
 
 ## Host-Managed Boundaries
@@ -37,6 +37,7 @@ Even when the repo can install something, these surfaces may still remain host-m
 ## Reading The Matrix Correctly
 
 - `governed-with-constraints` means real repo-backed install/check exists, but some host surfaces are still outside repo control.
+- `managed-with-constraints` means the repo can write and verify a bounded host-native managed surface without claiming official-runtime ownership or full host closure.
 - `preview-scaffold` means the repo can scaffold and verify a preview surface, but not claim full host closure.
 - `runtime-core-preview` means the repo can install shared runtime-core payload into a documented host root, but still cannot claim host-native settings, login, plugin, or credential closure.
 - `runtime-core-only` means the repo can install canonical runtime-core payload into a neutral target root, not a host-native home.
@@ -45,3 +46,11 @@ Even when the repo can install something, these surfaces may still remain host-m
 
 - `docs/universalization/host-capability-matrix.md`
 - `docs/universalization/official-runtime-baseline.md`
+
+## Uninstall Lane
+
+| Lane | Uninstall Entry | Closure Level | Notes |
+| --- | --- | --- | --- |
+| `owned-only` | `uninstall.ps1`, `uninstall.sh` | owned-only | Only removes paths recorded by the install ledger (`.vibeskills/install-ledger.json`), host closure manifests, or the surfaces documented per host in [`docs/uninstall-governance.md`](../uninstall-governance.md). |
+
+The uninstall lane deliberately avoids touching host-managed credentials, plugins, or login state even when the host root is known.
