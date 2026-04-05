@@ -15,7 +15,7 @@ A minimal patch that:
 
 ## Constraints
 
-- Work in `/home/lqf/table/table9/Vibe-Skills-main`.
+- Work in the repository root (`<repo-root>`).
 - Do not bundle `bundled/**` deduplication or unrelated cleanup into this fix.
 - Preserve existing host-intent guard wording unless a test requires otherwise.
 - Prefer fixing the shared root-cause layer instead of patching each shell script separately.
