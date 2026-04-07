@@ -281,11 +281,12 @@ def build_bootstrap_artifact(
             import json
 
             profile_object = json.load(handle)
-    mcp_servers = collect_mcp_servers_from_receipt(mcp_receipt)
+    receipt = mcp_receipt if isinstance(mcp_receipt, dict) else {}
+    mcp_servers = collect_mcp_servers_from_receipt(receipt)
     if not mcp_servers:
         mcp_servers = collect_mcp_servers(profile_object, servers_template)
-    install_state = str((mcp_receipt or {}).get("install_state") or "unknown")
-    auto_provision_attempted = bool((mcp_receipt or {}).get("mcp_auto_provision_attempted"))
+    install_state = str(receipt.get("install_state") or "unknown")
+    auto_provision_attempted = bool(receipt.get("mcp_auto_provision_attempted"))
     secret_surfaces = collect_secret_surfaces(secrets_policy)
     secret_status_by_name = {item["name"]: item["status"] for item in secret_surfaces}
     enhancement_surfaces = collect_enhancement_surfaces(memory_governance)

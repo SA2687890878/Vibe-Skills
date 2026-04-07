@@ -162,6 +162,22 @@ class BootstrapDoctorTests(unittest.TestCase):
         self.assertEqual("host_native_unavailable", artifact["mcp"]["servers"][0]["status"])
         self.assertEqual("manual_actions_pending", artifact["summary"]["readiness_state"])
 
+    def test_malformed_non_dict_mcp_receipt_degrades_to_unknown_state(self) -> None:
+        (self.target_root / ".vibeskills").mkdir(parents=True, exist_ok=True)
+        (self.target_root / ".vibeskills" / "mcp-auto-provision.json").write_text("[1]\n", encoding="utf-8")
+        (self.target_root / "mcp").mkdir(parents=True, exist_ok=True)
+        (self.target_root / "mcp" / "servers.active.json").write_text('{"profile":"full"}\n', encoding="utf-8")
+        (self.target_root / "settings.json").write_text(
+            json.dumps({"vco": {"mcp_profile": "full"}, "env": {"VCO_INTENT_ADVICE_API_KEY": "<pending>"}}) + "\n",
+            encoding="utf-8",
+        )
+
+        artifact = self.module.evaluate(self.root, self.target_root)
+
+        self.assertEqual("unknown", artifact["install_state"])
+        self.assertFalse(artifact["mcp"]["auto_provision_attempted"])
+        self.assertEqual("manual_actions_pending", artifact["summary"]["readiness_state"])
+
 
 if __name__ == "__main__":
     unittest.main()

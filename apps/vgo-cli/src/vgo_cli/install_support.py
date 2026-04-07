@@ -7,7 +7,7 @@ from .mcp_provision import provision_required_mcp
 from .external import report_external_fallback_usage
 from .install_gates import run_offline_gate, run_runtime_freshness_gate
 from .installer_bridge import refresh_install_ledger_payload
-from .output import print_json_payload, print_install_completion_report
+from .output import print_install_completion_report
 from .skill_surface import quarantine_codex_duplicate_skill_surface
 
 
@@ -40,7 +40,7 @@ def reconcile_install_postconditions(
         target_root=target_root,
         host_id=host_id,
         profile=profile,
-        allow_scripted_install=install_external,
+        allow_scripted_install=install_external and not strict_offline,
     )
     install_receipt = refresh_install_ledger_payload(repo_root, target_root)
     if os.environ.get('VGO_SUPPRESS_INSTALL_COMPLETION_REPORT', '').strip() != '1':
