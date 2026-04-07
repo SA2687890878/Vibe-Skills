@@ -37,6 +37,18 @@ class InstallPromptMcpContractTests(unittest.TestCase):
                 "installed locally" in lowered or "本地安装完成" in text,
                 path.name,
             )
+            self.assertTrue(
+                "native mcp surface" in lowered or "宿主原生mcp" in lowered or "宿主原生 mcp" in lowered,
+                path.name,
+            )
+            self.assertTrue("$vibe" in text or "/vibe" in text, path.name)
+            self.assertTrue(
+                "not mcp completion" in lowered
+                or "not proof of mcp" in lowered
+                or "不等于mcp" in text
+                or "不等于 MCP" in text,
+                path.name,
+            )
             self.assertIn("online-ready", lowered, path.name)
 
     def test_supporting_install_docs_describe_non_blocking_mcp_attempts(self) -> None:
@@ -46,6 +58,17 @@ class InstallPromptMcpContractTests(unittest.TestCase):
             self.assertIn("scrapling", text, path.name)
             self.assertIn("claude-flow", text, path.name)
             self.assertTrue("manual follow-up" in lowered or "手动处理" in text, path.name)
+            self.assertTrue(
+                "native mcp surface" in lowered or "宿主原生mcp" in lowered or "宿主原生 mcp" in lowered,
+                path.name,
+            )
+            self.assertTrue(
+                "$vibe" not in text
+                or "not mcp completion" in lowered
+                or "不等于mcp" in text
+                or "不等于 MCP" in text,
+                path.name,
+            )
             self.assertIn("online-ready", lowered, path.name)
 
 
