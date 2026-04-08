@@ -129,6 +129,70 @@ function Get-JsonObject {
   }
 }
 
+function Check-HostVisibleDiscoverableEntries {
+  param(
+    [string]$TargetRoot,
+    [string]$HostId
+  )
+
+  $ledgerPath = Join-Path $TargetRoot '.vibeskills\install-ledger.json'
+  if (-not (Test-Path -LiteralPath $ledgerPath -PathType Leaf)) {
+    Write-Host "[FAIL] host-visible discoverable entries -> $ledgerPath" -ForegroundColor Red
+    $script:fail++
+    return
+  }
+
+  $ledger = Get-JsonObject -Path $ledgerPath -Label 'install ledger'
+  if ($null -eq $ledger) {
+    return
+  }
+
+  $payloadSummary = if ($ledger.PSObject.Properties.Name -contains 'payload_summary') { $ledger.payload_summary } else { $null }
+  $entryNames = if ($null -ne $payloadSummary -and $payloadSummary.PSObject.Properties.Name -contains 'host_visible_entry_names') { @($payloadSummary.host_visible_entry_names | ForEach-Object { [string]$_ }) } else { @() }
+  $wrapperPaths = if ($ledger.PSObject.Properties.Name -contains 'specialist_wrapper_paths') { @($ledger.specialist_wrapper_paths | ForEach-Object { [string]$_ }) } else { @() }
+
+  if ($entryNames.Count -eq 0 -or $wrapperPaths.Count -eq 0) {
+    if ($HostId -in @('codex', 'claude-code', 'cursor', 'windsurf', 'openclaw', 'opencode')) {
+      Write-Host '[FAIL] host-visible discoverable entries -> missing wrapper inventory' -ForegroundColor Red
+      $script:fail++
+    } else {
+      Write-WarnNote -Message ("host-visible discoverable entries -> no wrapper inventory recorded for host '{0}'" -f $HostId)
+    }
+    return
+  }
+
+  $missingPaths = New-Object System.Collections.Generic.List[string]
+  $targetRootFull = Normalize-ComparablePath -Path $TargetRoot
+  foreach ($wrapperPath in $wrapperPaths) {
+    $candidatePath = $wrapperPath
+    if (-not [System.IO.Path]::IsPathRooted($candidatePath)) {
+      $candidatePath = Join-Path $TargetRoot $candidatePath
+    }
+    try {
+      $wrapperFull = Normalize-ComparablePath -Path $candidatePath
+    } catch {
+      $missingPaths.Add($wrapperPath)
+      continue
+    }
+    $underTarget = $false
+    if ($null -ne $wrapperFull -and $null -ne $targetRootFull) {
+      $underTarget = $wrapperFull.Equals($targetRootFull, [System.StringComparison]::OrdinalIgnoreCase) -or `
+        $wrapperFull.StartsWith($targetRootFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
+    }
+    if (-not $underTarget -or -not (Test-Path -LiteralPath $candidatePath -PathType Leaf)) {
+      $missingPaths.Add($wrapperPath)
+    }
+  }
+
+  if ($missingPaths.Count -eq 0) {
+    Write-Host '[OK] host-visible discoverable entries'
+    $script:pass++
+  } else {
+    Write-Host ("[FAIL] host-visible discoverable entries -> {0}" -f $missingPaths[0]) -ForegroundColor Red
+    $script:fail++
+  }
+}
+
 function Normalize-ComparablePath {
   param([string]$Path)
 
@@ -136,7 +200,7 @@ function Normalize-ComparablePath {
     return $null
   }
 
-  return [System.IO.Path]::GetFullPath($Path).TrimEnd([char[]]@('\\','/')).ToLowerInvariant()
+  return [System.IO.Path]::GetFullPath($Path).TrimEnd([char[]]@('\','/')).ToLowerInvariant()
 }
 
 function Format-OptionalValue {
@@ -551,6 +615,7 @@ function Invoke-AdapterSpecificChecks {
       }
     }
   }
+  Check-HostVisibleDiscoverableEntries -TargetRoot $TargetRoot -HostId ([string]$Adapter.id)
 
   Check-Path -Label "upstream lock" -Path (Join-Path $TargetRoot 'config\upstream-lock.json')
   $installedRuntimeGovernancePath = Join-Path $TargetRoot (Join-Path $startupRuntimeTargetRel 'config\version-governance.json')

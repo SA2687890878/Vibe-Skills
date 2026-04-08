@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS_SRC = ROOT / 'packages' / 'contracts' / 'src'
@@ -27,12 +28,16 @@ def test_build_install_ledger_tracks_payload_summary(tmp_path) -> None:
     vibe_root = tmp_path / 'skills' / 'vibe'
     brainstorm_root = tmp_path / 'skills' / 'brainstorming'
     internal_non_core_root = tmp_path / 'skills' / 'vibe' / 'bundled' / 'skills' / 'scikit-learn'
+    wrapper_root = tmp_path / 'commands'
     vibe_root.mkdir(parents=True)
     brainstorm_root.mkdir(parents=True)
     internal_non_core_root.mkdir(parents=True, exist_ok=True)
+    wrapper_root.mkdir(parents=True, exist_ok=True)
     (vibe_root / 'SKILL.md').write_text('# vibe\n', encoding='utf-8')
     (brainstorm_root / 'SKILL.md').write_text('# brainstorming\n', encoding='utf-8')
     (internal_non_core_root / 'SKILL.runtime-mirror.md').write_text('# scikit-learn\n', encoding='utf-8')
+    for name in ('vibe', 'vibe-want', 'vibe-how', 'vibe-do'):
+        (wrapper_root / f'{name}.md').write_text(f'# {name}\n', encoding='utf-8')
     settings_path = tmp_path / 'settings.json'
     settings_path.write_text('{}\n', encoding='utf-8')
 
@@ -48,6 +53,7 @@ def test_build_install_ledger_tracks_payload_summary(tmp_path) -> None:
         runtime_roots={vibe_root, tmp_path / 'skills' / 'vibe' / 'bundled' / 'skills'},
         compatibility_roots={brainstorm_root},
         sidecar_roots={tmp_path / '.vibeskills'},
+        specialist_wrapper_paths=[wrapper_root / 'vibe.md', wrapper_root / 'vibe-want.md', wrapper_root / 'vibe-how.md', wrapper_root / 'vibe-do.md'],
         config_rollbacks=[{'path': settings_path, 'created_if_absent': False, 'managed_key': 'vibeskills'}],
         legacy_cleanup_candidates={tmp_path / 'skills' / 'legacy-skill'},
     )
@@ -64,6 +70,8 @@ def test_build_install_ledger_tracks_payload_summary(tmp_path) -> None:
     assert ledger['schema_version'] == 2
     assert ledger['payload_summary']['installed_skill_names'] == ['brainstorming', 'scikit-learn', 'vibe']
     assert ledger['payload_summary']['public_skill_names'] == ['brainstorming', 'vibe']
+    assert ledger['payload_summary']['host_visible_entry_names'] == ['vibe', 'vibe-do', 'vibe-how', 'vibe-want']
+    assert ledger['payload_summary']['host_visible_entry_count'] == 4
     assert ledger['runtime_roots'] == ['skills/vibe', 'skills/vibe/bundled/skills']
     assert ledger['compatibility_roots'] == ['skills/brainstorming']
     assert ledger['sidecar_roots'] == ['.vibeskills']
@@ -165,6 +173,33 @@ def test_payload_summary_counts_mcp_receipt_when_present(tmp_path) -> None:
     refreshed = build_payload_summary(tmp_path, ledger)
 
     assert refreshed['installed_file_count'] == 2
+
+
+def test_build_payload_summary_ignores_wrapper_paths_outside_target_root(tmp_path) -> None:
+    with tempfile.TemporaryDirectory() as external_dir:
+        external_wrapper = Path(external_dir) / 'vibe-how.md'
+        external_wrapper.write_text('# vibe-how\n', encoding='utf-8')
+
+        summary = build_payload_summary(
+            tmp_path,
+            {
+                'managed_skill_names': [],
+                'specialist_wrapper_paths': [str(external_wrapper)],
+                'packaging_manifest': {},
+                'runtime_roots': [],
+                'compatibility_roots': [],
+                'sidecar_roots': [],
+                'owned_tree_roots': [],
+                'created_paths': [],
+                'managed_json_paths': [],
+                'generated_from_template_if_absent': [],
+                'merged_files': [],
+                'config_rollbacks': [],
+            },
+        )
+
+    assert summary['host_visible_entry_names'] == []
+    assert summary['host_visible_entry_count'] == 0
 
 
 def test_sanitize_managed_skill_names_stays_safe_with_v2_owned_root_like_values() -> None:

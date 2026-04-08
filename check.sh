@@ -413,6 +413,65 @@ json_query_scalar_from_file() {
   json_query_lines_from_file "$json_path" "$expr" | head -n 1
 }
 
+check_host_visible_discoverable_entries() {
+  local ledger_path="${TARGET_ROOT}/.vibeskills/install-ledger.json"
+  if [[ ! -f "${ledger_path}" ]]; then
+    echo "[FAIL] host-visible discoverable entries -> ${ledger_path}"
+    FAIL=$((FAIL+1))
+    return
+  fi
+
+  local entry_names=()
+  local wrapper_paths=()
+  local line=""
+  while IFS= read -r line; do
+    entry_names+=("${line}")
+  done < <(json_query_lines_from_file "${ledger_path}" 'payload_summary.host_visible_entry_names' 2>/dev/null || true)
+  while IFS= read -r line; do
+    wrapper_paths+=("${line}")
+  done < <(json_query_lines_from_file "${ledger_path}" 'specialist_wrapper_paths' 2>/dev/null || true)
+
+  if [[ ${#entry_names[@]} -eq 0 || ${#wrapper_paths[@]} -eq 0 ]]; then
+    if [[ "${HOST_ID}" == "codex" || "${HOST_ID}" == "claude-code" || "${HOST_ID}" == "cursor" || "${HOST_ID}" == "windsurf" || "${HOST_ID}" == "openclaw" || "${HOST_ID}" == "opencode" ]]; then
+      echo "[FAIL] host-visible discoverable entries -> missing wrapper inventory"
+      FAIL=$((FAIL+1))
+    else
+      echo "[WARN] host-visible discoverable entries -> no wrapper inventory recorded for host '${HOST_ID}'"
+      WARN=$((WARN+1))
+    fi
+    return
+  fi
+
+  local missing_paths=()
+  local normalized_target_root
+  normalized_target_root="$(normalize_path "${TARGET_ROOT}")"
+  local path=""
+  for path in "${wrapper_paths[@]}"; do
+    local candidate_path="${path}"
+    local normalized_path=""
+    if [[ "${candidate_path}" != /* ]]; then
+      candidate_path="${TARGET_ROOT}/${candidate_path}"
+    fi
+    normalized_path="$(normalize_path "${candidate_path}")"
+    case "${normalized_path}" in
+      "${normalized_target_root}"|"${normalized_target_root}/"*) ;;
+      *)
+        missing_paths+=("${path}")
+        continue
+        ;;
+    esac
+    [[ -f "${candidate_path}" ]] || missing_paths+=("${path}")
+  done
+
+  if [[ ${#missing_paths[@]} -eq 0 ]]; then
+    echo "[OK] host-visible discoverable entries"
+    PASS=$((PASS+1))
+  else
+    echo "[FAIL] host-visible discoverable entries -> ${missing_paths[0]}"
+    FAIL=$((FAIL+1))
+  fi
+}
+
 pick_python() {
   pick_supported_python
 }
@@ -741,6 +800,7 @@ if [[ -f "${TARGET_ROOT}/.vibeskills/host-closure.json" ]]; then
     check_path "specialist wrapper launcher" "${wrapper_launcher}"
   fi
 fi
+check_host_visible_discoverable_entries
 if [[ "${ADAPTER_CHECK_MODE}" == "governed" ]]; then
   check_path "plugins manifest" "${TARGET_ROOT}/config/plugins-manifest.codex.json"
 fi
