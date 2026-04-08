@@ -18,7 +18,5 @@ def test_runtime_packet_roundtrip() -> None:
         requested_grade_floor='XL',
     )
     restored = RuntimePacket.model_validate(packet.model_dump())
-    assert restored.goal == 'x'
-    assert restored.entry_intent_id == 'vibe-how'
-    assert restored.requested_stage_stop == 'xl_plan'
-    assert restored.requested_grade_floor == 'XL'
+    assert restored == packet
+    assert restored.model_dump() == packet.model_dump()

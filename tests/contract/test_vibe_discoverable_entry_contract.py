@@ -20,8 +20,10 @@ def test_vibe_discoverable_entries_are_shared_and_non_explosive() -> None:
     assert entries["vibe-want"]["requested_stage_stop"] == "deep_interview"
     assert entries["vibe-how"]["requested_stage_stop"] == "xl_plan"
     assert entries["vibe-do"]["requested_stage_stop"] == "phase_cleanup"
+    assert entries["vibe"]["allow_grade_flags"] is True
     assert entries["vibe-want"]["allow_grade_flags"] is False
     assert entries["vibe-how"]["allow_grade_flags"] is True
+    assert entries["vibe-do"]["allow_grade_flags"] is True
     assert payload["grade_flags"] == ["--l", "--xl"]
     assert payload["grade_flag_map"] == {"--l": "L", "--xl": "XL"}
     assert payload["canonical_runtime_skill"] == "vibe"

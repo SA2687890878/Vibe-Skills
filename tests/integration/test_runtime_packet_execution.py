@@ -58,6 +58,13 @@ def test_runtime_packet_execution_stops_after_requested_stage_stop() -> None:
     assert result.final_packet.stage == 'xl_plan'
     assert result.route['runtime_selected_skill'] == 'vibe'
     assert result.route['requested_skill'] == 'vibe-how'
+    assert result.plan['stages'] == (
+        'skeleton_check',
+        'deep_interview',
+        'requirement_doc',
+        'xl_plan',
+    )
+    assert result.memory['stage_count'] == 4
 
 
 def test_runtime_packet_execution_applies_requested_grade_floor() -> None:
@@ -76,3 +83,19 @@ def test_runtime_packet_execution_applies_requested_grade_floor() -> None:
     assert result.plan['requested_grade_floor'] == 'XL'
     assert result.plan['requested_stage_stop'] == 'phase_cleanup'
     assert result.plan['internal_grade'] == 'XL'
+
+
+def test_runtime_packet_execution_uses_entry_intent_when_requested_skill_is_omitted() -> None:
+    result = execute_runtime_packet(
+        RuntimePacket(
+            goal='plan the migration and freeze the requirement before execution',
+            stage='skeleton_check',
+            entry_intent_id='vibe-how',
+            requested_stage_stop='xl_plan',
+        ),
+        mode='interactive_governed',
+    )
+
+    assert result.route['requested_skill'] == 'vibe-how'
+    assert result.route['router_selected_skill'] == 'vibe-how'
+    assert result.route['runtime_selected_skill'] == 'vibe'

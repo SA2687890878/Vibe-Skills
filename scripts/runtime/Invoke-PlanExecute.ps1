@@ -739,11 +739,7 @@ $gradeResolution = Resolve-VibeGovernedGrade `
     -BaseGrade (Get-VibeInternalGrade -Task $Task) `
     -RequestedGradeFloor $(if ($runtimeInputPacket) { [string]$runtimeInputPacket.requested_grade_floor } else { '' }) `
     -Policy $runtime.runtime_input_packet_policy
-$grade = if ($runtimeInputPacket -and -not [string]::IsNullOrWhiteSpace([string]$runtimeInputPacket.internal_grade)) {
-    [string]$runtimeInputPacket.internal_grade
-} else {
-    [string]$gradeResolution.internal_grade
-}
+$grade = [string]$gradeResolution.internal_grade
 $hierarchyState = Get-VibeHierarchyState `
     -GovernanceScope $(if ($runtimeInputPacket) { [string]$runtimeInputPacket.governance_scope } else { $GovernanceScope }) `
     -RunId $RunId `

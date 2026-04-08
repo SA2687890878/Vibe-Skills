@@ -28,7 +28,13 @@ class RuntimeStageMachine:
 
     def iter_between(self, start: str, stop: str | None = None) -> tuple[str, ...]:
         start_index = self.index_of(start)
-        stop_index = self.index_of(stop) if stop else len(self.stages) - 1
+        if stop is None:
+            stop_index = len(self.stages) - 1
+        else:
+            normalized_stop = str(stop).strip()
+            if not normalized_stop:
+                raise ValueError('requested stop stage cannot be empty')
+            stop_index = self.index_of(normalized_stop)
         if stop_index < start_index:
             raise ValueError(f'requested stop stage {stop!r} cannot precede start stage {start!r}')
         return self.stages[start_index : stop_index + 1]

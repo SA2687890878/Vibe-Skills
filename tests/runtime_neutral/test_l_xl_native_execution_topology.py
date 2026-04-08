@@ -119,6 +119,86 @@ def run_runtime(
     return json.loads(stdout)
 
 
+def run_write_xl_plan(
+    task: str,
+    artifact_root: Path,
+    requirement_doc_path: Path,
+    runtime_input_packet_path: Path,
+) -> dict[str, object]:
+    shell = resolve_powershell()
+    if shell is None:
+        raise unittest.SkipTest("PowerShell executable not available in PATH")
+
+    script_path = REPO_ROOT / "scripts" / "runtime" / "Write-XlPlan.ps1"
+    run_id = "pytest-write-plan-" + uuid.uuid4().hex[:10]
+    command = [
+        shell,
+        "-NoLogo",
+        "-NoProfile",
+        "-Command",
+        (
+            "& { "
+            f"$result = & '{script_path}' "
+            f"-Task '{task}' "
+            "-Mode interactive_governed "
+            f"-RunId '{run_id}' "
+            f"-RequirementDocPath '{requirement_doc_path}' "
+            f"-RuntimeInputPacketPath '{runtime_input_packet_path}' "
+            f"-ArtifactRoot '{artifact_root}'; "
+            "$result | ConvertTo-Json -Depth 20 }"
+        ),
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(completed.stdout)
+
+
+def run_plan_execute(
+    task: str,
+    artifact_root: Path,
+    requirement_doc_path: Path,
+    execution_plan_path: Path,
+    runtime_input_packet_path: Path,
+) -> dict[str, object]:
+    shell = resolve_powershell()
+    if shell is None:
+        raise unittest.SkipTest("PowerShell executable not available in PATH")
+
+    script_path = REPO_ROOT / "scripts" / "runtime" / "Invoke-PlanExecute.ps1"
+    run_id = "pytest-execute-plan-" + uuid.uuid4().hex[:10]
+    command = [
+        shell,
+        "-NoLogo",
+        "-NoProfile",
+        "-Command",
+        (
+            "& { "
+            f"$result = & '{script_path}' "
+            f"-Task '{task}' "
+            "-Mode interactive_governed "
+            f"-RunId '{run_id}' "
+            f"-RequirementDocPath '{requirement_doc_path}' "
+            f"-ExecutionPlanPath '{execution_plan_path}' "
+            f"-RuntimeInputPacketPath '{runtime_input_packet_path}' "
+            f"-ArtifactRoot '{artifact_root}'; "
+            "$result | ConvertTo-Json -Depth 20 }"
+        ),
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(completed.stdout)
+
+
 def load_json(path: str | Path) -> dict[str, object]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
@@ -287,6 +367,47 @@ class NativeExecutionTopologyTests(unittest.TestCase):
             self.assertEqual("XL", runtime_input["requested_grade_floor"])
             self.assertEqual("XL", runtime_input["internal_grade"])
             self.assertEqual("XL", plan_receipt["internal_grade"])
+            self.assertEqual("XL", execution_manifest["internal_grade"])
+
+    def test_direct_plan_and_execute_scripts_do_not_let_stale_packet_grade_undercut_floor(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            artifact_root = Path(tempdir)
+            initial_payload = run_runtime(
+                task="Design architecture migration with staged review and planning gates.",
+                artifact_root=artifact_root,
+                governance_scope="root",
+                entry_intent_id="vibe-do",
+                requested_grade_floor="XL",
+            )
+            initial_summary = initial_payload["summary"]
+            requirement_doc_path = Path(initial_summary["artifacts"]["requirement_doc"])
+            runtime_input_packet_path = Path(initial_summary["artifacts"]["runtime_input_packet"])
+            runtime_input_packet = load_json(runtime_input_packet_path)
+            runtime_input_packet["internal_grade"] = "L"
+            runtime_input_packet_path.write_text(
+                json.dumps(runtime_input_packet, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+            plan_payload = run_write_xl_plan(
+                task="Design architecture migration with staged review and planning gates.",
+                artifact_root=artifact_root,
+                requirement_doc_path=requirement_doc_path,
+                runtime_input_packet_path=runtime_input_packet_path,
+            )
+            plan_receipt = load_json(plan_payload["receipt_path"])
+            execution_payload = run_plan_execute(
+                task="Design architecture migration with staged review and planning gates.",
+                artifact_root=artifact_root,
+                requirement_doc_path=requirement_doc_path,
+                execution_plan_path=Path(plan_payload["execution_plan_path"]),
+                runtime_input_packet_path=runtime_input_packet_path,
+            )
+            execution_receipt = load_json(execution_payload["receipt_path"])
+            execution_manifest = load_json(execution_receipt["execution_manifest_path"])
+
+            self.assertEqual("XL", plan_receipt["internal_grade"])
+            self.assertEqual("XL", execution_receipt["internal_grade"])
             self.assertEqual("XL", execution_manifest["internal_grade"])
 
     def test_specialist_binding_metadata_is_frozen_into_runtime_requirement_and_plan(self) -> None:

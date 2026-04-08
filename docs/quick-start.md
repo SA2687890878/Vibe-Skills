@@ -30,9 +30,9 @@
 它们都还是同一个 `vibe` governed runtime，只是默认停靠点不同：
 
 - `Vibe`：走完整受管流程
-- `What Do I Want?`：先把目标、边界、验收标准说清楚
-- `How Do We Do It?`：冻结 requirement 和 plan
-- `Do It`：执行完整流程，但不会跳过 requirement / plan
+- `Vibe: What Do I Want?`：先把目标、边界、验收标准说清楚
+- `Vibe: How Do We Do It?`：冻结 requirement 和 plan
+- `Vibe: Do It`：执行完整流程，但不会跳过 requirement / plan
 
 如果你希望提高执行强度，只用：
 

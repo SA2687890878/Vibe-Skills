@@ -26,6 +26,7 @@ def build_execution_plan(
     task_type: str,
     *,
     stage_machine: RuntimeStageMachine | None = None,
+    stages: tuple[str, ...] | None = None,
     requested_grade_floor: str | None = None,
     requested_stage_stop: str | None = None,
 ) -> RuntimeExecutionPlan:
@@ -39,7 +40,7 @@ def build_execution_plan(
             selected_grade = normalized_floor
     return RuntimeExecutionPlan(
         internal_grade=selected_grade,
-        stages=machine.stages,
+        stages=stages or machine.stages,
         completion_language_rule='verification_before_completion',
         delivery_acceptance_required=True,
         requested_grade_floor=normalized_floor,

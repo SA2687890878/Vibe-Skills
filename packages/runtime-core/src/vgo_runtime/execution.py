@@ -30,18 +30,21 @@ def execute_runtime_packet(
 ) -> RuntimeExecutionResult:
     machine = stage_machine or RuntimeStageMachine()
     governance = build_governance_profile(mode)
-    route = route_runtime_task(packet.goal, requested_skill=requested_skill)
+    effective_requested_skill = requested_skill or packet.entry_intent_id
+    executed_stages = machine.iter_between(packet.stage, packet.requested_stage_stop)
+    route = route_runtime_task(packet.goal, requested_skill=effective_requested_skill)
     plan = build_execution_plan(
         route.task_type,
         stage_machine=machine,
+        stages=executed_stages,
         requested_grade_floor=packet.requested_grade_floor,
         requested_stage_stop=packet.requested_stage_stop,
     )
-    memory = build_memory_policy(len(plan.stages))
+    memory = build_memory_policy(len(executed_stages))
 
     stage_receipts: list[dict[str, object]] = []
     final_packet = packet
-    for order, stage in enumerate(machine.iter_between(packet.stage, packet.requested_stage_stop), start=1):
+    for order, stage in enumerate(executed_stages, start=1):
         final_packet = RuntimePacket(
             goal=packet.goal,
             stage=stage,

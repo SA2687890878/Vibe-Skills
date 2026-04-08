@@ -30,9 +30,9 @@ If your host already exposes discoverable `vibe` launch surfaces, the common ent
 They still resolve to the same governed `vibe` runtime. The difference is the default stop target:
 
 - `Vibe`: run the full governed flow
-- `What Do I Want?`: clarify goals, boundaries, and acceptance criteria first
-- `How Do We Do It?`: freeze the requirement and plan
-- `Do It`: execute the full governed flow without skipping requirement or plan
+- `Vibe: What Do I Want?`: clarify goals, boundaries, and acceptance criteria first
+- `Vibe: How Do We Do It?`: freeze the requirement and plan
+- `Vibe: Do It`: execute the full governed flow without skipping requirement or plan
 
 If you want a heavier execution lane, use only:
 

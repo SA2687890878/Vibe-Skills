@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
+from functools import lru_cache
+from pathlib import Path
+
+from .router_contract_support import load_json, resolve_repo_root
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,7 +26,20 @@ _TASK_TYPE_RULES = (
     ('coding', ('implement', 'build', 'upgrade', '更新', '增强', '执行', 'extract', 'refactor', 'runtime', 'core', 'code')),
 )
 
-ALLOWED_VIBE_ENTRY_IDS = {'vibe', 'vibe-want', 'vibe-how', 'vibe-do'}
+
+@lru_cache(maxsize=1)
+def load_allowed_vibe_entry_ids() -> frozenset[str]:
+    repo_root = resolve_repo_root(Path(__file__))
+    payload = load_json(repo_root / 'config' / 'vibe-entry-surfaces.json')
+    entries = payload.get('entries') or []
+    allowed = frozenset(
+        str(entry.get('id') or '').strip()
+        for entry in entries
+        if str(entry.get('id') or '').strip()
+    )
+    if not allowed:
+        raise RuntimeError('config/vibe-entry-surfaces.json does not define any discoverable vibe entry ids')
+    return allowed
 
 
 def infer_task_type(task: str) -> str:
@@ -35,7 +52,7 @@ def infer_task_type(task: str) -> str:
 
 def route_runtime_task(task: str, requested_skill: str | None = None) -> RuntimeRoute:
     selected_skill = str(requested_skill or 'vibe').strip() or 'vibe'
-    if selected_skill not in ALLOWED_VIBE_ENTRY_IDS:
+    if selected_skill not in load_allowed_vibe_entry_ids():
         raise ValueError(f'unsupported vibe entry id: {requested_skill}')
     return RuntimeRoute(
         requested_skill=requested_skill,
