@@ -68,7 +68,7 @@ class DiscoverableWrapperHostVisibilityTests(unittest.TestCase):
 
             self.assertIn("[OK] host-visible discoverable entries", result.stdout)
 
-    def test_shell_check_fails_when_a_wrapper_entry_is_missing(self) -> None:
+    def test_shell_check_fails_when_both_wrapper_command_and_skill_entry_are_missing(self) -> None:
         self._require_bash()
         with tempfile.TemporaryDirectory() as tempdir:
             target_root = Path(tempdir) / "codex-root"
@@ -88,6 +88,7 @@ class DiscoverableWrapperHostVisibilityTests(unittest.TestCase):
                 check=True,
             )
             (target_root / "commands" / "vibe-how.md").unlink()
+            shutil.rmtree(target_root / "skills" / "vibe-how-do-we-do")
 
             result = subprocess.run(
                 [
@@ -106,6 +107,46 @@ class DiscoverableWrapperHostVisibilityTests(unittest.TestCase):
 
             self.assertNotEqual(0, result.returncode)
             self.assertIn("[FAIL] host-visible discoverable entries", result.stdout)
+
+    def test_shell_check_fails_when_public_wrapper_skill_is_missing_even_if_hidden_bundle_exists(self) -> None:
+        self._require_bash()
+        with tempfile.TemporaryDirectory() as tempdir:
+            target_root = Path(tempdir) / "codex-root"
+            subprocess.run(
+                [
+                    "bash",
+                    str(REPO_ROOT / "install.sh"),
+                    "--host",
+                    "codex",
+                    "--profile",
+                    "full",
+                    "--target-root",
+                    str(target_root),
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            shutil.rmtree(target_root / "skills" / "vibe-how-do-we-do")
+            self.assertTrue((target_root / "skills" / "vibe" / "bundled" / "skills" / "vibe-how-do-we-do").exists())
+
+            result = subprocess.run(
+                [
+                    "bash",
+                    str(REPO_ROOT / "check.sh"),
+                    "--host",
+                    "codex",
+                    "--profile",
+                    "full",
+                    "--target-root",
+                    str(target_root),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("[FAIL] skill/vibe-how-do-we-do", result.stdout)
 
     def test_shell_check_rejects_wrapper_inventory_outside_target_root(self) -> None:
         self._require_bash()

@@ -13,6 +13,11 @@ BASE_MANIFEST = REPO_ROOT / "config" / "runtime-core-packaging.json"
 MINIMAL_MANIFEST = REPO_ROOT / "config" / "runtime-core-packaging.minimal.json"
 FULL_MANIFEST = REPO_ROOT / "config" / "runtime-core-packaging.full.json"
 MODULE_PATH = REPO_ROOT / 'packages' / 'installer-core' / 'src' / 'vgo_installer' / 'runtime_packaging.py'
+CODEX_VIBE_WRAPPER_SKILLS = [
+    'vibe-do-it',
+    'vibe-how-do-we-do',
+    'vibe-what-do-i-want',
+]
 
 
 def _load(path: Path) -> dict:
@@ -74,6 +79,10 @@ def test_base_runtime_core_packaging_owns_shared_fields_and_profile_overlays() -
     grouped_copy_files = _flatten_entry_groups(roles['copy_files'])
     assert set(grouped_copy_files) == {tuple(sorted(item.items())) for item in payload['copy_files']}
     assert roles['notes']['flat_projection_contract']
+    assert payload['profiles']['minimal']['payload_roles']['delivery_model']['compatibility_skill_projections'] == []
+    assert sorted(
+        payload['profiles']['full']['payload_roles']['delivery_model']['compatibility_skill_projections']
+    ) == CODEX_VIBE_WRAPPER_SKILLS
 
 
 def test_profile_runtime_core_packaging_projections_match_base_overlay_resolution() -> None:
@@ -130,7 +139,7 @@ def test_profile_runtime_core_packaging_roles_describe_delivery_model() -> None:
         assert minimal['public_skill_surface']['discoverable_entry_surface'] == 'config/vibe-entry-surfaces.json'
         assert minimal['public_skill_surface']['projected_skill_names'] == ['vibe', 'vibe-want', 'vibe-how', 'vibe-do']
     if _supports_surface_split(full):
-        assert full['compatibility_skill_projections']['projected_skill_names'] == []
+        assert sorted(full['compatibility_skill_projections']['projected_skill_names']) == CODEX_VIBE_WRAPPER_SKILLS
         assert full['internal_skill_corpus']['entrypoint_filename'] == 'SKILL.runtime-mirror.md'
         assert full['public_skill_surface']['mode'] == 'discoverable_wrapper_projection'
         assert full['public_skill_surface']['discoverable_entry_surface'] == 'config/vibe-entry-surfaces.json'
