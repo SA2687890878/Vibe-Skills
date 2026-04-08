@@ -423,6 +423,7 @@ check_host_visible_discoverable_entries() {
 
   local entry_names=()
   local wrapper_paths=()
+  local compatibility_roots=()
   local line=""
   while IFS= read -r line; do
     entry_names+=("${line}")
@@ -430,8 +431,11 @@ check_host_visible_discoverable_entries() {
   while IFS= read -r line; do
     wrapper_paths+=("${line}")
   done < <(json_query_lines_from_file "${ledger_path}" 'specialist_wrapper_paths' 2>/dev/null || true)
+  while IFS= read -r line; do
+    compatibility_roots+=("${line}")
+  done < <(json_query_lines_from_file "${ledger_path}" 'compatibility_roots' 2>/dev/null || true)
 
-  if [[ ${#entry_names[@]} -eq 0 || ${#wrapper_paths[@]} -eq 0 ]]; then
+  if [[ ${#entry_names[@]} -eq 0 || ( ${#wrapper_paths[@]} -eq 0 && ${#compatibility_roots[@]} -eq 0 ) ]]; then
     if [[ "${HOST_ID}" == "codex" || "${HOST_ID}" == "claude-code" || "${HOST_ID}" == "cursor" || "${HOST_ID}" == "windsurf" || "${HOST_ID}" == "openclaw" || "${HOST_ID}" == "opencode" ]]; then
       echo "[FAIL] host-visible discoverable entries -> missing wrapper inventory"
       FAIL=$((FAIL+1))
@@ -443,6 +447,9 @@ check_host_visible_discoverable_entries() {
   fi
 
   local missing_paths=()
+  local invalid_wrapper_paths=()
+  local missing_compatibility_roots=()
+  local invalid_compatibility_roots=()
   local normalized_target_root
   normalized_target_root="$(normalize_path "${TARGET_ROOT}")"
   local path=""
@@ -456,18 +463,56 @@ check_host_visible_discoverable_entries() {
     case "${normalized_path}" in
       "${normalized_target_root}"|"${normalized_target_root}/"*) ;;
       *)
-        missing_paths+=("${path}")
+        invalid_wrapper_paths+=("${path}")
         continue
         ;;
     esac
     [[ -f "${candidate_path}" ]] || missing_paths+=("${path}")
   done
 
-  if [[ ${#missing_paths[@]} -eq 0 ]]; then
+  local compatibility_root=""
+  for compatibility_root in "${compatibility_roots[@]}"; do
+    local candidate_root="${compatibility_root}"
+    local normalized_root=""
+    if [[ "${candidate_root}" != /* ]]; then
+      candidate_root="${TARGET_ROOT}/${candidate_root}"
+    fi
+    normalized_root="$(normalize_path "${candidate_root}")"
+    case "${normalized_root}" in
+      "${normalized_target_root}"|"${normalized_target_root}/"*) ;;
+      *)
+        invalid_compatibility_roots+=("${compatibility_root}")
+        continue
+        ;;
+    esac
+    if [[ ! -d "${candidate_root}" || ! -f "${candidate_root}/SKILL.md" ]]; then
+      missing_compatibility_roots+=("${compatibility_root}")
+    fi
+  done
+
+  local wrappers_ready="false"
+  local compatibility_ready="false"
+  if [[ ${#wrapper_paths[@]} -gt 0 && ${#missing_paths[@]} -eq 0 ]]; then
+    wrappers_ready="true"
+  fi
+  if [[ ${#compatibility_roots[@]} -gt 0 && ${#missing_compatibility_roots[@]} -eq 0 ]]; then
+    compatibility_ready="true"
+  fi
+
+  if [[ ${#invalid_wrapper_paths[@]} -gt 0 ]]; then
+    echo "[FAIL] host-visible discoverable entries -> ${invalid_wrapper_paths[0]}"
+    FAIL=$((FAIL+1))
+  elif [[ ${#invalid_compatibility_roots[@]} -gt 0 ]]; then
+    echo "[FAIL] host-visible discoverable entries -> ${invalid_compatibility_roots[0]}"
+    FAIL=$((FAIL+1))
+  elif [[ "${wrappers_ready}" == "true" || "${compatibility_ready}" == "true" ]]; then
     echo "[OK] host-visible discoverable entries"
     PASS=$((PASS+1))
-  else
+  elif [[ ${#missing_paths[@]} -gt 0 ]]; then
     echo "[FAIL] host-visible discoverable entries -> ${missing_paths[0]}"
+    FAIL=$((FAIL+1))
+  else
+    echo "[FAIL] host-visible discoverable entries -> ${missing_compatibility_roots[0]}"
     FAIL=$((FAIL+1))
   fi
 }
@@ -882,6 +927,17 @@ done
 if [[ "${PROFILE}" == "full" ]]; then
   for n in requesting-code-review receiving-code-review verification-before-completion; do
     check_path "optional/${n}" "$(resolve_skill_descriptor_path "${n}")" false
+  done
+fi
+if [[ "${HOST_ID}" == "codex" && "${ADAPTER_CHECK_MODE}" == "governed" && "${PROFILE}" == "full" ]]; then
+  for n in vibe-what-do-i-want vibe-how-do-we-do vibe-do-it; do
+    check_path "skill/${n}" "$(resolve_skill_descriptor_path "${n}")"
+  done
+fi
+if [[ "${HOST_ID}" == "codex" && "${ADAPTER_CHECK_MODE}" == "governed" ]]; then
+  codex_command_names=(vibe vibe-what-do-i-want vibe-how-do-we-do vibe-do-it)
+  for n in "${codex_command_names[@]}"; do
+    check_path "codex command/${n}" "${TARGET_ROOT}/commands/${n}.md" false
   done
 fi
 if [[ "${HOST_ID}" == "opencode" ]]; then

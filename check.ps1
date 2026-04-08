@@ -150,8 +150,9 @@ function Check-HostVisibleDiscoverableEntries {
   $payloadSummary = if ($ledger.PSObject.Properties.Name -contains 'payload_summary') { $ledger.payload_summary } else { $null }
   $entryNames = if ($null -ne $payloadSummary -and $payloadSummary.PSObject.Properties.Name -contains 'host_visible_entry_names') { @($payloadSummary.host_visible_entry_names | ForEach-Object { [string]$_ }) } else { @() }
   $wrapperPaths = if ($ledger.PSObject.Properties.Name -contains 'specialist_wrapper_paths') { @($ledger.specialist_wrapper_paths | ForEach-Object { [string]$_ }) } else { @() }
+  $compatibilityRoots = if ($ledger.PSObject.Properties.Name -contains 'compatibility_roots') { @($ledger.compatibility_roots | ForEach-Object { [string]$_ }) } else { @() }
 
-  if ($entryNames.Count -eq 0 -or $wrapperPaths.Count -eq 0) {
+  if ($entryNames.Count -eq 0 -or ($wrapperPaths.Count -eq 0 -and $compatibilityRoots.Count -eq 0)) {
     if ($HostId -in @('codex', 'claude-code', 'cursor', 'windsurf', 'openclaw', 'opencode')) {
       Write-Host '[FAIL] host-visible discoverable entries -> missing wrapper inventory' -ForegroundColor Red
       $script:fail++
@@ -162,6 +163,9 @@ function Check-HostVisibleDiscoverableEntries {
   }
 
   $missingPaths = New-Object System.Collections.Generic.List[string]
+  $invalidWrapperPaths = New-Object System.Collections.Generic.List[string]
+  $missingCompatibilityRoots = New-Object System.Collections.Generic.List[string]
+  $invalidCompatibilityRoots = New-Object System.Collections.Generic.List[string]
   $targetRootFull = Normalize-ComparablePath -Path $TargetRoot
   foreach ($wrapperPath in $wrapperPaths) {
     $candidatePath = $wrapperPath
@@ -179,16 +183,57 @@ function Check-HostVisibleDiscoverableEntries {
       $underTarget = $wrapperFull.Equals($targetRootFull, [System.StringComparison]::OrdinalIgnoreCase) -or `
         $wrapperFull.StartsWith($targetRootFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
     }
-    if (-not $underTarget -or -not (Test-Path -LiteralPath $candidatePath -PathType Leaf)) {
+    if (-not $underTarget) {
+      $invalidWrapperPaths.Add($wrapperPath)
+      continue
+    }
+    if (-not (Test-Path -LiteralPath $candidatePath -PathType Leaf)) {
       $missingPaths.Add($wrapperPath)
     }
   }
 
-  if ($missingPaths.Count -eq 0) {
+  foreach ($compatibilityRoot in $compatibilityRoots) {
+    $candidateRoot = $compatibilityRoot
+    if (-not [System.IO.Path]::IsPathRooted($candidateRoot)) {
+      $candidateRoot = Join-Path $TargetRoot $candidateRoot
+    }
+    try {
+      $rootFull = Normalize-ComparablePath -Path $candidateRoot
+    } catch {
+      $missingCompatibilityRoots.Add($compatibilityRoot)
+      continue
+    }
+    $underTarget = $false
+    if ($null -ne $rootFull -and $null -ne $targetRootFull) {
+      $underTarget = $rootFull.Equals($targetRootFull, [System.StringComparison]::OrdinalIgnoreCase) -or `
+        $rootFull.StartsWith($targetRootFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
+    }
+    if (-not $underTarget) {
+      $invalidCompatibilityRoots.Add($compatibilityRoot)
+      continue
+    }
+    if (-not (Test-Path -LiteralPath $candidateRoot -PathType Container) -or -not (Test-Path -LiteralPath (Join-Path $candidateRoot 'SKILL.md') -PathType Leaf)) {
+      $missingCompatibilityRoots.Add($compatibilityRoot)
+    }
+  }
+
+  $wrappersReady = ($wrapperPaths.Count -gt 0 -and $missingPaths.Count -eq 0)
+  $compatibilityReady = ($compatibilityRoots.Count -gt 0 -and $missingCompatibilityRoots.Count -eq 0)
+
+  if ($invalidWrapperPaths.Count -gt 0) {
+    Write-Host ("[FAIL] host-visible discoverable entries -> {0}" -f $invalidWrapperPaths[0]) -ForegroundColor Red
+    $script:fail++
+  } elseif ($invalidCompatibilityRoots.Count -gt 0) {
+    Write-Host ("[FAIL] host-visible discoverable entries -> {0}" -f $invalidCompatibilityRoots[0]) -ForegroundColor Red
+    $script:fail++
+  } elseif ($wrappersReady -or $compatibilityReady) {
     Write-Host '[OK] host-visible discoverable entries'
     $script:pass++
-  } else {
+  } elseif ($missingPaths.Count -gt 0) {
     Write-Host ("[FAIL] host-visible discoverable entries -> {0}" -f $missingPaths[0]) -ForegroundColor Red
+    $script:fail++
+  } else {
+    Write-Host ("[FAIL] host-visible discoverable entries -> {0}" -f $missingCompatibilityRoots[0]) -ForegroundColor Red
     $script:fail++
   }
 }
@@ -702,6 +747,12 @@ function Invoke-AdapterSpecificChecks {
     }
   }
 
+  if ([string]$Adapter.id -eq 'codex' -and [string]$Adapter.check_mode -eq 'governed' -and $Profile -eq 'full') {
+    foreach ($name in @('vibe-what-do-i-want', 'vibe-how-do-we-do', 'vibe-do-it')) {
+      Check-Path -Label "skill/$name" -Path (Resolve-SkillDescriptorPath -SkillName $name)
+    }
+  }
+
   if ([string]$Adapter.id -eq 'opencode') {
     foreach ($name in @('vibe', 'vibe-implement', 'vibe-review')) {
       Check-Path -Label "opencode command/$name" -Path (Join-Path (Join-Path $TargetRoot 'commands') "$name.md")
@@ -712,6 +763,13 @@ function Invoke-AdapterSpecificChecks {
       Check-Path -Label "opencode compat agent/$name" -Path (Join-Path (Join-Path $TargetRoot 'agent') "$name.md")
     }
     Check-Path -Label 'opencode preview config example' -Path (Join-Path $TargetRoot 'opencode.json.example')
+  }
+
+  if ([string]$Adapter.id -eq 'codex' -and [string]$Adapter.check_mode -eq 'governed') {
+    $codexCommandNames = @('vibe', 'vibe-what-do-i-want', 'vibe-how-do-we-do', 'vibe-do-it')
+    foreach ($name in $codexCommandNames) {
+      Check-Path -Label "codex command/$name" -Path (Join-Path (Join-Path $TargetRoot 'commands') "$name.md") -Required:$false
+    }
   }
 }
 

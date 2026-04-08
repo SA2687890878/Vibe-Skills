@@ -24,6 +24,18 @@ MINIMAL_REQUIRED_SKILLS = set(
 ) | set(
     json.loads(MINIMAL_MANIFEST.read_text(encoding="utf-8"))["managed_skill_inventory"]["required_workflow_skills"]
 )
+CODEX_COMPATIBILITY_COMMAND_FILES = {
+    "vibe.md",
+    "vibe-what-do-i-want.md",
+    "vibe-how-do-we-do.md",
+    "vibe-do-it.md",
+}
+CODEX_WRAPPER_SKILL_NAMES = {
+    "vibe",
+    "vibe-what-do-i-want",
+    "vibe-how-do-we-do",
+    "vibe-do-it",
+}
 
 
 def resolve_powershell() -> str | None:
@@ -312,6 +324,73 @@ class InstalledRuntimeScriptsTests(unittest.TestCase):
 
         self.assertIn("- installed_locally: True", result.stdout)
         self.assertIn("- vibe_host_ready: True", result.stdout)
+
+    def test_shell_install_materializes_codex_compatibility_command_shims(self) -> None:
+        self.install_shell_runtime("codex")
+
+        commands_root = self.target_root / "commands"
+        self.assertTrue(commands_root.exists())
+        installed_files = {path.name for path in commands_root.iterdir() if path.is_file()}
+        self.assertTrue(
+            CODEX_COMPATIBILITY_COMMAND_FILES.issubset(installed_files),
+            installed_files,
+        )
+
+    def test_shell_install_materializes_codex_wrapper_skill_surface(self) -> None:
+        self.install_shell_runtime("codex")
+
+        skills_root = self.target_root / "skills"
+        self.assertTrue(skills_root.exists())
+        self.assertEqual(
+            CODEX_WRAPPER_SKILL_NAMES,
+            {path.name for path in skills_root.iterdir() if path.is_dir()},
+        )
+        for skill_name in CODEX_WRAPPER_SKILL_NAMES:
+            self.assertTrue((skills_root / skill_name / "SKILL.md").exists(), skill_name)
+
+    def test_installed_codex_check_accepts_hyphen_command_shim_surface(self) -> None:
+        self.install_shell_runtime("codex")
+
+        commands_root = self.target_root / "commands"
+        for discoverable_name in ("vibe-want.md", "vibe-how.md", "vibe-do.md"):
+            discoverable_path = commands_root / discoverable_name
+            if discoverable_path.exists():
+                discoverable_path.unlink()
+
+        installed_root = self.target_root / "skills" / "vibe"
+        check_cmd = [
+            "bash",
+            str(installed_root / "check.sh"),
+            "--host",
+            "codex",
+            "--profile",
+            "full",
+            "--target-root",
+            str(self.target_root),
+        ]
+        check_result = subprocess.run(check_cmd, capture_output=True, text=True)
+        self.assertEqual(0, check_result.returncode, check_result.stdout + check_result.stderr)
+
+    def test_installed_codex_check_accepts_wrapper_skill_surface_without_command_files(self) -> None:
+        self.install_shell_runtime("codex")
+
+        commands_root = self.target_root / "commands"
+        if commands_root.exists():
+            shutil.rmtree(commands_root)
+
+        installed_root = self.target_root / "skills" / "vibe"
+        check_cmd = [
+            "bash",
+            str(installed_root / "check.sh"),
+            "--host",
+            "codex",
+            "--profile",
+            "full",
+            "--target-root",
+            str(self.target_root),
+        ]
+        check_result = subprocess.run(check_cmd, capture_output=True, text=True)
+        self.assertEqual(0, check_result.returncode, check_result.stdout + check_result.stderr)
 
     def test_shell_install_materializes_vgo_cli_for_installed_wrappers(self) -> None:
         self.install_shell_runtime("codex")

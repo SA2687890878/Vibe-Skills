@@ -68,7 +68,7 @@ class DiscoverableWrapperHostVisibilityTests(unittest.TestCase):
 
             self.assertIn("[OK] host-visible discoverable entries", result.stdout)
 
-    def test_shell_check_fails_when_a_wrapper_entry_is_missing(self) -> None:
+    def test_shell_check_fails_when_both_wrapper_command_and_skill_entry_are_missing(self) -> None:
         self._require_bash()
         with tempfile.TemporaryDirectory() as tempdir:
             target_root = Path(tempdir) / "codex-root"
@@ -88,6 +88,7 @@ class DiscoverableWrapperHostVisibilityTests(unittest.TestCase):
                 check=True,
             )
             (target_root / "commands" / "vibe-how.md").unlink()
+            shutil.rmtree(target_root / "skills" / "vibe-how-do-we-do")
 
             result = subprocess.run(
                 [
