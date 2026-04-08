@@ -421,8 +421,15 @@ check_host_visible_discoverable_entries() {
     return
   fi
 
-  mapfile -t entry_names < <(json_query_lines_from_file "${ledger_path}" 'payload_summary.host_visible_entry_names' 2>/dev/null || true)
-  mapfile -t wrapper_paths < <(json_query_lines_from_file "${ledger_path}" 'specialist_wrapper_paths' 2>/dev/null || true)
+  local entry_names=()
+  local wrapper_paths=()
+  local line=""
+  while IFS= read -r line; do
+    entry_names+=("${line}")
+  done < <(json_query_lines_from_file "${ledger_path}" 'payload_summary.host_visible_entry_names' 2>/dev/null || true)
+  while IFS= read -r line; do
+    wrapper_paths+=("${line}")
+  done < <(json_query_lines_from_file "${ledger_path}" 'specialist_wrapper_paths' 2>/dev/null || true)
 
   if [[ ${#entry_names[@]} -eq 0 || ${#wrapper_paths[@]} -eq 0 ]]; then
     if [[ "${HOST_ID}" == "codex" || "${HOST_ID}" == "claude-code" || "${HOST_ID}" == "cursor" || "${HOST_ID}" == "windsurf" || "${HOST_ID}" == "openclaw" || "${HOST_ID}" == "opencode" ]]; then

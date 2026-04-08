@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 import json
 
@@ -12,6 +13,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class DiscoverableWrapperHostVisibilityTests(unittest.TestCase):
+    def _require_bash(self) -> None:
+        if shutil.which("bash") is None:
+            self.skipTest("bash not available")
+
     def _write_external_wrapper_ledger_path(self, target_root: Path, external_wrapper: Path) -> None:
         ledger_path = target_root / ".vibeskills" / "install-ledger.json"
         ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
@@ -20,7 +25,13 @@ class DiscoverableWrapperHostVisibilityTests(unittest.TestCase):
         ledger["payload_summary"]["host_visible_entry_count"] = 1
         ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
 
+    def test_shell_checks_skip_when_bash_is_unavailable(self) -> None:
+        with mock.patch("shutil.which", return_value=None):
+            with self.assertRaises(unittest.SkipTest):
+                self._require_bash()
+
     def test_shell_check_reports_host_visible_discoverable_entries(self) -> None:
+        self._require_bash()
         with tempfile.TemporaryDirectory() as tempdir:
             target_root = Path(tempdir) / "codex-root"
             subprocess.run(
@@ -58,6 +69,7 @@ class DiscoverableWrapperHostVisibilityTests(unittest.TestCase):
             self.assertIn("[OK] host-visible discoverable entries", result.stdout)
 
     def test_shell_check_fails_when_a_wrapper_entry_is_missing(self) -> None:
+        self._require_bash()
         with tempfile.TemporaryDirectory() as tempdir:
             target_root = Path(tempdir) / "codex-root"
             subprocess.run(
@@ -96,6 +108,7 @@ class DiscoverableWrapperHostVisibilityTests(unittest.TestCase):
             self.assertIn("[FAIL] host-visible discoverable entries", result.stdout)
 
     def test_shell_check_rejects_wrapper_inventory_outside_target_root(self) -> None:
+        self._require_bash()
         with tempfile.TemporaryDirectory() as tempdir, tempfile.TemporaryDirectory() as external_dir:
             target_root = Path(tempdir) / "codex-root"
             subprocess.run(
@@ -136,6 +149,7 @@ class DiscoverableWrapperHostVisibilityTests(unittest.TestCase):
             self.assertIn("[FAIL] host-visible discoverable entries", result.stdout)
 
     def test_shell_check_keeps_discoverable_entry_validation_separate_from_bridge_launcher_validation(self) -> None:
+        self._require_bash()
         with tempfile.TemporaryDirectory() as tempdir:
             target_root = Path(tempdir) / "codex-root"
             subprocess.run(
