@@ -344,11 +344,12 @@ function New-VibeSpecialistRecommendation {
     } else {
         Resolve-VibeSpecialistVisibilityClass -NativeSkillEntrypoint $nativeSkillEntrypoint -TargetRoot $TargetRoot -HostId $HostId
     }
-    $usageRequired = if ($null -ne $CustomMetadata -and $CustomMetadata.PSObject.Properties.Name -contains 'usage_required' -and $null -ne $CustomMetadata.usage_required) {
+    $usageRequiredCandidate = if ($null -ne $CustomMetadata -and $CustomMetadata.PSObject.Properties.Name -contains 'usage_required' -and $null -ne $CustomMetadata.usage_required) {
         [bool]$CustomMetadata.usage_required
     } else {
         [bool]$DispatchContract.native_usage_required
     }
+    $usageRequired = [bool]($usageRequiredCandidate -or [bool]$DispatchContract.native_usage_required)
     $progressiveLoadPolicy = if ($null -ne $CustomMetadata -and $CustomMetadata.PSObject.Properties.Name -contains 'progressive_load_policy' -and $null -ne $CustomMetadata.progressive_load_policy) {
         [object[]]@($CustomMetadata.progressive_load_policy)
     } else {
@@ -567,6 +568,15 @@ function Split-VibeSpecialistDispatch {
     $promotionOutcomes = @()
     foreach ($recommendation in @($Recommendations)) {
         $skillId = [string]$recommendation.skill_id
+        $nativeUsageRequired = if ($recommendation.PSObject.Properties.Name -contains 'native_usage_required') { [bool]$recommendation.native_usage_required } else { $false }
+        $usageRequired = if ($recommendation.PSObject.Properties.Name -contains 'usage_required') { [bool]$recommendation.usage_required } else { $nativeUsageRequired }
+        if ($nativeUsageRequired -and -not $usageRequired) {
+            if ($recommendation.PSObject.Properties.Name -contains 'usage_required') {
+                $recommendation.usage_required = $true
+            } else {
+                $recommendation | Add-Member -NotePropertyName 'usage_required' -NotePropertyValue $true
+            }
+        }
         if ([bool]$recommendation.destructive -or [string]$recommendation.recommended_promotion_action -eq 'require_confirmation') {
             $blockedDispatch += $recommendation
             $promotionOutcomes += [pscustomobject]@{

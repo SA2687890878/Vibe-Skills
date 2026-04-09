@@ -35,6 +35,7 @@ function New-VibeExecutedSpecialistUnitSummary {
         execution_driver = [string]$UnitReceipt.execution_driver
         live_native_execution = [bool]$UnitReceipt.live_native_execution
         degraded = [bool]$UnitReceipt.degraded
+        prompt_path = if ($UnitReceipt.PSObject.Properties.Name -contains 'prompt_path' -and -not [string]::IsNullOrWhiteSpace([string]$UnitReceipt.prompt_path)) { [string]$UnitReceipt.prompt_path } else { $null }
         prompt_injection_complete = [bool]$(if ($UnitReceipt.PSObject.Properties.Name -contains 'prompt_injection_complete') { $UnitReceipt.prompt_injection_complete } else { $false })
         missing_prompt_injection_fields = @($(if ($UnitReceipt.PSObject.Properties.Name -contains 'missing_prompt_injection_fields') { $UnitReceipt.missing_prompt_injection_fields } else { @() }))
         lane_receipt_path = if ($UnitReceipt.lane_receipt_path) { [string]$UnitReceipt.lane_receipt_path } else { $null }
@@ -893,9 +894,9 @@ function New-VibeDegradedSpecialistDispatchResult {
         visibility_class = if ($Dispatch.PSObject.Properties.Name -contains 'visibility_class') { [string]$Dispatch.visibility_class } else { $null }
         write_scope = $WriteScope
         review_mode = $ReviewMode
-        prompt_path = if ([string]::IsNullOrWhiteSpace($PromptPath)) { $null } else { $PromptPath }
-        prompt_injection_complete = [bool](@($MissingPromptInjectionFields).Count -eq 0)
-        missing_prompt_injection_fields = @($MissingPromptInjectionFields)
+        prompt_path = if ([string]::IsNullOrWhiteSpace($PromptPath)) { $null } else { [string]$PromptPath }
+        prompt_injection_complete = [bool]((-not [string]::IsNullOrWhiteSpace($PromptPath)) -and (@($MissingPromptInjectionFields).Count -eq 0))
+        missing_prompt_injection_fields = @($MissingPromptInjectionFields | Select-Object -Unique)
         execution_driver = [string]$Policy.degrade_contract.execution_driver
         requested_host_adapter_id = if ($AdapterResolution -and $AdapterResolution.PSObject.Properties.Name -contains 'requested_host_adapter_id') { [string]$AdapterResolution.requested_host_adapter_id } else { $null }
         host_adapter_id = if ($AdapterResolution -and $AdapterResolution.PSObject.Properties.Name -contains 'effective_host_adapter_id') { [string]$AdapterResolution.effective_host_adapter_id } else { $null }

@@ -345,6 +345,8 @@ class CustomAdmissionBridgeTests(unittest.TestCase):
             )
             self.assertTrue(bool(execution_manifest["dispatch_integrity"]["proof_passed"]))
             self.assertTrue(bool(execution_manifest["dispatch_integrity"]["approved_dispatch_fully_executed"]))
+            self.assertTrue(bool(execution_manifest["dispatch_integrity"]["prompt_injection_complete_for_executed_specialists"]))
+            self.assertEqual([], list(execution_manifest["dispatch_integrity"]["prompt_injection_incomplete_skill_ids"]))
             self.assertIn(
                 "genomics-qc-flow",
                 [str(skill_id) for skill_id in execution_manifest["dispatch_integrity"]["executed_specialist_skill_ids"]],

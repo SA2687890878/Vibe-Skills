@@ -719,7 +719,12 @@ class NativeExecutionTopologyTests(unittest.TestCase):
             path_resolved_prompt_verified = False
             for unit in specialist_outcomes:
                 result = load_json(unit["result_path"])
-                prompt = Path(result["prompt_path"]).read_text(encoding="utf-8")
+                prompt_path = str(result.get("prompt_path") or "").strip()
+                if not prompt_path:
+                    continue
+                if bool(result.get("blocked")) or bool(result.get("degraded")):
+                    continue
+                prompt = Path(prompt_path).read_text(encoding="utf-8")
                 dispatch = next(
                     (
                         entry
@@ -733,7 +738,8 @@ class NativeExecutionTopologyTests(unittest.TestCase):
                 normalized_entrypoint = native_entrypoint.replace("\\", "/")
                 if "/bundled/skills/" not in normalized_entrypoint:
                     continue
-                skill_root = str(Path(native_entrypoint).parent)
+                skill_root = str((dispatch or {}).get("skill_root") or "").strip()
+                self.assertTrue(skill_root)
                 self.assertIn(f"native_skill_entrypoint: {native_entrypoint}", prompt)
                 self.assertIn(f"skill_root: {skill_root}", prompt)
                 self.assertIn("usage_required: true", prompt)

@@ -86,6 +86,7 @@ class PlanExecuteReceiptTests(unittest.TestCase):
             "execution_driver = 'codex-cli'; "
             "live_native_execution = $false; "
             "degraded = $true; "
+            "prompt_path = 'prompt.md'; "
             "prompt_injection_complete = $false; "
             "missing_prompt_injection_fields = @('skill_root', 'usage_required') "
             "}; "
@@ -105,6 +106,7 @@ class PlanExecuteReceiptTests(unittest.TestCase):
         )
 
         receipt = json.loads(completed.stdout)
+        self.assertEqual("prompt.md", receipt["prompt_path"])
         self.assertFalse(receipt["prompt_injection_complete"])
         self.assertEqual(["skill_root", "usage_required"], receipt["missing_prompt_injection_fields"])
 
@@ -129,6 +131,7 @@ class PlanExecuteReceiptTests(unittest.TestCase):
             "execution_driver = 'codex-cli'; "
             "live_native_execution = $false; "
             "degraded = $true; "
+            "prompt_path = 'prompt.md'; "
             "prompt_injection_complete = $false; "
             "missing_prompt_injection_fields = @('skill_root', 'usage_required'); "
             "lane_receipt_path = 'receipt.json' "
@@ -147,9 +150,47 @@ class PlanExecuteReceiptTests(unittest.TestCase):
         )
 
         summary = json.loads(completed.stdout)
+        self.assertEqual("prompt.md", summary["prompt_path"])
         self.assertFalse(summary["prompt_injection_complete"])
         self.assertEqual(["skill_root", "usage_required"], summary["missing_prompt_injection_fields"])
         self.assertTrue(summary["parallelizable"])
+
+    def test_degraded_specialist_without_prompt_does_not_claim_prompt_injection_complete(self) -> None:
+        powershell = resolve_powershell()
+        if powershell is None:
+            self.skipTest("PowerShell not available")
+
+        common_path = REPO_ROOT / "scripts" / "runtime" / "VibeExecution.Common.ps1"
+
+        ps_script = (
+            "& { "
+            f". '{common_path}'; "
+            "$policy = [pscustomobject]@{ "
+            "degrade_contract = [pscustomobject]@{ status = 'degraded_non_authoritative'; verification_passed = $false; execution_driver = 'degraded_contract' ; hazard_alert = 'alert' } "
+            "}; "
+            "$dispatch = [pscustomobject]@{ "
+            "skill_id = 'systematic-debugging'; "
+            "bounded_role = 'specialist_assist'; "
+            "native_usage_required = $true; "
+            "usage_required = $true; "
+            "must_preserve_workflow = $true "
+            "}; "
+            "$result = New-VibeDegradedSpecialistDispatchResult -UnitId 'unit-1' -Dispatch $dispatch -SessionRoot ([System.IO.Path]::GetTempPath()) -Policy $policy -Reason 'adapter_unavailable'; "
+            "$result.result | ConvertTo-Json -Depth 10 }"
+        )
+
+        completed = subprocess.run(
+            [powershell, "-NoLogo", "-NoProfile", "-Command", ps_script],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        result = json.loads(completed.stdout)
+        self.assertIsNone(result["prompt_path"])
+        self.assertFalse(result["prompt_injection_complete"])
+        self.assertEqual([], result["missing_prompt_injection_fields"])
 
 
 if __name__ == "__main__":
