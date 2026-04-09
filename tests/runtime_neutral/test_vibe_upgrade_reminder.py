@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
+import shutil
+import subprocess
 import sys
+import textwrap
 
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CLI_SRC = REPO_ROOT / 'apps' / 'vgo-cli' / 'src'
@@ -100,3 +103,58 @@ def test_build_update_reminder_swallows_refresh_failures(monkeypatch) -> None:
     )
 
     assert build_update_reminder(REPO_ROOT, REPO_ROOT / '.tmp-target', 'codex') is None
+
+
+def test_powershell_upgrade_reminder_uses_python_command_spec(tmp_path: Path) -> None:
+    powershell = shutil.which('pwsh') or shutil.which('pwsh.exe')
+    if powershell is None:
+        pytest.skip('PowerShell not available')
+
+    repo_root = tmp_path / 'repo'
+    script_dir = repo_root / 'apps' / 'vgo-cli' / 'src' / 'vgo_cli'
+    script_dir.mkdir(parents=True, exist_ok=True)
+    (script_dir / 'version_reminder.py').write_text(
+        'print("REMINDER: update available")\n',
+        encoding='utf-8',
+    )
+
+    fake_target_root = tmp_path / 'target-root'
+    fake_target_root.mkdir(parents=True, exist_ok=True)
+    harness_path = tmp_path / 'invoke-reminder.ps1'
+    harness_path.write_text(
+        textwrap.dedent(
+            f"""
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+            . '{(REPO_ROOT / 'scripts' / 'runtime' / 'VibeRuntime.Common.ps1').as_posix()}'
+            function Resolve-VibeHostTargetRoot {{
+                param([object]$HostAdapter)
+                return '{fake_target_root.as_posix()}'
+            }}
+            function Get-VibeHostAdapterIdentityProjection {{
+                param([object]$HostAdapter)
+                return [pscustomobject]@{{ id = 'codex'; requested_id = 'codex' }}
+            }}
+            function Get-VgoPythonCommand {{
+                return [pscustomobject]@{{ host_path = '{Path(sys.executable).as_posix()}'; prefix_arguments = @() }}
+            }}
+            $result = Get-VibeUpgradeReminder -RepoRoot '{repo_root.as_posix()}' -HostAdapter ([pscustomobject]@{{}})
+            if ($null -eq $result) {{
+                throw 'expected reminder output'
+            }}
+            Write-Output $result
+            """
+        ).strip()
+        + '\n',
+        encoding='utf-8',
+    )
+
+    completed = subprocess.run(
+        [powershell, '-NoLogo', '-NoProfile', '-File', str(harness_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == 'REMINDER: update available'

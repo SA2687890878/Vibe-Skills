@@ -384,11 +384,14 @@ def test_upgrade_command_delegates_to_upgrade_service(monkeypatch: pytest.Monkey
     import vgo_cli.commands as cli_commands
 
     recorded: dict[str, object] = {}
+    resolved_target_root = tmp_path / 'resolved-target'
 
     def fake_upgrade_runtime(**kwargs: object) -> dict[str, object]:
         recorded.update(kwargs)
         return {'changed': False}
 
+    monkeypatch.setattr(cli_commands, 'resolve_target_root', lambda host_id, target_root: resolved_target_root)
+    monkeypatch.setattr(cli_commands, 'assert_target_root_matches_host_intent', lambda target_root, host_id: None)
     monkeypatch.setattr(cli_commands, 'upgrade_runtime', fake_upgrade_runtime)
 
     args = argparse.Namespace(
@@ -406,6 +409,8 @@ def test_upgrade_command_delegates_to_upgrade_service(monkeypatch: pytest.Monkey
 
     assert upgrade_command(args) == 0
     assert recorded['repo_root'] == tmp_path.resolve()
+    assert recorded['target_root'] == resolved_target_root
     assert recorded['host_id'] == 'codex'
     assert recorded['profile'] == 'full'
     assert recorded['frontend'] == 'shell'
+    assert resolved_target_root.is_dir()

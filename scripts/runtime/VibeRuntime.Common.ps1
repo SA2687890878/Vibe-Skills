@@ -311,7 +311,12 @@ function Get-VibeUpgradeReminder {
 
     try {
         $python = Get-VgoPythonCommand
-        $output = & $python $scriptPath --repo-root $RepoRoot --target-root $targetRoot --host $hostId 2>$null
+        $args = @()
+        if ($null -ne $python.prefix_arguments) {
+            $args += @($python.prefix_arguments)
+        }
+        $args += @($scriptPath, '--repo-root', $RepoRoot, '--target-root', $targetRoot, '--host', $hostId)
+        $output = & $python.host_path @args 2>$null
         if ($LASTEXITCODE -ne 0) {
             return $null
         }
