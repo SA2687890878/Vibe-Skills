@@ -15,6 +15,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DISCLOSURE_POLICY = json.loads((REPO_ROOT / "config" / "memory-disclosure-policy.json").read_text(encoding="utf-8"))
 
 
+def _ps_single_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
 def resolve_powershell() -> str | None:
     candidates = [
         shutil.which("pwsh"),
@@ -73,6 +77,187 @@ def run_governed_runtime(task: str, artifact_root: Path, env: dict[str, str] | N
             f"stderr={completed.stderr.strip()}"
         )
     return json.loads(stdout)
+
+
+def run_write_requirement_doc(
+    task: str,
+    artifact_root: Path,
+    *,
+    memory_context_path: Path | None = None,
+) -> dict[str, object]:
+    shell = resolve_powershell()
+    if shell is None:
+        raise unittest.SkipTest("PowerShell executable not available in PATH")
+
+    script_path = REPO_ROOT / "scripts" / "runtime" / "Write-RequirementDoc.ps1"
+    run_id = "pytest-write-requirement-" + uuid.uuid4().hex[:10]
+    ps_command = (
+        "& { "
+        f"$result = & {_ps_single_quote(str(script_path))} "
+        f"-Task {_ps_single_quote(task)} "
+        "-Mode interactive_governed "
+        f"-RunId {_ps_single_quote(run_id)} "
+        f"-ArtifactRoot {_ps_single_quote(str(artifact_root))} "
+    )
+    if memory_context_path is not None:
+        ps_command += f"-MemoryContextPath {_ps_single_quote(str(memory_context_path))} "
+    ps_command += "$result | ConvertTo-Json -Depth 20 }"
+
+    completed = subprocess.run(
+        [shell, "-NoLogo", "-NoProfile", "-Command", ps_command],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    stdout = completed.stdout.strip()
+    if stdout not in ("", "null"):
+        return json.loads(stdout)
+
+    receipt_path = artifact_root / "outputs" / "runtime" / "vibe-sessions" / run_id / "requirement-doc-receipt.json"
+    if not receipt_path.exists():
+        raise AssertionError(
+            "Write-RequirementDoc returned null payload and did not emit a receipt. "
+            f"stderr={completed.stderr.strip()}"
+        )
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    return {
+        "requirement_doc_path": receipt["requirement_doc_path"],
+        "receipt_path": str(receipt_path),
+        "receipt": receipt,
+    }
+
+
+def run_write_xl_plan(
+    task: str,
+    artifact_root: Path,
+    *,
+    requirement_doc_path: Path,
+    plan_memory_context_path: Path | None = None,
+) -> dict[str, object]:
+    shell = resolve_powershell()
+    if shell is None:
+        raise unittest.SkipTest("PowerShell executable not available in PATH")
+
+    script_path = REPO_ROOT / "scripts" / "runtime" / "Write-XlPlan.ps1"
+    run_id = "pytest-write-plan-" + uuid.uuid4().hex[:10]
+    ps_command = (
+        "& { "
+        f"$result = & {_ps_single_quote(str(script_path))} "
+        f"-Task {_ps_single_quote(task)} "
+        "-Mode interactive_governed "
+        f"-RunId {_ps_single_quote(run_id)} "
+        f"-RequirementDocPath {_ps_single_quote(str(requirement_doc_path))} "
+        f"-ArtifactRoot {_ps_single_quote(str(artifact_root))} "
+    )
+    if plan_memory_context_path is not None:
+        ps_command += f"-PlanMemoryContextPath {_ps_single_quote(str(plan_memory_context_path))} "
+    ps_command += "$result | ConvertTo-Json -Depth 20 }"
+
+    completed = subprocess.run(
+        [shell, "-NoLogo", "-NoProfile", "-Command", ps_command],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    stdout = completed.stdout.strip()
+    if stdout not in ("", "null"):
+        return json.loads(stdout)
+
+    receipt_path = artifact_root / "outputs" / "runtime" / "vibe-sessions" / run_id / "execution-plan-receipt.json"
+    if not receipt_path.exists():
+        raise AssertionError(
+            "Write-XlPlan returned null payload and did not emit a receipt. "
+            f"stderr={completed.stderr.strip()}"
+        )
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    return {
+        "execution_plan_path": receipt["execution_plan_path"],
+        "receipt_path": str(receipt_path),
+        "receipt": receipt,
+    }
+
+
+def run_selected_memory_capsules(read_actions: list[dict[str, object]]) -> list[dict[str, object]]:
+    shell = resolve_powershell()
+    if shell is None:
+        raise unittest.SkipTest("PowerShell executable not available in PATH")
+
+    memory_common = REPO_ROOT / "scripts" / "runtime" / "VibeMemoryActivation.Common.ps1"
+    read_actions_json = json.dumps(read_actions, ensure_ascii=False)
+    ps_command = (
+        "& { "
+        f". {_ps_single_quote(str(memory_common))}; "
+        f"$readActions = {_ps_single_quote(read_actions_json)} | ConvertFrom-Json -Depth 20; "
+        "$result = New-VibeSelectedMemoryCapsules "
+        "-ReadActions @($readActions) "
+        "-Budget ([pscustomobject]@{ top_k = 2; max_tokens = 32; max_chars_per_item = 64 }) "
+        "-Stage 'requirement_doc'; "
+        "$result | ConvertTo-Json -Depth 20 }"
+    )
+
+    completed = subprocess.run(
+        [shell, "-NoLogo", "-NoProfile", "-Command", ps_command],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    payload = json.loads(completed.stdout)
+    return payload if isinstance(payload, list) else [payload]
+
+
+def run_progressive_disclosure_context_pack(
+    *,
+    session_root: Path,
+    read_actions: list[dict[str, object]],
+) -> dict[str, object]:
+    shell = resolve_powershell()
+    if shell is None:
+        raise unittest.SkipTest("PowerShell executable not available in PATH")
+
+    runtime_common = REPO_ROOT / "scripts" / "runtime" / "VibeRuntime.Common.ps1"
+    memory_common = REPO_ROOT / "scripts" / "runtime" / "VibeMemoryActivation.Common.ps1"
+    runtime_entry = REPO_ROOT / "scripts" / "runtime" / "invoke-vibe-runtime.ps1"
+    read_actions_json = json.dumps(read_actions, ensure_ascii=False)
+    ps_command = (
+        "& { "
+        f". {_ps_single_quote(str(runtime_common))}; "
+        f". {_ps_single_quote(str(memory_common))}; "
+        f"$runtime = Get-VibeRuntimeContext -ScriptPath {_ps_single_quote(str(runtime_entry))}; "
+        "$runtime.memory_retrieval_budget_policy.defaults.top_k = 2; "
+        "$runtime.memory_retrieval_budget_policy.defaults.max_tokens = 4; "
+        "$runtime.memory_retrieval_budget_policy.defaults.max_chars_per_item = 64; "
+        "$runtime.memory_retrieval_budget_policy.stages.requirement_doc.top_k = 2; "
+        "$runtime.memory_retrieval_budget_policy.stages.requirement_doc.max_tokens = 4; "
+        "$runtime.memory_retrieval_budget_policy.stages.requirement_doc.max_chars_per_item = 64; "
+        "$runtime.memory_disclosure_policy.defaults.max_capsules = 2; "
+        "$runtime.memory_disclosure_policy.defaults.max_chars_per_capsule = 64; "
+        "$runtime.memory_disclosure_policy.stages.requirement_doc = "
+        "[pscustomobject]@{ level = 'L2_capsule_summary'; max_capsules = 2; max_chars_per_capsule = 64 }; "
+        f"$readActions = {_ps_single_quote(read_actions_json)} | ConvertFrom-Json -Depth 20; "
+        "$result = New-VibeProgressiveDisclosureContextPack "
+        "-Runtime $runtime "
+        "-ReadActions @($readActions) "
+        f"-SessionRoot {_ps_single_quote(str(session_root))} "
+        "-Stage 'requirement_doc' "
+        "-ArtifactName 'progressive-pack.json'; "
+        "$result | ConvertTo-Json -Depth 20 }"
+    )
+
+    completed = subprocess.run(
+        [shell, "-NoLogo", "-NoProfile", "-Command", ps_command],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    return json.loads(completed.stdout)
 
 
 class MemoryProgressiveDisclosureTests(unittest.TestCase):
@@ -185,6 +370,165 @@ class MemoryProgressiveDisclosureTests(unittest.TestCase):
             self.assertIn("## Memory Context", plan_text)
             self.assertIn("Capsule", plan_text)
             self.assertIn("Expansion Ref", plan_text)
+
+    def test_selected_memory_capsules_do_not_require_ambient_stage_scope(self) -> None:
+        capsules = run_selected_memory_capsules(
+            [
+                {
+                    "owner": "Serena",
+                    "items": ["Quartz scheduler continuity"],
+                    "capsules": [
+                        {
+                            "capsule_id": "cap-ambient-stage",
+                            "owner": "Serena",
+                            "lane": "serena",
+                            "kind": "decision",
+                            "summary": "Quartz scheduler continuity",
+                            "updated_at": "2026-04-10T00:00:00Z",
+                        }
+                    ],
+                    "artifact_path": str(REPO_ROOT / "docs" / "design" / "workspace-memory-plane.md"),
+                }
+            ]
+        )
+
+        self.assertEqual(1, len(capsules))
+        self.assertEqual("cap-ambient-stage", capsules[0]["capsule_id"])
+
+    def test_progressive_disclosure_only_reports_capsules_that_fit_bounded_items(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            temp_root = Path(tempdir)
+            read_actions = [
+                {
+                    "owner": "Serena",
+                    "status": "backend_read",
+                    "items": [
+                        "abcdefghijklmnop",
+                        "qrstuvwxyzabcdefgh",
+                    ],
+                    "capsules": [
+                        {
+                            "capsule_id": "cap-one",
+                            "owner": "Serena",
+                            "lane": "serena",
+                            "kind": "decision",
+                            "summary": "abcdefghijklmnop",
+                            "updated_at": "2026-04-10T00:00:00Z",
+                        },
+                        {
+                            "capsule_id": "cap-two",
+                            "owner": "Serena",
+                            "lane": "serena",
+                            "kind": "decision",
+                            "summary": "qrstuvwxyzabcdefgh",
+                            "updated_at": "2026-04-10T00:00:01Z",
+                        },
+                    ],
+                    "artifact_path": str(temp_root / "backend-response.json"),
+                }
+            ]
+
+            result = run_progressive_disclosure_context_pack(
+                session_root=temp_root / "session",
+                read_actions=read_actions,
+            )
+            artifact = json.loads(Path(result["context_path"]).read_text(encoding="utf-8"))
+
+            self.assertEqual(1, result["injected_item_count"])
+            self.assertEqual(1, result["capsule_count"])
+            self.assertEqual(1, len(result["selected_capsules"]))
+            self.assertEqual(["abcdefghijklmnop"], result["items"])
+            self.assertEqual("cap-one", result["selected_capsules"][0]["capsule_id"])
+            self.assertEqual(1, artifact["capsule_count"])
+            self.assertEqual(1, len(artifact["selected_capsules"]))
+            self.assertEqual("cap-one", artifact["selected_capsules"][0]["capsule_id"])
+
+    def test_requirement_and_plan_docs_render_capsules_even_when_items_are_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            temp_root = Path(tempdir)
+            context_path = temp_root / "capsule-only-pack.json"
+            context_path.write_text(
+                json.dumps(
+                    {
+                        "disclosure_level": "L2_capsule_summary",
+                        "selected_capsules": [
+                            {
+                                "capsule_id": "cap-001",
+                                "title": "Quartz scheduler continuity",
+                                "owner": "Serena",
+                                "lane": "serena",
+                                "kind": "decision",
+                                "why_now": "Matched Serena memory for requirement_doc.",
+                                "expansion_ref": f"{temp_root / 'backend-response.json'}#cap-001",
+                                "summary_lines": ["Quartz scheduler continuity"],
+                                "updated_at": "2026-04-10T00:00:00Z",
+                            }
+                        ],
+                        "items": [],
+                        "estimated_tokens": 1,
+                        "budget": {"top_k": 2, "max_tokens": 32, "max_chars_per_item": 200},
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            requirement = run_write_requirement_doc(
+                "Plan quartz scheduler continuity reuse.",
+                temp_root / "requirement-artifacts",
+                memory_context_path=context_path,
+            )
+            plan = run_write_xl_plan(
+                "Plan quartz scheduler continuity reuse.",
+                temp_root / "plan-artifacts",
+                requirement_doc_path=Path(requirement["requirement_doc_path"]),
+                plan_memory_context_path=context_path,
+            )
+
+            requirement_text = Path(requirement["requirement_doc_path"]).read_text(encoding="utf-8")
+            plan_text = Path(plan["execution_plan_path"]).read_text(encoding="utf-8")
+
+            self.assertIn("## Memory Context", requirement_text)
+            self.assertIn("Capsule [cap-001] Quartz scheduler continuity", requirement_text)
+            self.assertIn("Expansion Ref", requirement_text)
+            self.assertIn("## Memory Context", plan_text)
+            self.assertIn("Capsule [cap-001] Quartz scheduler continuity", plan_text)
+            self.assertIn("Expansion Ref", plan_text)
+
+    def test_requirement_and_plan_receipts_treat_null_selected_capsules_as_zero(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            temp_root = Path(tempdir)
+            context_path = temp_root / "null-capsules-pack.json"
+            context_path.write_text(
+                json.dumps(
+                    {
+                        "disclosure_level": "L2_capsule_summary",
+                        "selected_capsules": None,
+                        "items": [],
+                        "estimated_tokens": 0,
+                        "budget": {"top_k": 2, "max_tokens": 32, "max_chars_per_item": 200},
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            requirement = run_write_requirement_doc(
+                "Plan null capsule count handling.",
+                temp_root / "requirement-null-artifacts",
+                memory_context_path=context_path,
+            )
+            plan = run_write_xl_plan(
+                "Plan null capsule count handling.",
+                temp_root / "plan-null-artifacts",
+                requirement_doc_path=Path(requirement["requirement_doc_path"]),
+                plan_memory_context_path=context_path,
+            )
+
+            self.assertEqual(0, requirement["receipt"]["memory_capsule_count"])
+            self.assertEqual(0, plan["receipt"]["plan_memory_capsule_count"])
 
 
 if __name__ == "__main__":

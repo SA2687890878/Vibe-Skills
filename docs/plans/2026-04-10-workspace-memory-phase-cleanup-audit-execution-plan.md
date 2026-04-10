@@ -33,13 +33,14 @@ Audit the current workspace for cleanup boundaries by combining:
 
 ## Verification Commands
 
-- `git -C /home/lqf/table/table9/Vibe-Skills status --short --ignored`
-- `git -C /home/lqf/table/table9/Vibe-Skills worktree list --porcelain`
-- `find /home/lqf/table/table9/Vibe-Skills/.tmp -maxdepth 5 -type f -printf '%TY-%Tm-%Td %TH:%TM %s %p\n'`
-- `find /home/lqf/table/table9/Vibe-Skills/outputs -maxdepth 4 -printf '%TY-%Tm-%Td %TH:%TM %y %p\n'`
+- `export REPO_ROOT="<repo-root>"`
+- `git -C "$REPO_ROOT" status --short --ignored`
+- `git -C "$REPO_ROOT" worktree list --porcelain`
+- `find "$REPO_ROOT/.tmp" -maxdepth 5 -type f -printf '%TY-%Tm-%Td %TH:%TM %s %p\n'`
+- `find "$REPO_ROOT/outputs" -maxdepth 4 -printf '%TY-%Tm-%Td %TH:%TM %y %p\n'`
 - `ps -eo pid,ppid,etimes,stat,comm,args --sort=etimes | rg 'node|pwsh|powershell'`
 - `readlink /proc/<pid>/cwd`
-- `rg -n '\\.vibeskills|\\.codex' /home/lqf/table/table9/Vibe-Skills`
+- `rg -n '\\.vibeskills|\\.codex' "$REPO_ROOT"`
 
 ## Delivery Acceptance Plan
 

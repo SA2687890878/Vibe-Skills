@@ -240,7 +240,7 @@ class WorkspaceSharedMemoryPlaneTests(unittest.TestCase):
                 "memory_backend_adapters": {
                     **json.loads((REPO_ROOT / "config" / "memory-backend-adapters.json").read_text(encoding="utf-8")),
                     "driver": {
-                        "command": "python3",
+                        "command": sys.executable,
                         "script_path": "scripts/runtime/memory_backend_driver.py",
                         "transport": "payload_file",
                     },
@@ -296,6 +296,81 @@ class WorkspaceSharedMemoryPlaneTests(unittest.TestCase):
             backend_response = json.loads(Path(result["artifact_path"]).read_text(encoding="utf-8"))
             self.assertEqual("compatibility_shell", backend_response["driver_mode"])
             self.assertEqual(1, backend_response["capsule_count"])
+
+    def test_powershell_workspace_bridge_defaults_driver_when_runtime_driver_config_is_missing(self) -> None:
+        shell = resolve_powershell()
+        if shell is None:
+            raise unittest.SkipTest("PowerShell executable not available in PATH")
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            temp_root = Path(tempdir)
+            repo_root = temp_root / "workspace"
+            session_root = temp_root / "session"
+            repo_root.mkdir(parents=True, exist_ok=True)
+            session_root.mkdir(parents=True, exist_ok=True)
+            runtime_script_root = repo_root / "scripts" / "runtime"
+            runtime_script_root.mkdir(parents=True, exist_ok=True)
+            (runtime_script_root / "workspace_memory_driver.py").write_text(
+                WORKSPACE_DRIVER.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+
+            runtime_payload = {
+                "repo_root": str(repo_root),
+                "memory_backend_adapters": {
+                    key: value
+                    for key, value in json.loads(
+                        (REPO_ROOT / "config" / "memory-backend-adapters.json").read_text(encoding="utf-8")
+                    ).items()
+                    if key != "driver"
+                },
+            }
+            payload = {
+                "decisions": [
+                    {
+                        "summary": "Approved decision: missing runtime driver config should still use the workspace broker defaults.",
+                        "evidence_paths": ["docs/design/workspace-memory-plane.md"],
+                        "keywords": ["approved", "decision", "workspace", "broker", "defaults"],
+                    }
+                ]
+            }
+
+            completed = subprocess.run(
+                [
+                    shell,
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-Command",
+                    (
+                        "& { "
+                        f". {_ps_single_quote(str(GOVERNANCE_HELPERS))}; "
+                        f". {_ps_single_quote(str(RUNTIME_COMMON))}; "
+                        f". {_ps_single_quote(str(MEMORY_BACKENDS_COMMON))}; "
+                        f". {_ps_single_quote(str(WORKSPACE_MEMORY_COMMON))}; "
+                        f"$env:SERENA_PROJECT_KEY = {_ps_single_quote('workspace-plane-defaults')}; "
+                        f"$runtime = {_ps_single_quote(json.dumps(runtime_payload, ensure_ascii=False))} | ConvertFrom-Json -Depth 20; "
+                        f"$payload = {_ps_single_quote(json.dumps(payload, ensure_ascii=False))} | ConvertFrom-Json -Depth 20; "
+                        "$result = Invoke-VibeWorkspaceMemoryAction "
+                        "-Runtime $runtime "
+                        "-LaneId 'serena' "
+                        "-Action 'write' "
+                        "-Payload $payload "
+                        f"-SessionRoot {_ps_single_quote(str(session_root))}; "
+                        "$result | ConvertTo-Json -Depth 20 }"
+                    ),
+                ],
+                cwd=REPO_ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+            result = json.loads(completed.stdout)
+
+            self.assertEqual("backend_write", result["status"])
+            self.assertEqual(1, result["capsule_count"])
+            self.assertIn("workspace_id", result["workspace_memory_plane"])
+            self.assertTrue(Path(result["workspace_memory_plane"]["plane_path"]).exists())
 
     def test_compatibility_shell_accepts_workspace_driver_mode_cli(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

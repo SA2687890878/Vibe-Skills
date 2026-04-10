@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
+import os
 import re
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+if os.name == "nt":  # pragma: no cover - exercised on Windows
+    import msvcrt
+else:  # pragma: no cover - exercised on POSIX
+    import fcntl
 
 
 LANE_KIND = {
@@ -165,6 +173,55 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def write_jsonl_atomic(path: Path, rows: list[dict[str, Any]]) -> None:
+    ensure_parent(path)
+    content = "\n".join(json.dumps(row, ensure_ascii=False, sort_keys=True) for row in rows)
+    if content:
+        content += "\n"
+
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=str(path.parent),
+            prefix=f"{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+            temp_path = Path(handle.name)
+        os.replace(temp_path, path)
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
+
+
+@contextlib.contextmanager
+def exclusive_file_lock(lock_path: Path):
+    ensure_parent(lock_path)
+    with lock_path.open("a+b") as handle:
+        if os.name == "nt":  # pragma: no cover - exercised on Windows
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write(b"0")
+                handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:  # pragma: no cover - exercised on POSIX
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == "nt":  # pragma: no cover - exercised on Windows
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:  # pragma: no cover - exercised on POSIX
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def _normalize_identity_input(value: str) -> str:
     return value.replace("\\", "/").rstrip("/").lower()
 
@@ -220,11 +277,11 @@ def load_workspace_memory_policy_bundle(repo_root: Path) -> dict[str, Any]:
     }
 
 
-def tokenize(text: str) -> set[str]:
+def tokenize(text: str, *, filter_stop_tokens: bool = True) -> set[str]:
     return {
         token
         for token in re.findall(r"[a-z0-9_/-]{3,}", text.lower())
-        if token and token not in STOP_TOKENS
+        if token and (not filter_stop_tokens or token not in STOP_TOKENS)
     }
 
 
@@ -372,11 +429,12 @@ def classify_noise(record: dict[str, Any], ingest_policy: dict[str, Any]) -> str
         " ".join(str(v) for v in record.get("keywords") or []),
         " ".join(str(v) for v in record.get("evidence_paths") or []),
     ]
-    tokens = tokenize(" ".join(text_parts))
+    raw_tokens = tokenize(" ".join(text_parts), filter_stop_tokens=False)
+    tokens = {token for token in raw_tokens if token not in STOP_TOKENS}
     noise_suppression = dict(ingest_policy.get("noise_suppression") or {})
     if not tokens and bool(noise_suppression.get("drop_empty_payloads", True)):
         return "empty_payload"
-    if tokens & SIGNAL_TOKENS:
+    if raw_tokens & SIGNAL_TOKENS:
         return None
     noise_token_count = len(tokens & NOISE_TOKENS)
     signal_token_count = len(tokens - NOISE_TOKENS)
@@ -658,9 +716,11 @@ def execute(
             if not admitted:
                 status = "guarded_noise_suppressed" if suppressed_count > 0 else "guarded_no_write"
             else:
-                rows = load_jsonl(plane_path)
-                rows.extend(admitted)
-                write_jsonl(plane_path, dedupe_rows(rows))
+                lock_path = plane_path.with_name(f"{plane_path.name}.lock")
+                with exclusive_file_lock(lock_path):
+                    rows = load_jsonl(plane_path)
+                    rows.extend(admitted)
+                    write_jsonl_atomic(plane_path, dedupe_rows(rows))
                 capsules = build_capsules(admitted)
                 if lane == "serena":
                     items = [f"Persisted Serena decision: {row.get('summary')}" for row in admitted]

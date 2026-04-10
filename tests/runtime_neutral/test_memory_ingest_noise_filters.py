@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
+from unittest import mock
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +20,15 @@ WORKSPACE_DRIVER = REPO_ROOT / "scripts" / "runtime" / "workspace_memory_driver.
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def load_workspace_driver_module():
+    spec = importlib.util.spec_from_file_location("workspace_memory_driver_module", WORKSPACE_DRIVER)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def run_workspace_driver(
@@ -156,6 +169,109 @@ class MemoryIngestNoiseFiltersTests(unittest.TestCase):
             self.assertEqual("backend_read", read_back["status"])
             self.assertIn("compatibility shell", " ".join(read_back["items"]).lower())
             self.assertNotIn("tmp telemetry", " ".join(read_back["items"]).lower())
+
+    def test_signal_only_serena_ingest_is_not_suppressed_by_stop_token_overlap(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            temp_root = Path(tempdir)
+            repo_root = temp_root / "workspace"
+            session_root = temp_root / "session"
+            repo_root.mkdir(parents=True, exist_ok=True)
+            session_root.mkdir(parents=True, exist_ok=True)
+
+            write_result = run_workspace_driver(
+                lane="serena",
+                action="write",
+                payload={
+                    "decisions": [
+                        {
+                            "summary": "approved decision continuity",
+                            "keywords": ["approved", "decision", "continuity"],
+                            "evidence_paths": ["docs/design/workspace-memory-plane.md"],
+                        }
+                    ]
+                },
+                repo_root=repo_root,
+                session_root=session_root,
+                store_path=temp_root / "legacy-serena.jsonl",
+                project_key="signal-only-workspace",
+            )
+
+            self.assertEqual("backend_write", write_result["status"])
+            self.assertEqual(1, write_result["item_count"])
+            self.assertEqual(0, write_result["suppressed_count"])
+
+    def test_concurrent_writes_keep_both_records_in_workspace_plane(self) -> None:
+        module = load_workspace_driver_module()
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            temp_root = Path(tempdir)
+            repo_root = temp_root / "workspace"
+            session_root = temp_root / "session"
+            repo_root.mkdir(parents=True, exist_ok=True)
+            session_root.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(REPO_ROOT / "config", repo_root / "config")
+
+            barrier = threading.Barrier(2)
+            original_load_jsonl = module.load_jsonl
+            failures: list[str] = []
+
+            def synchronized_load_jsonl(path):
+                snapshot = original_load_jsonl(path)
+                try:
+                    barrier.wait(timeout=0.5)
+                except threading.BrokenBarrierError:
+                    pass
+                return snapshot
+
+            def writer(name: str) -> None:
+                try:
+                    payload_path = session_root / f"{name}-request.json"
+                    response_path = session_root / f"{name}-response.json"
+                    _write_json(
+                        payload_path,
+                        {
+                            "decisions": [
+                                {
+                                    "summary": f"Approved decision: preserve {name} continuity.",
+                                    "keywords": ["approved", "decision", name],
+                                    "evidence_paths": ["docs/design/workspace-memory-plane.md"],
+                                }
+                            ]
+                        },
+                    )
+                    module.execute(
+                        lane="serena",
+                        action="write",
+                        repo_root=repo_root,
+                        payload_path=payload_path,
+                        response_path=response_path,
+                        project_key="atomic-workspace",
+                        driver_mode="workspace_broker",
+                    )
+                except Exception as exc:  # pragma: no cover - surfaced by assertion
+                    failures.append(str(exc))
+
+            with mock.patch.object(module, "load_jsonl", side_effect=synchronized_load_jsonl):
+                threads = [threading.Thread(target=writer, args=(name,)) for name in ("alpha", "beta")]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join(timeout=5)
+
+            self.assertEqual([], failures)
+
+            descriptor = module.ensure_workspace_descriptor(repo_root, policy_bundle=module.load_workspace_memory_policy_bundle(repo_root))
+            plane_path = module.resolve_plane_path(descriptor)
+            rows = original_load_jsonl(plane_path)
+
+            self.assertEqual(2, len(rows))
+            self.assertEqual(
+                {
+                    "Approved decision: preserve alpha continuity.",
+                    "Approved decision: preserve beta continuity.",
+                },
+                {str(row.get("summary") or "") for row in rows},
+            )
 
 
 if __name__ == "__main__":

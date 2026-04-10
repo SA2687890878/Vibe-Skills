@@ -289,6 +289,9 @@ class MemoryRuntimeActivationTests(unittest.TestCase):
             self.assertEqual("backend_write", first_execute["write_actions"][1]["status"])
             self.assertEqual("backend_write", first_cleanup["write_actions"][0]["status"])
             self.assertEqual("backend_write", first_cleanup["write_actions"][2]["status"])
+            self.assertIn("workspace_memory_plane", first_execute["write_actions"][1])
+            self.assertIn("workspace_id", first_execute["write_actions"][1]["workspace_memory_plane"])
+            self.assertEqual("workspace_plane", first_execute["write_actions"][1]["project_key_source"])
 
             second = run_governed_runtime(
                 "XL follow-up api worker continuity review with decision reuse and graph dependency recall.",
@@ -306,6 +309,9 @@ class MemoryRuntimeActivationTests(unittest.TestCase):
             self.assertGreaterEqual(len(skeleton["read_actions"]), 2)
             self.assertEqual("backend_read", skeleton["read_actions"][1]["status"])
             self.assertGreaterEqual(skeleton["read_actions"][1]["item_count"], 1)
+            self.assertIn("workspace_memory_plane", skeleton["read_actions"][1])
+            self.assertIn("workspace_id", skeleton["read_actions"][1]["workspace_memory_plane"])
+            self.assertEqual("workspace_plane", skeleton["read_actions"][1]["project_key_source"])
 
             self.assertEqual("backend_read", deep_interview["read_actions"][0]["status"])
             self.assertGreaterEqual(deep_interview["read_actions"][0]["item_count"], 1)

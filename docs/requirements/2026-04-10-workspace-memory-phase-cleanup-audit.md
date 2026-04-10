@@ -16,12 +16,12 @@ A cleanup audit that:
 - identifies likely task-created temporary files and directories
 - distinguishes untracked implementation deliverables from removable residue
 - provides explicit safe and unsafe cleanup guidance
-- provides audit-first commands for `node` and `pwsh` process review and bounded termination
+- provides audit-first commands for `node` and `pwsh` process review and bounded targeting guidance for later manual use
 - does not delete files or kill processes during the audit
 
 ## Constraints
 
-- Work against `/home/lqf/table/table9/Vibe-Skills`
+- Work against the active repository root (`<repo-root>`)
 - Base recommendations on the current repo state instead of generic cleanup advice
 - Do not delete files, remove directories, or terminate processes
 - Do not disturb unrelated workspaces, worktrees, or long-lived host tooling

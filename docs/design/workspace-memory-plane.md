@@ -48,3 +48,10 @@ New callers can consume:
 - `workspace_memory_plane`
 
 No host adapter should depend on lane-local physical storage paths.
+
+## Migration And Deprecation
+
+- Legacy lane-local JSONL files are no longer an active read/write path once the workspace broker is enabled.
+- `memory_backend_driver.py` remains only as a compatibility shell for the existing CLI contract; it routes to the workspace broker and hard-fails if that broker is unavailable.
+- There is no silent downgrade back to legacy storage and no automatic import of old lane-local rows into the shared plane.
+- If a maintainer needs to preserve historical legacy rows, migration must be an explicit one-off operation with workspace identity review instead of an implicit runtime side effect.

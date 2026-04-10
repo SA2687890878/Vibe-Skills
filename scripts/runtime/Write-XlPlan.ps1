@@ -201,14 +201,21 @@ if (@($approvedDispatch).Count -gt 0 -or @($localSuggestions).Count -gt 0) {
         }
     }
 }
-if ($planMemoryContext -and @($planMemoryContext.items).Count -gt 0) {
+$hasPlanMemoryItems = $planMemoryContext -and @($planMemoryContext.items).Count -gt 0
+$hasPlanCapsules = (
+    $planMemoryContext -and
+    $planMemoryContext.PSObject.Properties.Name -contains 'selected_capsules' -and
+    $null -ne $planMemoryContext.selected_capsules -and
+    @($planMemoryContext.selected_capsules).Count -gt 0
+)
+if ($hasPlanMemoryItems -or $hasPlanCapsules) {
     $lines += @(
         '',
         '## Memory Context',
         'Bounded stage-aware memory context injected into execution planning:',
         ('- Disclosure level: {0}' -f [string]$planMemoryContext.disclosure_level)
     )
-    if ($planMemoryContext.PSObject.Properties.Name -contains 'selected_capsules' -and @($planMemoryContext.selected_capsules).Count -gt 0) {
+    if ($hasPlanCapsules) {
         foreach ($capsule in @($planMemoryContext.selected_capsules)) {
             $lines += @(
                 ('- Capsule [{0}] {1}' -f [string]$capsule.capsule_id, [string]$capsule.title),
@@ -291,7 +298,11 @@ $receipt = [pscustomobject]@{
     runtime_input_packet_path = $RuntimeInputPacketPath
     plan_memory_context_path = $PlanMemoryContextPath
     plan_memory_disclosure_level = if ($planMemoryContext -and $planMemoryContext.PSObject.Properties.Name -contains 'disclosure_level') { [string]$planMemoryContext.disclosure_level } else { $null }
-    plan_memory_capsule_count = if ($planMemoryContext -and $planMemoryContext.PSObject.Properties.Name -contains 'selected_capsules') { @($planMemoryContext.selected_capsules).Count } else { 0 }
+    plan_memory_capsule_count = if (
+        $planMemoryContext -and
+        $planMemoryContext.PSObject.Properties.Name -contains 'selected_capsules' -and
+        $null -ne $planMemoryContext.selected_capsules
+    ) { @($planMemoryContext.selected_capsules).Count } else { 0 }
     execution_topology_path = $executionTopologyPath
     generated_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 }

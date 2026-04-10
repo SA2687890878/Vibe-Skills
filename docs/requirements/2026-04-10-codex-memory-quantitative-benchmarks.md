@@ -21,7 +21,7 @@ A benchmark-style regression surface that:
 
 ## Constraints
 
-- Work inside `/home/lqf/table/table9/Vibe-Skills`
+- Work inside the target `Vibe-Skills` repository root (`<repo-root>`)
 - Reuse the current Codex simulation harness instead of inventing a second host simulator
 - Keep the benchmark focused on memory behavior, not unrelated host-specialist bridge failures
 - Use governed runtime paths that match real Codex-style task submission as closely as practical

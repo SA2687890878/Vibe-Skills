@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 import unittest
 import uuid
+from unittest import mock
 from pathlib import Path
 
 
@@ -17,6 +18,10 @@ RELEVANT_TOPIC = "quartz-scheduler"
 RELEVANT_DEPENDENCY = "planner"
 IRRELEVANT_TOPIC = "billing-export"
 IRRELEVANT_DEPENDENCY = "audit-ledger"
+
+
+def _ps_single_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
 
 
 def resolve_powershell() -> str | None:
@@ -89,9 +94,19 @@ def create_fake_codex_command(directory: Path) -> Path:
     return command_path
 
 
+def require_codex_test_prereqs() -> str:
+    if resolve_powershell() is None:
+        raise unittest.SkipTest("PowerShell executable not available in PATH")
+    bash = shutil.which("bash")
+    if bash is None:
+        raise unittest.SkipTest("bash executable not available in PATH")
+    return bash
+
+
 def install_codex(target_root: Path, *, env: dict[str, str]) -> None:
+    bash = require_codex_test_prereqs()
     command = [
-        "bash",
+        bash,
         str(INSTALL_SCRIPT),
         "--host",
         "codex",
@@ -130,11 +145,11 @@ def run_installed_runtime(
         "-Command",
         (
             "& { "
-            f"$result = & '{installed_root / 'scripts' / 'runtime' / 'invoke-vibe-runtime.ps1'}' "
-            f"-Task '{task}' "
+            f"$result = & {_ps_single_quote(str(installed_root / 'scripts' / 'runtime' / 'invoke-vibe-runtime.ps1'))} "
+            f"-Task {_ps_single_quote(task)} "
             "-Mode interactive_governed "
-            f"-RunId '{run_id}' "
-            f"-ArtifactRoot '{artifact_root}'; "
+            f"-RunId {_ps_single_quote(run_id)} "
+            f"-ArtifactRoot {_ps_single_quote(str(artifact_root))}; "
             "$result | ConvertTo-Json -Depth 20 }"
         ),
     ]
@@ -170,11 +185,11 @@ def run_repo_governed_runtime(task: str, artifact_root: Path, env: dict[str, str
         "-Command",
         (
             "& { "
-            f"$result = & '{script_path}' "
-            f"-Task '{task}' "
+            f"$result = & {_ps_single_quote(str(script_path))} "
+            f"-Task {_ps_single_quote(task)} "
             "-Mode interactive_governed "
-            f"-RunId '{run_id}' "
-            f"-ArtifactRoot '{artifact_root}'; "
+            f"-RunId {_ps_single_quote(run_id)} "
+            f"-ArtifactRoot {_ps_single_quote(str(artifact_root))}; "
             "$result | ConvertTo-Json -Depth 20 }"
         ),
     ]
@@ -327,6 +342,35 @@ class CodexMemoryUserSimulationTests(unittest.TestCase):
         metrics = extract_memory_metrics(payload)
         metrics["payload"] = payload
         return metrics
+
+    def test_install_codex_skips_cleanly_when_bash_is_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            with mock.patch("shutil.which", return_value=None), mock.patch("subprocess.run") as run_mock:
+                with self.assertRaises(unittest.SkipTest):
+                    install_codex(Path(tempdir), env=os.environ.copy())
+                run_mock.assert_not_called()
+
+    def test_installed_runtime_helper_escapes_single_quotes_in_task_and_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            temp_root = Path(tempdir)
+            target_root, installed_root, base_env = self._install_codex_context(temp_root, "codex-user'sim")
+            runtime_env = self._runtime_env(
+                base_env=base_env,
+                target_root=target_root,
+                project_key="pytest-codex-quoted-task",
+            )
+
+            payload = run_installed_runtime(
+                installed_root,
+                task="XL review planner's quartz-scheduler continuity before the next implementation step. $vibe",
+                artifact_root=target_root / ".vibeskills" / "quote's-follow-up",
+                env=runtime_env,
+            )
+
+            self.assertIn("summary", payload)
+            self.assertTrue(
+                Path(payload["summary"]["artifacts"]["requirement_doc"]).exists()
+            )
 
     def test_codex_user_simulation_prefers_relevant_memory_and_keeps_injection_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
