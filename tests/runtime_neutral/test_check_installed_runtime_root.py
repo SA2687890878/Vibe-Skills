@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import tempfile
@@ -106,6 +107,62 @@ class CheckInstalledRuntimeRootTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
         self.assertNotIn("skills\\vibe\\skills\\vibe", result.stdout)
+
+    def test_check_ps1_reports_invalid_receipt_version_without_crashing(self) -> None:
+        powershell = resolve_powershell()
+        if powershell is None:
+            self.skipTest("PowerShell executable not available in PATH")
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            target_root = Path(tempdir) / ".codex"
+            install_minimal_codex_runtime(target_root)
+            installed_root = target_root / "skills" / "vibe"
+            installed_governance = json.loads(
+                (installed_root / "config" / "version-governance.json").read_text(encoding="utf-8-sig")
+            )
+            release = installed_governance.get("release") or {}
+            receipt_path = installed_root / "outputs" / "runtime-freshness-receipt.json"
+            receipt_path.parent.mkdir(parents=True, exist_ok=True)
+            receipt_path.write_text(
+                json.dumps(
+                    {
+                        "gate_result": "PASS",
+                        "receipt_version": "abc",
+                        "target_root": str(target_root),
+                        "installed_root": str(installed_root),
+                        "release": {
+                            "version": str(release.get("version") or ""),
+                            "updated": str(release.get("updated") or ""),
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    powershell,
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(REPO_ROOT / "check.ps1"),
+                    "-HostId",
+                    "codex",
+                    "-Profile",
+                    "minimal",
+                    "-TargetRoot",
+                    str(target_root),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("[FAIL] vibe runtime freshness receipt version", result.stdout)
+        self.assertNotIn("Cannot convert value", result.stderr)
 
 
 if __name__ == "__main__":

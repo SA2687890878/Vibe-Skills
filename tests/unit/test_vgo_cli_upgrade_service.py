@@ -24,14 +24,14 @@ def test_upgrade_runtime_resolves_canonical_git_root_before_refresh(monkeypatch:
     canonical_root = tmp_path / "repo"
     canonical_root.mkdir()
 
-    recorded: dict[str, Path] = {}
+    recorded: dict[str, object] = {}
 
     monkeypatch.setattr(upgrade_service, "resolve_upgrade_repo_root", lambda path: canonical_root)
 
     def fake_refresh_installed_status(repo_root_arg: Path, target_root_arg: Path, host_id: str) -> dict[str, object]:
         recorded["repo_root"] = repo_root_arg
         recorded["target_root"] = target_root_arg
-        recorded["host_id"] = Path(host_id)
+        recorded["host_id"] = host_id
         return {
             "installed_version": "3.0.1",
             "installed_commit": "same",
@@ -59,6 +59,25 @@ def test_upgrade_runtime_resolves_canonical_git_root_before_refresh(monkeypatch:
     assert result["changed"] is False
     assert recorded["repo_root"] == canonical_root
     assert recorded["target_root"] == target_root
+    assert recorded["host_id"] == "codex"
+
+
+def test_resolve_upgrade_repo_root_does_not_fall_back_to_unrelated_cwd_repo(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    upgrade_service = importlib.import_module("vgo_cli.upgrade_service")
+
+    repo_root = tmp_path / "installed-runtime" / "skills" / "vibe"
+    repo_root.mkdir(parents=True)
+
+    unrelated_repo = tmp_path / "other-repo"
+    (unrelated_repo / ".git").mkdir(parents=True)
+    (unrelated_repo / "config").mkdir(parents=True)
+    (unrelated_repo / "config" / "version-governance.json").write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.chdir(unrelated_repo)
+
+    assert upgrade_service.resolve_upgrade_repo_root(repo_root) is None
 
 
 def test_upgrade_runtime_raises_clear_error_when_no_canonical_git_repo_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

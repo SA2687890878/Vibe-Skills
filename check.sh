@@ -955,7 +955,6 @@ if [[ "${DEEP}" == "true" ]]; then
       fi
     else
       echo "[FAIL] vibe bootstrap doctor gate"
-      WARN=$((WARN+1))
       FAIL=$((FAIL+1))
     fi
   fi

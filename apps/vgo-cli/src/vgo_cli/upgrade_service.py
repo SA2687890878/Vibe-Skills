@@ -21,10 +21,7 @@ from .upgrade_state import load_upgrade_status, merge_upgrade_status, save_upgra
 
 
 def resolve_upgrade_repo_root(repo_root: Path) -> Path | None:
-    direct = resolve_canonical_repo_root(repo_root)
-    if direct is not None:
-        return direct
-    return resolve_canonical_repo_root(Path.cwd())
+    return resolve_canonical_repo_root(repo_root)
 
 
 def refresh_installed_status(repo_root: Path, target_root: Path, host_id: str) -> dict[str, object]:
@@ -183,7 +180,7 @@ def upgrade_runtime(
     if resolved_repo_root is None:
         raise CliError(
             'Upgrade requires a canonical git checkout with config/version-governance.json. '
-            'Run the upgrade from the Vibe-Skills repo, or set your working directory to that checkout before invoking the installed runtime.'
+            'Pass --repo-root pointing at a Vibe-Skills git checkout before invoking the upgrade runtime.'
         )
 
     before = refresh_installed_status(resolved_repo_root, target_root, host_id)

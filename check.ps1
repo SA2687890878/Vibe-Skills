@@ -197,7 +197,27 @@ function Normalize-ComparablePath {
     return $null
   }
 
-  return [System.IO.Path]::GetFullPath($Path).TrimEnd([char[]]@('\\','/')).ToLowerInvariant()
+  return [System.IO.Path]::GetFullPath($Path).TrimEnd([char[]]@('\','/')).ToLowerInvariant()
+}
+
+function ConvertTo-IntCheckValue {
+  param(
+    [object]$Value,
+    [int]$Default = 0
+  )
+
+  $raw = if ($null -eq $Value) { $null } else { [string]$Value }
+  $parsed = $Default
+  $valid = $false
+  if (-not [string]::IsNullOrWhiteSpace($raw)) {
+    $valid = [int]::TryParse($raw, [ref]$parsed)
+  }
+
+  return [pscustomobject]@{
+    raw = $raw
+    value = $parsed
+    valid = $valid
+  }
 }
 
 function Format-OptionalValue {
@@ -319,9 +339,26 @@ function Test-ReceiptTargetFreshness {
   $receiptGateResult = if ($receipt.PSObject.Properties.Name -contains 'gate_result') { [string]$receipt.gate_result } else { $null }
   Check-Condition -Label 'vibe runtime freshness receipt gate_result' -Condition ($receiptGateResult -eq 'PASS') -FailureDetail (Format-OptionalValue -Value $receiptGateResult)
 
-  $receiptVersionValue = if ($receipt.PSObject.Properties.Name -contains 'receipt_version') { [int]$receipt.receipt_version } else { 0 }
-  $expectedReceiptContractVersion = if ($RuntimeConfig.PSObject.Properties.Name -contains 'receipt_contract_version') { [int]$RuntimeConfig.receipt_contract_version } else { 1 }
-  Check-Condition -Label 'vibe runtime freshness receipt version' -Condition ($receiptVersionValue -ge $expectedReceiptContractVersion) -FailureDetail ([string]$receiptVersionValue)
+  $receiptVersionCheck = if ($receipt.PSObject.Properties.Name -contains 'receipt_version') {
+    ConvertTo-IntCheckValue -Value $receipt.receipt_version
+  } else {
+    ConvertTo-IntCheckValue
+  }
+  $expectedReceiptContractVersionCheck = if ($RuntimeConfig.PSObject.Properties.Name -contains 'receipt_contract_version') {
+    ConvertTo-IntCheckValue -Value $RuntimeConfig.receipt_contract_version -Default 1
+  } else {
+    ConvertTo-IntCheckValue -Value 1 -Default 1
+  }
+  $expectedReceiptContractVersion = $expectedReceiptContractVersionCheck.value
+  $receiptVersionFailureDetail = if ($receiptVersionCheck.valid) {
+    [string]$receiptVersionCheck.value
+  } else {
+    Format-OptionalValue -Value $receiptVersionCheck.raw
+  }
+  Check-Condition `
+    -Label 'vibe runtime freshness receipt version' `
+    -Condition ($receiptVersionCheck.valid -and $receiptVersionCheck.value -ge $expectedReceiptContractVersion) `
+    -FailureDetail $receiptVersionFailureDetail
 
   Check-Condition -Label 'vibe runtime freshness receipt target_root' -Condition ($receiptTargetRoot -eq $expectedTargetRoot) -FailureDetail (Format-OptionalValue -Value ([string]$receipt.target_root))
   Check-Condition -Label 'vibe runtime freshness receipt installed_root' -Condition ($receiptInstalledRoot -eq $expectedInstalledRoot) -FailureDetail (Format-OptionalValue -Value ([string]$receipt.installed_root))
