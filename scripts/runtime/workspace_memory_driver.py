@@ -3,16 +3,23 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
+
 
 LANE_KIND = {
-    "serena": "decision",
-    "ruflo": "handoff_card",
-    "cognee": "relation",
+    "serena": ("project_decision_gate", "architecture_decision"),
+    "ruflo": ("handoff_card", "short_term_semantic_context"),
+    "cognee": ("entity_relation_ingest", "long_term_graph_context"),
 }
 
 LANE_OWNER = {
@@ -163,6 +170,47 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.write_text(content, encoding="utf-8")
 
 
+def write_jsonl_atomic(path: Path, rows: list[dict[str, Any]]) -> None:
+    ensure_parent(path)
+    content = "\n".join(json.dumps(row, ensure_ascii=False, sort_keys=True) for row in rows)
+    if content:
+        content += "\n"
+
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=str(path.parent), delete=False) as handle:
+        handle.write(content)
+        temp_path = Path(handle.name)
+    os.replace(temp_path, path)
+
+
+class PlaneLock:
+    def __init__(self, plane_path: Path) -> None:
+        self._lock_path = Path(f"{plane_path}.lock")
+        self._handle = None
+
+    def __enter__(self) -> "PlaneLock":
+        ensure_parent(self._lock_path)
+        self._handle = self._lock_path.open("a+", encoding="utf-8")
+        if os.name == "nt":
+            self._handle.seek(0)
+            msvcrt.locking(self._handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            fcntl.flock(self._handle.fileno(), fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self._handle is None:
+            return
+        try:
+            if os.name == "nt":
+                self._handle.seek(0)
+                msvcrt.locking(self._handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(self._handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            self._handle.close()
+            self._handle = None
+
+
 def tokenize(text: str) -> set[str]:
     return {
         token
@@ -198,7 +246,21 @@ def dedupe_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return list(by_id.values())
 
 
-def ensure_workspace_descriptor(repo_root: Path) -> dict[str, Any]:
+def load_workspace_memory_policy_bundle(repo_root: Path) -> dict[str, Any]:
+    config_root = repo_root / "config"
+    bundle: dict[str, Any] = {}
+    for name in ("memory-ingest-policy", "memory-disclosure-policy", "workspace-memory-plane"):
+        path = config_root / f"{name}.json"
+        bundle[name.replace("-", "_")] = load_json(path) if path.exists() else {}
+    return bundle
+
+
+def _normalize_identity_input(value: str) -> str:
+    return value.replace("\\", "/").rstrip("/").lower()
+
+
+def ensure_workspace_descriptor(repo_root: Path, policy_bundle: dict[str, Any] | None = None) -> dict[str, Any]:
+    del policy_bundle
     workspace_root = repo_root.resolve()
     sidecar_root = workspace_root / ".vibeskills"
     descriptor_path = sidecar_root / "project.json"
@@ -248,12 +310,14 @@ def resolve_plane_path(descriptor: dict[str, Any]) -> Path:
 
 def workspace_memory_projection(descriptor: dict[str, Any], plane_path: Path) -> dict[str, Any]:
     workspace_root = str(descriptor["workspace_root"])
+    identity_root = str(descriptor["project_descriptor_path"])
+    identity_key = _normalize_identity_input(identity_root)
     return {
         "schema_version": 1,
         "workspace_root": workspace_root,
         "workspace_sidecar_root": str(descriptor["workspace_sidecar_root"]),
         "descriptor_path": str(descriptor["project_descriptor_path"]),
-        "workspace_id": hashlib.sha256(workspace_root.encode("utf-8")).hexdigest()[:16],
+        "workspace_id": f"ws:{hashlib.sha256(identity_key.encode('utf-8')).hexdigest()[:24]}",
         "plane_path": str(plane_path),
     }
 
@@ -329,7 +393,8 @@ def _serena_records(payload: dict[str, Any], project_key: str | None) -> list[di
             {
                 "record_id": hashlib.sha256(record_basis.encode("utf-8")).hexdigest()[:16],
                 "lane": "serena",
-                "kind": "decision",
+                "kind": "architecture_decision",
+                "signal_type": "architecture_decision",
                 "project_key": project_key,
                 "summary": str(decision.get("summary") or "").strip(),
                 "evidence_paths": [str(v) for v in decision.get("evidence_paths") or [] if str(v).strip()],
@@ -360,6 +425,7 @@ def _ruflo_records(payload: dict[str, Any], project_key: str | None) -> list[dic
                 "record_id": hashlib.sha256(record_basis.encode("utf-8")).hexdigest()[:16],
                 "lane": "ruflo",
                 "kind": "handoff_card",
+                "signal_type": "handoff_card",
                 "project_key": project_key,
                 "scope": str(card.get("scope") or "xl"),
                 "summary": str(card.get("summary") or "").strip(),
@@ -392,7 +458,8 @@ def _cognee_records(payload: dict[str, Any], project_key: str | None) -> list[di
             {
                 "record_id": hashlib.sha256(record_basis.encode("utf-8")).hexdigest()[:16],
                 "lane": "cognee",
-                "kind": "relation",
+                "kind": "entity_relation_ingest",
+                "signal_type": "entity_relation_ingest",
                 "project_key": project_key,
                 "source": str(relation.get("source") or "").strip(),
                 "relation": str(relation.get("relation") or "").strip(),
@@ -446,7 +513,7 @@ def read_ranked_rows(
     for row in rows:
         if str(row.get("lane") or "") != lane:
             continue
-        if str(row.get("kind") or "") != LANE_KIND[lane]:
+        if str(row.get("kind") or "") not in LANE_KIND[lane]:
             continue
         if project_key and str(row.get("project_key") or "") != project_key:
             continue
@@ -522,7 +589,8 @@ def execute(
     driver_mode: str,
 ) -> int:
     payload = load_json(payload_path)
-    descriptor = ensure_workspace_descriptor(repo_root)
+    policy_bundle = load_workspace_memory_policy_bundle(repo_root)
+    descriptor = ensure_workspace_descriptor(repo_root, policy_bundle=policy_bundle)
     plane_path = resolve_plane_path(descriptor)
     ensure_parent(plane_path)
     workspace_plane = workspace_memory_projection(descriptor, plane_path)
@@ -564,9 +632,10 @@ def execute(
             if not admitted:
                 status = "guarded_noise_suppressed" if suppressed_count > 0 else "guarded_no_write"
             else:
-                rows = load_jsonl(plane_path)
-                rows.extend(admitted)
-                write_jsonl(plane_path, dedupe_rows(rows))
+                with PlaneLock(plane_path):
+                    rows = load_jsonl(plane_path)
+                    rows.extend(admitted)
+                    write_jsonl_atomic(plane_path, dedupe_rows(rows))
                 capsules = build_capsules(admitted)
                 if lane == "serena":
                     items = [f"Persisted Serena decision: {row.get('summary')}" for row in admitted]

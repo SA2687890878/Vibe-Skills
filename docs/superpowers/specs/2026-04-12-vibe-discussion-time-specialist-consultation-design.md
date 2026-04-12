@@ -327,10 +327,12 @@ Recommended new artifact paths:
 
 - `outputs/runtime/vibe-sessions/<run-id>/discussion-specialist-consultation.json`
 - `outputs/runtime/vibe-sessions/<run-id>/planning-specialist-consultation.json`
+- `outputs/runtime/vibe-sessions/<run-id>/host-stage-disclosure.json`
 
 Recommended runtime summary projection:
 
 - `specialist_consultation`
+- `host_user_briefing`
 
 This gives hosts and tests one stable place to inspect consultation behavior without scraping prose documents.
 

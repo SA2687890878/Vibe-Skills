@@ -180,6 +180,22 @@ function Get-VibeOptionalFrozenItems {
     return @($items | Select-Object -Unique)
 }
 
+function Get-VibeSelectedCapsuleList {
+    param(
+        [AllowNull()] [object]$ContextPack = $null
+    )
+
+    if (
+        $null -eq $ContextPack -or
+        -not ($ContextPack.PSObject.Properties.Name -contains 'selected_capsules') -or
+        $null -eq $ContextPack.selected_capsules
+    ) {
+        return @()
+    }
+
+    return @($ContextPack.selected_capsules | Where-Object { $null -ne $_ })
+}
+
 $runtime = Get-VibeRuntimeContext -ScriptPath $PSCommandPath
 if ([string]::IsNullOrWhiteSpace($RunId)) {
     $RunId = New-VibeRunId
@@ -245,7 +261,10 @@ $memoryContextPack = if (-not [string]::IsNullOrWhiteSpace($MemoryContextPath) -
 } else {
     $null
 }
-$discussionConsultation = if (-not [string]::IsNullOrWhiteSpace($DiscussionConsultationPath) -and (Test-Path -LiteralPath $DiscussionConsultationPath)) {
+$discussionConsultation = if (-not [string]::IsNullOrWhiteSpace($DiscussionConsultationPath)) {
+    if (-not (Test-Path -LiteralPath $DiscussionConsultationPath)) {
+        throw ("Discussion consultation receipt not found: {0}" -f $DiscussionConsultationPath)
+    }
     Get-Content -LiteralPath $DiscussionConsultationPath -Raw -Encoding UTF8 | ConvertFrom-Json
 } else {
     $null
@@ -484,15 +503,16 @@ if (@($lifecycleLines).Count -gt 0) {
     $lines += @('', @($lifecycleLines))
 }
 
-if ($memoryContextPack -and @($memoryContextPack.items).Count -gt 0) {
+$selectedMemoryCapsules = @(Get-VibeSelectedCapsuleList -ContextPack $memoryContextPack)
+if ($memoryContextPack -and ((@($memoryContextPack.items).Count -gt 0) -or (@($selectedMemoryCapsules).Count -gt 0))) {
     $lines += @(
         '',
         '## Memory Context',
         'Bounded stage-aware memory context injected into requirement freezing:',
         ('- Disclosure level: {0}' -f [string]$memoryContextPack.disclosure_level)
     )
-    if ($memoryContextPack.PSObject.Properties.Name -contains 'selected_capsules' -and @($memoryContextPack.selected_capsules).Count -gt 0) {
-        foreach ($capsule in @($memoryContextPack.selected_capsules)) {
+    if (@($selectedMemoryCapsules).Count -gt 0) {
+        foreach ($capsule in @($selectedMemoryCapsules)) {
             $lines += @(
                 ('- Capsule [{0}] {1}' -f [string]$capsule.capsule_id, [string]$capsule.title),
                 ('  Owner: {0}' -f [string]$capsule.owner),
@@ -547,7 +567,7 @@ $receipt = [pscustomobject]@{
     memory_context_item_count = if ($memoryContextPack) { @($memoryContextPack.items).Count } else { 0 }
     memory_context_estimated_tokens = if ($memoryContextPack) { [int]$memoryContextPack.estimated_tokens } else { 0 }
     memory_disclosure_level = if ($memoryContextPack -and $memoryContextPack.PSObject.Properties.Name -contains 'disclosure_level') { [string]$memoryContextPack.disclosure_level } else { $null }
-    memory_capsule_count = if ($memoryContextPack -and $memoryContextPack.PSObject.Properties.Name -contains 'selected_capsules') { @($memoryContextPack.selected_capsules).Count } else { 0 }
+    memory_capsule_count = @($selectedMemoryCapsules).Count
     generated_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 }
 $receiptPath = Join-Path $sessionRoot 'requirement-doc-receipt.json'

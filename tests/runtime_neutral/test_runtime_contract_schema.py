@@ -64,9 +64,9 @@ def run_runtime(artifact_root: Path, *, extra_env: dict[str, str] | None = None)
 
     run_id = "pytest-contract-" + uuid.uuid4().hex[:10]
     effective_env = os.environ.copy()
-    effective_env["VGO_DISABLE_NATIVE_SPECIALIST_EXECUTION"] = "1"
     if extra_env:
         effective_env.update(extra_env)
+    effective_env["VGO_DISABLE_NATIVE_SPECIALIST_EXECUTION"] = "1"
 
     completed = subprocess.run(
         [

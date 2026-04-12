@@ -306,6 +306,7 @@ def create_fake_codex_command(directory: Path, *, required_prompt_markers: list[
         command_path.write_text(
             "@echo off\r\n"
             "setlocal EnableDelayedExpansion\r\n"
+            "set RAW_ARGS=%*\r\n"
             "set OUT=\r\n"
             ":loop\r\n"
             "if \"%~1\"==\"\" goto done\r\n"
@@ -319,6 +320,12 @@ def create_fake_codex_command(directory: Path, *, required_prompt_markers: list[
             "goto loop\r\n"
             ":done\r\n"
             "if \"%OUT%\"==\"\" exit /b 2\r\n"
+            "echo %RAW_ARGS% | findstr /C:\"consultation_role:\" >nul\r\n"
+            "if %errorlevel%==0 (\r\n"
+            "  > \"%OUT%\" echo {\"status\":\"completed\",\"summary\":\"fake codex consultation executed\",\"consultation_notes\":[\"Validate the failing path before proposing a fix.\"],\"adoption_notes\":[\"Use the consultation guidance to shape the next frozen artifact.\"],\"verification_notes\":[\"Consultation stayed read-only and returned structured guidance.\"]}\r\n"
+            "  echo fake codex consultation ok\r\n"
+            "  exit /b 0\r\n"
+            ")\r\n"
             f"{marker_checks}"
             "> \"%OUT%\" echo {\"status\":\"completed\",\"summary\":\"fake codex specialist executed\",\"verification_notes\":[\"fake native specialist executed\"],\"changed_files\":[],\"bounded_output_notes\":[\"fake codex adapter\"]}\r\n"
             "echo fake codex ok\r\n"
@@ -335,6 +342,8 @@ def create_fake_codex_command(directory: Path, *, required_prompt_markers: list[
         command_path.write_text(
             "#!/usr/bin/env sh\n"
             "RAW_ARGS=\"$*\"\n"
+            "IS_CONSULTATION=0\n"
+            "printf '%s' \"$RAW_ARGS\" | grep -F \"consultation_role:\" >/dev/null && IS_CONSULTATION=1\n"
             "OUT=''\n"
             "while [ \"$#\" -gt 0 ]; do\n"
             "  case \"$1\" in\n"
@@ -349,6 +358,11 @@ def create_fake_codex_command(directory: Path, *, required_prompt_markers: list[
             "done\n"
             "if [ -z \"$OUT\" ]; then\n"
             "  exit 2\n"
+            "fi\n"
+            "if [ \"$IS_CONSULTATION\" -eq 1 ]; then\n"
+            "  printf '%s' '{\"status\":\"completed\",\"summary\":\"fake codex consultation executed\",\"consultation_notes\":[\"Validate the failing path before proposing a fix.\"],\"adoption_notes\":[\"Use the consultation guidance to shape the next frozen artifact.\"],\"verification_notes\":[\"Consultation stayed read-only and returned structured guidance.\"]}' > \"$OUT\"\n"
+            "  printf 'fake codex consultation ok\\n'\n"
+            "  exit 0\n"
             "fi\n"
             f"{marker_checks}"
             "printf '%s' '{\"status\":\"completed\",\"summary\":\"fake codex specialist executed\",\"verification_notes\":[\"fake native specialist executed\"],\"changed_files\":[],\"bounded_output_notes\":[\"fake codex adapter\"]}' > \"$OUT\"\n"
@@ -562,7 +576,8 @@ class NativeExecutionTopologyTests(unittest.TestCase):
 
             self.assertIn("## Specialist Recommendations", requirement_doc)
             self.assertIn("Binding: profile=", requirement_doc)
-            self.assertIn("## Specialist Skill Dispatch Plan", execution_plan)
+            self.assertIn("## Specialist Consultation", execution_plan)
+            self.assertIn("## Unified Specialist Lifecycle Disclosure", execution_plan)
             self.assertIn("Binding profile:", execution_plan)
 
             specialist_phase_bindings = execution_manifest["execution_topology"]["specialist_phase_bindings"]

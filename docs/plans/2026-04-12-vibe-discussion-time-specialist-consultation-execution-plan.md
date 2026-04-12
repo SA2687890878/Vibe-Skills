@@ -189,7 +189,7 @@ Verify that consultation truth is not stored as execution `approved_dispatch`, a
 
 Run:
 
-`python3 -m pytest tests/runtime_neutral/test_vibe_specialist_consultation.py tests/runtime_neutral/test_governed_runtime_bridge.py tests/runtime_neutral/test_skill_promotion_freeze_contract.py -q`
+`python3 -m pytest tests/runtime_neutral/test_vibe_specialist_consultation.py tests/runtime_neutral/test_governed_runtime_bridge.py tests/runtime_neutral/test_skill_promotion_freeze_contract.py tests/runtime_neutral/test_runtime_contract_goldens.py tests/runtime_neutral/test_runtime_contract_schema.py tests/integration/test_runtime_config_manifest_roles.py -q`
 
 Expected: PASS
 
@@ -204,7 +204,7 @@ Expected: PASS
 
 Run:
 
-`python3 -m pytest tests/runtime_neutral/test_vibe_specialist_consultation.py tests/runtime_neutral/test_governed_runtime_bridge.py tests/runtime_neutral/test_skill_promotion_freeze_contract.py tests/runtime_neutral/test_skill_promotion_metrics.py -q`
+`python3 -m pytest tests/runtime_neutral/test_vibe_specialist_consultation.py tests/runtime_neutral/test_governed_runtime_bridge.py tests/runtime_neutral/test_skill_promotion_freeze_contract.py tests/runtime_neutral/test_skill_promotion_metrics.py tests/runtime_neutral/test_runtime_contract_goldens.py tests/runtime_neutral/test_runtime_contract_schema.py tests/integration/test_runtime_config_manifest_roles.py -q`
 
 Expected: PASS
 

@@ -41,7 +41,7 @@ A runtime-backed disclosure projection and aligned contract text that:
 ## Manual Spot Checks
 
 - Trigger a governed runtime task that routes at least one specialist and confirm the disclosure block appears before execution.
-- Confirm each disclosed path is an absolute path and resolves to the actual Skill entrypoint used for execution.
+- Confirm each disclosed path matches the effective `native_skill_entrypoint` used for execution and resolves to the actual Skill entrypoint at runtime.
 - Confirm a run with recommendation-only or blocked specialist state does not claim execution for those Skills.
 
 ## Completion Language Policy

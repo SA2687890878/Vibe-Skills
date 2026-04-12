@@ -147,7 +147,10 @@ class SkillPromotionFreezeContractTests(unittest.TestCase):
             scikit_dispatch = next(
                 item for item in as_list(dispatch["approved_dispatch"]) if item["skill_id"] == "scikit-learn"
             )
-            self.assertTrue(scikit_dispatch["native_skill_entrypoint"])
+            self.assertIsNotNone(
+                scikit_dispatch["native_skill_entrypoint"],
+                "scikit-learn dispatch should have native_skill_entrypoint populated before path checks",
+            )
             self.assertTrue(Path(scikit_dispatch["native_skill_entrypoint"]).is_absolute())
             self.assertTrue(Path(scikit_dispatch["native_skill_entrypoint"]).exists())
 
@@ -229,6 +232,7 @@ class SkillPromotionFreezeContractTests(unittest.TestCase):
                 "$recommendation = Get-VgoSkillPromotionMetadata "
                 "-Prompt 'generic prompt' "
                 "-SkillMdPath '/tmp/skill.md' "
+                "-SkillRoot '/tmp' "
                 "-Description 'desc' "
                 "-RequiredInputs @('input') "
                 "-ExpectedOutputs @('output') "

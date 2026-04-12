@@ -58,7 +58,7 @@ def run_runtime(task: str, artifact_root: Path, *, extra_env: dict[str, str] | N
         text=True,
         encoding="utf-8",
         check=True,
-        env={**os.environ, "VGO_DISABLE_NATIVE_SPECIALIST_EXECUTION": "1", **(extra_env or {})},
+        env={**os.environ, **(extra_env or {}), "VGO_DISABLE_NATIVE_SPECIALIST_EXECUTION": "1"},
     )
     stdout = completed.stdout.strip()
     if stdout in ("", "null"):
@@ -158,10 +158,15 @@ class RuntimeContractGoldenTests(unittest.TestCase):
         fixture = load_json(GOLDEN_FIXTURE)
 
         with tempfile.TemporaryDirectory() as tempdir:
+            codex_home = Path(tempdir) / "codex-home"
+            codex_home.mkdir(parents=True, exist_ok=True)
             payload = run_runtime(
                 TASK,
                 artifact_root=Path(tempdir),
-                extra_env={"VCO_HOST_ID": "codex"},
+                extra_env={
+                    "VCO_HOST_ID": "codex",
+                    "CODEX_HOME": str(codex_home),
+                },
             )
             summary = payload["summary"]
             runtime_input_packet = load_json(summary["artifacts"]["runtime_input_packet"])

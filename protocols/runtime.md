@@ -158,10 +158,10 @@ Rules:
 - later stages must append a matching lineage entry for the same governed run
 - spawned subagent prompts must end with `$vibe`
 - milestone evidence must be written before phase completion
-- governed `vibe` runs must record bounded native specialist recommendations under `vibe` governance and should not leave the recommendation surface empty
+- governed `vibe` runs must record bounded native specialist recommendations under `vibe` governance and must not leave the recommendation surface empty
 - eligible specialist recommendations should auto-promote into bounded native units; only blocked, degraded, or forced-escalation ideas remain advisory escalation requests
 - when effective `approved_dispatch` is non-empty, governed `vibe` must emit one unified pre-execution disclosure that lists only actually executing specialist Skills and each real `native_skill_entrypoint`
-- when routed or consulted specialist activity becomes stage-confirmed, governed `vibe` should append a host-stage disclosure event rather than waiting until the final runtime summary to expose that fact
+- when routed or consulted specialist activity becomes stage-confirmed, governed `vibe` must append a host-stage disclosure event rather than waiting until the final runtime summary to expose that fact
 - approved specialist dispatch must be phase-bound as `pre_execution`, `in_execution`, `post_execution`, or `verification`
 - approved specialist dispatch must carry lane policy, write scope, and review mode so execution remains deterministic and conflict-aware
 - `L` uses explicit serial specialist steps; `XL` may use bounded parallel specialist lanes only when root-approved and write-scope-safe

@@ -125,7 +125,7 @@ function Invoke-VibeWorkspaceMemoryAction {
             items = @($response.items)
             item_count = [int]$response.item_count
             capsule_count = [int]$response.capsule_count
-            capsules = @($response.capsules)
+            capsules = if ($response.PSObject.Properties.Name -contains 'capsules') { @($response.capsules) } else { @() }
             suppressed_count = [int]$response.suppressed_count
             workspace_memory_plane = $response.workspace_memory_plane
             artifact_path = $responsePath

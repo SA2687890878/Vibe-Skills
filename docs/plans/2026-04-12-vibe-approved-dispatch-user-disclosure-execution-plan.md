@@ -136,7 +136,7 @@ Expected: PASS
 
 - [ ] **Step 2: Inspect the touched diff only**
 
-Run: `git -C /home/lqf/table/table9/Vibe-Skills diff -- SKILL.md protocols/runtime.md protocols/team.md config/runtime-input-packet-policy.json scripts/runtime/VibeRuntime.Common.ps1 scripts/runtime/Invoke-PlanExecute.ps1 scripts/runtime/Write-RequirementDoc.ps1 scripts/runtime/Write-XlPlan.ps1 tests/runtime_neutral/test_governed_runtime_bridge.py tests/runtime_neutral/test_skill_promotion_freeze_contract.py docs/superpowers/specs/2026-04-12-vibe-approved-dispatch-user-disclosure-design.md docs/requirements/2026-04-12-vibe-approved-dispatch-user-disclosure.md docs/plans/2026-04-12-vibe-approved-dispatch-user-disclosure-execution-plan.md`
+Run: `git diff -- SKILL.md protocols/runtime.md protocols/team.md config/runtime-input-packet-policy.json scripts/runtime/VibeRuntime.Common.ps1 scripts/runtime/Invoke-PlanExecute.ps1 scripts/runtime/Write-RequirementDoc.ps1 scripts/runtime/Write-XlPlan.ps1 tests/runtime_neutral/test_governed_runtime_bridge.py tests/runtime_neutral/test_skill_promotion_freeze_contract.py docs/superpowers/specs/2026-04-12-vibe-approved-dispatch-user-disclosure-design.md docs/requirements/2026-04-12-vibe-approved-dispatch-user-disclosure.md docs/plans/2026-04-12-vibe-approved-dispatch-user-disclosure-execution-plan.md`
 
 Expected: only disclosure-contract, runtime, and test changes.
 

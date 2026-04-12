@@ -289,6 +289,9 @@ function Get-VibeRuntimeContext {
         memory_runtime_v3_policy = Get-Content -LiteralPath (Join-Path $repoRoot 'config\memory-runtime-v3-policy.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         memory_stage_activation_policy = Get-Content -LiteralPath (Join-Path $repoRoot 'config\memory-stage-activation-policy.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         memory_retrieval_budget_policy = Get-Content -LiteralPath (Join-Path $repoRoot 'config\memory-retrieval-budget-policy.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        memory_disclosure_policy = Get-Content -LiteralPath (Join-Path $repoRoot 'config\memory-disclosure-policy.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        memory_ingest_policy = Get-Content -LiteralPath (Join-Path $repoRoot 'config\memory-ingest-policy.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        workspace_memory_plane = Get-Content -LiteralPath (Join-Path $repoRoot 'config\workspace-memory-plane.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         memory_backend_adapters = Get-Content -LiteralPath (Join-Path $repoRoot 'config\memory-backend-adapters.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     }
 }
@@ -1662,10 +1665,10 @@ function New-VibeHostStageDisclosureEventProjection {
 function Add-VibeHostStageDisclosureEvent {
     param(
         [Parameter(Mandatory)] [string]$SessionRoot,
-        [AllowNull()] [object]$Event = $null
+        [AllowNull()] [object]$DisclosureEvent = $null
     )
 
-    if ($null -eq $Event) {
+    if ($null -eq $DisclosureEvent) {
         return $null
     }
 
@@ -1691,8 +1694,8 @@ function Add-VibeHostStageDisclosureEvent {
         [void]$events.Add($existingEvent)
     }
 
-    $segmentId = if ((Test-VibeObjectHasProperty -InputObject $Event -PropertyName 'segment_id') -and -not [string]::IsNullOrWhiteSpace([string]$Event.segment_id)) {
-        [string]$Event.segment_id
+    $segmentId = if ((Test-VibeObjectHasProperty -InputObject $DisclosureEvent -PropertyName 'segment_id') -and -not [string]::IsNullOrWhiteSpace([string]$DisclosureEvent.segment_id)) {
+        [string]$DisclosureEvent.segment_id
     } else {
         return $null
     }
@@ -1709,16 +1712,16 @@ function Add-VibeHostStageDisclosureEvent {
     $recordedEvent = [pscustomobject]@{
         sequence = [int]($events.Count + 1)
         emitted_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-        event_id = [string]$Event.event_id
+        event_id = [string]$DisclosureEvent.event_id
         segment_id = $segmentId
-        stage = if ((Test-VibeObjectHasProperty -InputObject $Event -PropertyName 'stage') -and -not [string]::IsNullOrWhiteSpace([string]$Event.stage)) { [string]$Event.stage } else { $null }
-        category = if ((Test-VibeObjectHasProperty -InputObject $Event -PropertyName 'category') -and -not [string]::IsNullOrWhiteSpace([string]$Event.category)) { [string]$Event.category } else { $null }
-        truth_layer = if ((Test-VibeObjectHasProperty -InputObject $Event -PropertyName 'truth_layer') -and -not [string]::IsNullOrWhiteSpace([string]$Event.truth_layer)) { [string]$Event.truth_layer } else { $null }
-        status = if ((Test-VibeObjectHasProperty -InputObject $Event -PropertyName 'status') -and -not [string]::IsNullOrWhiteSpace([string]$Event.status)) { [string]$Event.status } else { 'reported' }
-        gate_status = if ((Test-VibeObjectHasProperty -InputObject $Event -PropertyName 'gate_status') -and -not [string]::IsNullOrWhiteSpace([string]$Event.gate_status)) { [string]$Event.gate_status } else { $null }
-        skill_count = if ((Test-VibeObjectHasProperty -InputObject $Event -PropertyName 'skill_count')) { [int]$Event.skill_count } else { @($Event.skills).Count }
-        skills = if ((Test-VibeObjectHasProperty -InputObject $Event -PropertyName 'skills')) { @($Event.skills) } else { @() }
-        rendered_text = if ((Test-VibeObjectHasProperty -InputObject $Event -PropertyName 'rendered_text') -and -not [string]::IsNullOrWhiteSpace([string]$Event.rendered_text)) { [string]$Event.rendered_text } else { $null }
+        stage = if ((Test-VibeObjectHasProperty -InputObject $DisclosureEvent -PropertyName 'stage') -and -not [string]::IsNullOrWhiteSpace([string]$DisclosureEvent.stage)) { [string]$DisclosureEvent.stage } else { $null }
+        category = if ((Test-VibeObjectHasProperty -InputObject $DisclosureEvent -PropertyName 'category') -and -not [string]::IsNullOrWhiteSpace([string]$DisclosureEvent.category)) { [string]$DisclosureEvent.category } else { $null }
+        truth_layer = if ((Test-VibeObjectHasProperty -InputObject $DisclosureEvent -PropertyName 'truth_layer') -and -not [string]::IsNullOrWhiteSpace([string]$DisclosureEvent.truth_layer)) { [string]$DisclosureEvent.truth_layer } else { $null }
+        status = if ((Test-VibeObjectHasProperty -InputObject $DisclosureEvent -PropertyName 'status') -and -not [string]::IsNullOrWhiteSpace([string]$DisclosureEvent.status)) { [string]$DisclosureEvent.status } else { 'reported' }
+        gate_status = if ((Test-VibeObjectHasProperty -InputObject $DisclosureEvent -PropertyName 'gate_status') -and -not [string]::IsNullOrWhiteSpace([string]$DisclosureEvent.gate_status)) { [string]$DisclosureEvent.gate_status } else { $null }
+        skill_count = if ((Test-VibeObjectHasProperty -InputObject $DisclosureEvent -PropertyName 'skill_count')) { [int]$DisclosureEvent.skill_count } else { @($DisclosureEvent.skills).Count }
+        skills = if ((Test-VibeObjectHasProperty -InputObject $DisclosureEvent -PropertyName 'skills')) { @($DisclosureEvent.skills) } else { @() }
+        rendered_text = if ((Test-VibeObjectHasProperty -InputObject $DisclosureEvent -PropertyName 'rendered_text') -and -not [string]::IsNullOrWhiteSpace([string]$DisclosureEvent.rendered_text)) { [string]$DisclosureEvent.rendered_text } else { $null }
     }
     [void]$events.Add($recordedEvent)
 

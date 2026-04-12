@@ -801,7 +801,7 @@ if ($specialistUserDisclosure) {
         -ExecutionManifest $null
     $executionDisclosureSegment = New-VibeHostUserBriefingSegmentProjection -LifecycleLayer $executionDisclosureLayer
     $executionDisclosureEvent = New-VibeHostStageDisclosureEventProjection -Segment $executionDisclosureSegment
-    Add-VibeHostStageDisclosureEvent -SessionRoot $sessionRoot -Event $executionDisclosureEvent | Out-Null
+    Add-VibeHostStageDisclosureEvent -SessionRoot $sessionRoot -DisclosureEvent $executionDisclosureEvent | Out-Null
 }
 $executionTopologyPath = Get-VibeExecutionTopologyPath -RepoRoot $runtime.repo_root -RunId $RunId -ArtifactRoot $ArtifactRoot
 $executionTopology = New-VibeExecutionTopology `

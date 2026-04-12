@@ -92,6 +92,7 @@ function Get-VibeSkillMetadata {
         return [pscustomobject]@{
             skill_id = $SkillId
             skill_path = $null
+            skill_root = $null
             description = $null
         }
     }
@@ -107,6 +108,7 @@ function Get-VibeSkillMetadata {
     return [pscustomobject]@{
         skill_id = $SkillId
         skill_path = $skillPath
+        skill_root = (Split-Path -Parent $skillPath)
         description = $description
     }
 }
@@ -291,9 +293,24 @@ function New-VibeSpecialistRecommendation {
     } else {
         $null
     }
+    $skillRoot = if ($null -ne $CustomMetadata -and $CustomMetadata.PSObject.Properties.Name -contains 'skill_root' -and -not [string]::IsNullOrWhiteSpace([string]$CustomMetadata.skill_root)) {
+        [string]$CustomMetadata.skill_root
+    } elseif ($metadata.PSObject.Properties.Name -contains 'skill_root' -and -not [string]::IsNullOrWhiteSpace([string]$metadata.skill_root)) {
+        [string]$metadata.skill_root
+    } elseif (-not [string]::IsNullOrWhiteSpace([string]$nativeSkillEntrypoint)) {
+        [string](Split-Path -Parent $nativeSkillEntrypoint)
+    } else {
+        $null
+    }
+    $progressiveLoadPolicy = if (-not [string]::IsNullOrWhiteSpace([string]$nativeSkillEntrypoint)) {
+        @("Open the specialist $nativeSkillEntrypoint entrypoint first.")
+    } else {
+        @()
+    }
     $promotionMetadata = Get-VgoSkillPromotionMetadata `
         -Prompt $Task `
         -SkillMdPath $nativeSkillEntrypoint `
+        -SkillRoot $skillRoot `
         -Description $nativeSkillDescription `
         -RequiredInputs @($DispatchContract.required_inputs) `
         -ExpectedOutputs @($DispatchContract.expected_outputs) `
@@ -324,7 +341,13 @@ function New-VibeSpecialistRecommendation {
         write_scope = if ($null -ne $CustomMetadata -and $CustomMetadata.PSObject.Properties.Name -contains 'write_scope') { [string]$CustomMetadata.write_scope } else { [string]$bindingProfile.write_scope }
         review_mode = if ($null -ne $CustomMetadata -and $CustomMetadata.PSObject.Properties.Name -contains 'review_mode') { [string]$CustomMetadata.review_mode } else { [string]$bindingProfile.review_mode }
         native_skill_entrypoint = $nativeSkillEntrypoint
+        skill_root = $skillRoot
         native_skill_description = $nativeSkillDescription
+        visibility_class = if (-not [string]::IsNullOrWhiteSpace([string]$nativeSkillEntrypoint) -and -not [string]::IsNullOrWhiteSpace([string]$skillRoot)) { 'path_resolved' } else { 'path_unresolved' }
+        usage_required = [bool]$DispatchContract.native_usage_required
+        invocation_reason = $Reason
+        expected_contribution = [string]$DispatchContract.bounded_role
+        progressive_load_policy = @($progressiveLoadPolicy)
         promotion_eligible = [bool]$promotionMetadata.promotion_eligible
         destructive = [bool]$promotionMetadata.destructive
         destructive_reason_codes = [object[]]@($promotionMetadata.destructive_reason_codes)

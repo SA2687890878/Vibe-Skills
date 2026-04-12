@@ -269,17 +269,32 @@ function Get-VibeRufloReadAction {
 
 function Get-VibeMemoryDisclosureLevel {
     param(
+        [AllowNull()] [object]$Runtime = $null,
         [Parameter(Mandatory)] [string]$Stage
     )
 
+    if (
+        $null -ne $Runtime -and
+        $Runtime.PSObject.Properties.Name -contains 'memory_disclosure_policy' -and
+        $null -ne $Runtime.memory_disclosure_policy -and
+        $Runtime.memory_disclosure_policy.PSObject.Properties.Name -contains 'stages' -and
+        $null -ne $Runtime.memory_disclosure_policy.stages -and
+        $Runtime.memory_disclosure_policy.stages.PSObject.Properties.Name -contains $Stage
+    ) {
+        $stagePolicy = $Runtime.memory_disclosure_policy.stages.$Stage
+        if ($null -ne $stagePolicy -and $stagePolicy.PSObject.Properties.Name -contains 'level' -and -not [string]::IsNullOrWhiteSpace([string]$stagePolicy.level)) {
+            return [string]$stagePolicy.level
+        }
+    }
+
     switch ($Stage) {
-        'skeleton_check' { return 'L1_capsule_titles' }
-        'deep_interview' { return 'L1_capsule_titles' }
-        'requirement_doc' { return 'L2_capsule_summary' }
-        'xl_plan' { return 'L2_capsule_summary' }
-        'plan_execute' { return 'L3_evidence_pack' }
-        'phase_cleanup' { return 'L0_presence' }
-        default { return 'L1_capsule_titles' }
+        'skeleton_check' { return 'minimal' }
+        'deep_interview' { return 'bounded_context' }
+        'requirement_doc' { return 'decision_focused' }
+        'xl_plan' { return 'decision_and_relation_focused' }
+        'plan_execute' { return 'execution_relevant' }
+        'phase_cleanup' { return 'closure' }
+        default { return 'minimal' }
     }
 }
 
@@ -472,25 +487,33 @@ function New-VibeProgressiveDisclosureContextPack {
     )
 
     $budget = Get-VibeMemoryBudgetSpec -Runtime $Runtime -Stage $Stage
-    $selectedCapsules = @(New-VibeSelectedMemoryCapsules -ReadActions $ReadActions -Stage $Stage -Budget $budget)
-
-    $items = @()
-    foreach ($capsule in @($selectedCapsules)) {
+    $candidateCapsules = @(New-VibeSelectedMemoryCapsules -ReadActions $ReadActions -Stage $Stage -Budget $budget)
+    $selectedCapsules = [System.Collections.Generic.List[object]]::new()
+    $boundedItems = @()
+    foreach ($capsule in @($candidateCapsules)) {
+        $candidateItems = @($boundedItems)
         foreach ($line in @($capsule.summary_lines)) {
             if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
-                $items += [string]$line
+                $candidateItems += [string]$line
             }
         }
+
+        $nextBoundedItems = @(Get-VibeBoundedMemoryItems -Items $candidateItems -Budget $budget)
+        if ((@($nextBoundedItems) -join "`n") -eq (@($boundedItems) -join "`n")) {
+            continue
+        }
+
+        $selectedCapsules.Add($capsule) | Out-Null
+        $boundedItems = @($nextBoundedItems)
     }
 
-    $boundedItems = Get-VibeBoundedMemoryItems -Items $items -Budget $budget
     $estimatedTokens = Get-VibeEstimatedTokenCount -Items @($boundedItems)
     $artifactPath = Join-Path (Get-VibeMemoryArtifactsRoot -SessionRoot $SessionRoot) $ArtifactName
     $artifact = [pscustomobject]@{
         stage = $Stage
         source_stage = if ([string]::IsNullOrWhiteSpace($SourceStage)) { $null } else { $SourceStage }
         owner = 'state_store'
-        disclosure_level = Get-VibeMemoryDisclosureLevel -Stage $Stage
+        disclosure_level = Get-VibeMemoryDisclosureLevel -Runtime $Runtime -Stage $Stage
         generated_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
         capsule_count = @($selectedCapsules).Count
         selected_capsules = @($selectedCapsules)

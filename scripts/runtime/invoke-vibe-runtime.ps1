@@ -141,7 +141,7 @@ $discussionRoutingLayer = New-VibeSpecialistRoutingLifecycleLayerProjection -Run
 if ($discussionRoutingLayer) {
     $discussionRoutingSegment = New-VibeHostUserBriefingSegmentProjection -LifecycleLayer $discussionRoutingLayer
     $discussionRoutingEvent = New-VibeHostStageDisclosureEventProjection -Segment $discussionRoutingSegment
-    Add-VibeHostStageDisclosureEvent -SessionRoot ([string]$skeleton.session_root) -Event $discussionRoutingEvent | Out-Null
+    Add-VibeHostStageDisclosureEvent -SessionRoot ([string]$skeleton.session_root) -DisclosureEvent $discussionRoutingEvent | Out-Null
 }
 $interview = & (Join-Path $PSScriptRoot 'Invoke-DeepInterview.ps1') -Task $Task -Mode $Mode -RunId $RunId -ArtifactRoot $ArtifactRoot
 $stageLineage = Add-VibeStageLineageEntry `
@@ -172,7 +172,7 @@ if ($discussionConsultationLayer) {
         -LifecycleLayer $discussionConsultationLayer `
         -ConsultationReceipt $discussionConsultation.receipt
     $discussionConsultationEvent = New-VibeHostStageDisclosureEventProjection -Segment $discussionConsultationSegment
-    Add-VibeHostStageDisclosureEvent -SessionRoot ([string]$skeleton.session_root) -Event $discussionConsultationEvent | Out-Null
+    Add-VibeHostStageDisclosureEvent -SessionRoot ([string]$skeleton.session_root) -DisclosureEvent $discussionConsultationEvent | Out-Null
 }
 $requirementArgs = @{
     Task = $Task
@@ -229,7 +229,7 @@ if ($planningConsultationLayer) {
         -LifecycleLayer $planningConsultationLayer `
         -ConsultationReceipt $planningConsultation.receipt
     $planningConsultationEvent = New-VibeHostStageDisclosureEventProjection -Segment $planningConsultationSegment
-    Add-VibeHostStageDisclosureEvent -SessionRoot ([string]$skeleton.session_root) -Event $planningConsultationEvent | Out-Null
+    Add-VibeHostStageDisclosureEvent -SessionRoot ([string]$skeleton.session_root) -DisclosureEvent $planningConsultationEvent | Out-Null
 }
 $planArgs.PlanMemoryContextPath = $planMemoryContext.context_path
 $planArgs.DiscussionConsultationPath = $discussionConsultation.receipt_path

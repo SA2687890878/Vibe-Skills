@@ -25,6 +25,22 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'VibeConsultation.Common.ps1')
 . (Join-Path $PSScriptRoot '..\common\AntiProxyGoalDrift.ps1')
 
+function Get-VibeSelectedCapsuleList {
+    param(
+        [AllowNull()] [object]$ContextPack = $null
+    )
+
+    if (
+        $null -eq $ContextPack -or
+        -not ($ContextPack.PSObject.Properties.Name -contains 'selected_capsules') -or
+        $null -eq $ContextPack.selected_capsules
+    ) {
+        return @()
+    }
+
+    return @($ContextPack.selected_capsules | Where-Object { $null -ne $_ })
+}
+
 $runtime = Get-VibeRuntimeContext -ScriptPath $PSCommandPath
 if ([string]::IsNullOrWhiteSpace($RunId)) {
     $RunId = New-VibeRunId
@@ -63,12 +79,18 @@ $planMemoryContext = if (-not [string]::IsNullOrWhiteSpace($PlanMemoryContextPat
 } else {
     $null
 }
-$planningConsultation = if (-not [string]::IsNullOrWhiteSpace($PlanningConsultationPath) -and (Test-Path -LiteralPath $PlanningConsultationPath)) {
+$planningConsultation = if (-not [string]::IsNullOrWhiteSpace($PlanningConsultationPath)) {
+    if (-not (Test-Path -LiteralPath $PlanningConsultationPath)) {
+        throw ("Planning consultation receipt not found: {0}" -f $PlanningConsultationPath)
+    }
     Get-Content -LiteralPath $PlanningConsultationPath -Raw -Encoding UTF8 | ConvertFrom-Json
 } else {
     $null
 }
-$discussionConsultation = if (-not [string]::IsNullOrWhiteSpace($DiscussionConsultationPath) -and (Test-Path -LiteralPath $DiscussionConsultationPath)) {
+$discussionConsultation = if (-not [string]::IsNullOrWhiteSpace($DiscussionConsultationPath)) {
+    if (-not (Test-Path -LiteralPath $DiscussionConsultationPath)) {
+        throw ("Discussion consultation receipt not found: {0}" -f $DiscussionConsultationPath)
+    }
     Get-Content -LiteralPath $DiscussionConsultationPath -Raw -Encoding UTF8 | ConvertFrom-Json
 } else {
     $null
@@ -312,15 +334,16 @@ $lifecycleLines = Get-VibeSpecialistLifecycleDisclosureMarkdownLines `
 if (@($lifecycleLines).Count -gt 0) {
     $lines += @('', @($lifecycleLines))
 }
-if ($planMemoryContext -and @($planMemoryContext.items).Count -gt 0) {
+$selectedPlanMemoryCapsules = @(Get-VibeSelectedCapsuleList -ContextPack $planMemoryContext)
+if ($planMemoryContext -and ((@($planMemoryContext.items).Count -gt 0) -or (@($selectedPlanMemoryCapsules).Count -gt 0))) {
     $lines += @(
         '',
         '## Memory Context',
         'Bounded stage-aware memory context injected into execution planning:',
         ('- Disclosure level: {0}' -f [string]$planMemoryContext.disclosure_level)
     )
-    if ($planMemoryContext.PSObject.Properties.Name -contains 'selected_capsules' -and @($planMemoryContext.selected_capsules).Count -gt 0) {
-        foreach ($capsule in @($planMemoryContext.selected_capsules)) {
+    if (@($selectedPlanMemoryCapsules).Count -gt 0) {
+        foreach ($capsule in @($selectedPlanMemoryCapsules)) {
             $lines += @(
                 ('- Capsule [{0}] {1}' -f [string]$capsule.capsule_id, [string]$capsule.title),
                 ('  Owner: {0}' -f [string]$capsule.owner),
@@ -405,7 +428,7 @@ $receipt = [pscustomobject]@{
     planning_consultation_user_disclosure_count = if ($planningConsultation) { @($planningConsultation.user_disclosures).Count } else { 0 }
     plan_memory_context_path = $PlanMemoryContextPath
     plan_memory_disclosure_level = if ($planMemoryContext -and $planMemoryContext.PSObject.Properties.Name -contains 'disclosure_level') { [string]$planMemoryContext.disclosure_level } else { $null }
-    plan_memory_capsule_count = if ($planMemoryContext -and $planMemoryContext.PSObject.Properties.Name -contains 'selected_capsules') { @($planMemoryContext.selected_capsules).Count } else { 0 }
+    plan_memory_capsule_count = @($selectedPlanMemoryCapsules).Count
     execution_topology_path = $executionTopologyPath
     generated_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 }
