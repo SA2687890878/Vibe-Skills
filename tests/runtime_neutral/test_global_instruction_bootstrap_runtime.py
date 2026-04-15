@@ -110,3 +110,16 @@ class GlobalInstructionBootstrapRuntimeTests(unittest.TestCase):
             self.assertNotEqual(codex_receipt, opencode_receipt)
             self.assertEqual("codex", json.loads(codex_receipt.read_text(encoding="utf-8"))["host"])
             self.assertEqual("opencode", json.loads(opencode_receipt.read_text(encoding="utf-8"))["host"])
+
+    def test_shared_target_root_keeps_independent_codex_and_opencode_blocks(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            target_root = Path(tempdir)
+
+            run_package_install(host="codex", target_root=target_root)
+            run_package_install(host="opencode", target_root=target_root)
+
+            merged = (target_root / "AGENTS.md").read_text(encoding="utf-8")
+
+            self.assertEqual(2, merged.count("<!-- VIBESKILLS:BEGIN managed-block"))
+            self.assertIn("host=codex block=global-vibe-bootstrap", merged)
+            self.assertIn("host=opencode block=global-vibe-bootstrap", merged)

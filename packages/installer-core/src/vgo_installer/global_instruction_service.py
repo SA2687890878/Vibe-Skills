@@ -181,7 +181,11 @@ def inspect_global_instruction_bootstrap(target_root: Path, adapter: dict[str, o
     text = target_path.read_text(encoding="utf-8") if target_path.exists() else ""
     try:
         blocks = parse_managed_blocks(text) if target_path.exists() else []
-        matching = [block for block in blocks if block.block_id == surface.managed_block_id]
+        matching = [
+            block
+            for block in blocks
+            if block.block_id == surface.managed_block_id and block.host_id == host_id
+        ]
         duplicate_count = len(matching)
         corruption = False
     except ManagedBlockMutationError as exc:
@@ -222,7 +226,11 @@ def remove_global_instruction_bootstrap(
             _remove_receipts(target_root, surface=surface, host_id=host_id)
         return None
     existing_text = target_path.read_text(encoding="utf-8")
-    mutation = remove_managed_block_text(existing_text, block_id=surface.managed_block_id)
+    mutation = remove_managed_block_text(
+        existing_text,
+        block_id=surface.managed_block_id,
+        host_id=host_id,
+    )
     removed_file = mutation.action == "removed" and not mutation.text.strip() and allow_delete_empty_target
     if not preview:
         if mutation.action == "removed" and removed_file:

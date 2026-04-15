@@ -137,6 +137,22 @@ class InstalledRuntimeUninstallTests(unittest.TestCase):
         self.assertIn("AGENTS.md", payload["mutated_text_paths"])
         self.assertNotIn("AGENTS.md", payload["deleted_paths"])
 
+    def test_shared_target_root_codex_uninstall_preserves_opencode_block(self) -> None:
+        target_root = self.root / "shared-root-codex-opencode"
+
+        self.install_host("codex", target_root)
+        self.install_host("opencode", target_root)
+        before = (target_root / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("host=codex block=global-vibe-bootstrap", before)
+        self.assertIn("host=opencode block=global-vibe-bootstrap", before)
+
+        payload = self.uninstall_host("codex", target_root)
+
+        remaining = (target_root / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertNotIn("host=codex block=global-vibe-bootstrap", remaining)
+        self.assertIn("host=opencode block=global-vibe-bootstrap", remaining)
+        self.assertIn("AGENTS.md", payload["mutated_text_paths"])
+
     def test_claude_code_uninstall_removes_vibe_managed_surface(self) -> None:
         target_root = self.root / "claude-root"
         self.install_host("claude-code", target_root)

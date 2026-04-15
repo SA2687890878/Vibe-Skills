@@ -61,7 +61,7 @@ Do not claim the PR is repaired until the new regression tests fail first, pass 
 
 ## Autonomy Mode
 
-Interactive governed execution with local TDD-first bugfixing, bounded to the PR `#164` review-fix scope.
+Interactive governed execution with local TDD-first bug-fixing, bounded to the PR `#164` review-fix scope.
 
 ## Inferred Assumptions
 

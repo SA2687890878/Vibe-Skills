@@ -142,6 +142,13 @@ def _select_receipt(
     return None
 
 
+def _safe_int(value: object, default: int = 0) -> tuple[int, bool]:
+    try:
+        return int(value or default), False
+    except (TypeError, ValueError):
+        return default, True
+
+
 def inspect_global_instruction_bootstrap(
     target_root: Path,
     *,
@@ -160,18 +167,14 @@ def inspect_global_instruction_bootstrap(
         file_exists = bool(target_path and target_path.exists())
         text = target_path.read_text(encoding="utf-8") if target_path is not None and file_exists else ""
         blocks, corruption = _parse_bootstrap_blocks(text) if file_exists else ([], False)
-        managed_blocks = [block for block in blocks if block.get("block_id") == "global-vibe-bootstrap"]
-        parsed_hosts = {str(block.get("host_id") or "").strip() for block in managed_blocks if str(block.get("host_id") or "").strip()}
-        parsed_host = next(iter(parsed_hosts)) if len(parsed_hosts) == 1 else ""
-        effective_host = parsed_host or candidate_host
-        effective_surface = HOST_GLOBAL_INSTRUCTION_TARGETS.get(effective_host, candidate_surface)
-        receipt_entry = _select_receipt(receipts, host_id=effective_host or None, target_relpath=str(effective_surface["relpath"]))
+        receipt_entry = _select_receipt(receipts, host_id=candidate_host or None, target_relpath=str(candidate_surface["relpath"]))
         if receipt_entry is None:
-            receipt_entry = _select_receipt(receipts, host_id=None, target_relpath=str(effective_surface["relpath"]))
+            receipt_entry = _select_receipt(receipts, host_id=None, target_relpath=str(candidate_surface["relpath"]))
         receipt = receipt_entry["receipt"] if isinstance(receipt_entry, dict) else None
         receipt_path = receipt_entry["path"] if isinstance(receipt_entry, dict) else target_root / ".vibeskills" / "global-instruction-bootstrap.json"
         receipt_host = str(receipt.get("host") or "").strip() if isinstance(receipt, dict) else ""
-        effective_host = receipt_host or effective_host
+        effective_host = receipt_host or candidate_host
+        effective_surface = HOST_GLOBAL_INSTRUCTION_TARGETS.get(effective_host, candidate_surface)
         documented_path = (
             str(receipt.get("documented_path") or "").strip()
             if isinstance(receipt, dict)
@@ -182,12 +185,18 @@ def inspect_global_instruction_bootstrap(
             if isinstance(receipt, dict) and str(receipt.get("target_relpath") or "").strip()
             else str(effective_surface["relpath"])
         )
+        managed_blocks = [
+            block
+            for block in blocks
+            if block.get("block_id") == "global-vibe-bootstrap"
+            and str(block.get("host_id") or "").strip() == effective_host
+        ]
         duplicate_count = len(managed_blocks)
         applicable = bool(receipt or managed_blocks or corruption)
         block_id = str(receipt.get("block_id") or "global-vibe-bootstrap").strip() if isinstance(receipt, dict) else "global-vibe-bootstrap"
-        template_version = int(receipt.get("template_version") or 0) if isinstance(receipt, dict) else 0
+        template_version, receipt_invalid = _safe_int(receipt.get("template_version") if isinstance(receipt, dict) else 0)
         content_hash = str(receipt.get("content_hash") or "").strip() if isinstance(receipt, dict) else ""
-        healthy = applicable and bool(receipt) and file_exists and not corruption and duplicate_count == 1
+        healthy = applicable and bool(receipt) and file_exists and not corruption and not receipt_invalid and duplicate_count == 1
         if not applicable:
             status = "not_applicable"
         elif healthy:

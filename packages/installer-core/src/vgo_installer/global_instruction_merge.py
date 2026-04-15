@@ -40,6 +40,19 @@ class ParsedManagedBlock:
     raw: str
 
 
+def _matching_blocks(
+    blocks: list[ParsedManagedBlock],
+    *,
+    block_id: str,
+    host_id: str | None,
+) -> list[ParsedManagedBlock]:
+    return [
+        block
+        for block in blocks
+        if block.block_id == block_id and (host_id is None or block.host_id == host_id)
+    ]
+
+
 def compute_content_hash(body: str) -> str:
     normalized = normalize_body(body).encode("utf-8")
     return hashlib.sha256(normalized).hexdigest()[:16]
@@ -121,7 +134,7 @@ def merge_managed_block_text(
 ) -> ManagedBlockMutation:
     source = (existing_text or "").replace("\r\n", "\n").replace("\r", "\n")
     blocks = parse_managed_blocks(source)
-    matching = [block for block in blocks if block.block_id == block_id]
+    matching = _matching_blocks(blocks, block_id=block_id, host_id=host_id)
     if len(matching) > 1:
         raise ManagedBlockMutationError("error_duplicate_managed_blocks", "duplicate managed block detected")
 
@@ -168,10 +181,11 @@ def remove_managed_block_text(
     existing_text: str,
     *,
     block_id: str,
+    host_id: str | None = None,
 ) -> ManagedBlockMutation:
     source = existing_text.replace("\r\n", "\n").replace("\r", "\n")
     blocks = parse_managed_blocks(source)
-    matching = [block for block in blocks if block.block_id == block_id]
+    matching = _matching_blocks(blocks, block_id=block_id, host_id=host_id)
     if len(matching) > 1:
         raise ManagedBlockMutationError("error_duplicate_managed_blocks", "duplicate managed block detected")
     if not matching:
