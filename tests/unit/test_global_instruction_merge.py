@@ -16,7 +16,9 @@ for src in (INSTALLER_CORE_SRC, CONTRACTS_SRC):
 from vgo_installer.global_instruction_merge import (  # type: ignore[attr-defined]
     ManagedBlockMutationError,
     merge_managed_block_text,
+    parse_managed_blocks,
     remove_managed_block_text,
+    render_managed_block,
 )
 
 
@@ -136,6 +138,27 @@ def test_merge_managed_block_rejects_corrupted_delimiters() -> None:
             block_id="global-vibe-bootstrap",
             version=1,
         )
+
+
+def test_parse_managed_blocks_ignores_literal_end_marker_inside_user_markdown() -> None:
+    block, _ = render_managed_block(
+        body="Use canonical vibe for explicit $vibe and /vibe.",
+        host_id="codex",
+        block_id="global-vibe-bootstrap",
+        version=1,
+    )
+    mixed_text = (
+        block
+        + "\n# User notes\n\n```md\n"
+        + "<!-- VIBESKILLS:END managed-block -->\n"
+        + "```\n"
+    )
+
+    parsed = parse_managed_blocks(mixed_text)
+
+    assert len(parsed) == 1
+    assert parsed[0].block_id == "global-vibe-bootstrap"
+    assert parsed[0].host_id == "codex"
 
 
 def test_remove_managed_block_only_removes_owned_block() -> None:

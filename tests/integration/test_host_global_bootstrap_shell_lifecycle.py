@@ -32,6 +32,11 @@ class HostGlobalBootstrapShellLifecycleTests(unittest.TestCase):
             check=True,
         )
 
+    def bootstrap_receipt_path(self, target_root: Path) -> Path:
+        matches = sorted((target_root / ".vibeskills").glob("global-instruction-bootstrap*.json"))
+        self.assertTrue(matches)
+        return matches[0]
+
     def run_check(self, host: str, target_root: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
@@ -127,7 +132,7 @@ class HostGlobalBootstrapShellLifecycleTests(unittest.TestCase):
                     self.assertIn("/vibe", merged)
                     self.assertIn("canonical `vibe`", merged)
 
-                    receipt_path = target_root / ".vibeskills" / "global-instruction-bootstrap.json"
+                    receipt_path = self.bootstrap_receipt_path(target_root)
                     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
                     self.assertEqual(case["host"], receipt["host"])
                     self.assertEqual(case["instruction_relpath"], receipt["target_relpath"])
@@ -150,7 +155,7 @@ class HostGlobalBootstrapShellLifecycleTests(unittest.TestCase):
                     self.run_install(case["host"], target_root)
 
                     merged_again = instruction_path.read_text(encoding="utf-8")
-                    receipt_again = json.loads(receipt_path.read_text(encoding="utf-8"))
+                    receipt_again = json.loads(self.bootstrap_receipt_path(target_root).read_text(encoding="utf-8"))
                     self.assertEqual(1, merged_again.count(BEGIN_MARKER))
                     self.assertEqual("unchanged", receipt_again["action"])
 

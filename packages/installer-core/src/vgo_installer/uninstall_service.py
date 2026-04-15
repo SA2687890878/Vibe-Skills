@@ -589,16 +589,16 @@ def apply_uninstall(
         )
 
     for rel, config in managed_text_blocks.items():
-        created_if_absent = bool(config.get("created_if_absent", False))
         removal = remove_global_instruction_bootstrap(
             target_root,
             adapter,
+            allow_delete_empty_target=bool(config.get("created_if_absent", False)),
             preview=preview,
         )
         if not isinstance(removal, dict):
             continue
         if removal.get("action") == "removed":
-            if removal.get("removed_file") or created_if_absent:
+            if removal.get("removed_file"):
                 deleted_paths.append(rel)
             else:
                 mutated_text_paths.append(rel)

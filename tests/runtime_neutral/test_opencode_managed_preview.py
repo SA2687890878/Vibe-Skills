@@ -45,7 +45,7 @@ class OpenCodeManagedPreviewTests(unittest.TestCase):
             target_root = Path(tempdir)
             _, payload = run_package_install(host="opencode", target_root=target_root)
             closure_path = target_root / ".vibeskills" / "host-closure.json"
-            bootstrap_receipt_path = target_root / ".vibeskills" / "global-instruction-bootstrap.json"
+            bootstrap_receipt_path = Path(str(payload["global_instruction_bootstrap_receipt"]))
             agents_path = target_root / "AGENTS.md"
             settings_path = target_root / "opencode.json"
             example_path = target_root / "opencode.json.example"

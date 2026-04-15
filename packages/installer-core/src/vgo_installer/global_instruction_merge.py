@@ -10,6 +10,7 @@ BEGIN_PATTERN = re.compile(
     r"^<!-- VIBESKILLS:BEGIN managed-block host=(?P<host>\S+) block=(?P<block>\S+) version=(?P<version>\d+) hash=(?P<hash>[a-f0-9]+) -->$",
     re.MULTILINE,
 )
+END_PATTERN = re.compile(r"^<!-- VIBESKILLS:END managed-block -->$", re.MULTILINE)
 
 
 class ManagedBlockMutationError(ValueError):
@@ -63,21 +64,24 @@ def render_managed_block(*, body: str, host_id: str, block_id: str, version: int
 def parse_managed_blocks(text: str) -> list[ParsedManagedBlock]:
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     begin_matches = list(BEGIN_PATTERN.finditer(normalized))
-    end_count = normalized.count(END_MARKER)
-    if not begin_matches and end_count == 0:
+    if not begin_matches:
         return []
-    if len(begin_matches) != end_count:
-        raise ManagedBlockMutationError("error_corrupt_managed_block", "corrupt managed block delimiters")
 
     blocks: list[ParsedManagedBlock] = []
     search_from = 0
-    for match in begin_matches:
+    for index, match in enumerate(begin_matches):
         if match.start() < search_from:
             raise ManagedBlockMutationError("error_corrupt_managed_block", "corrupt managed block nesting")
-        end_index = normalized.find(END_MARKER, match.end())
-        if end_index == -1:
+        next_begin_start = begin_matches[index + 1].start() if index + 1 < len(begin_matches) else None
+        end_match = None
+        for candidate in END_PATTERN.finditer(normalized, match.end()):
+            if next_begin_start is not None and candidate.start() > next_begin_start:
+                break
+            end_match = candidate
+            break
+        if end_match is None:
             raise ManagedBlockMutationError("error_corrupt_managed_block", "corrupt managed block terminator")
-        block_end = end_index + len(END_MARKER)
+        block_end = end_match.end()
         if block_end < len(normalized) and normalized[block_end:block_end + 1] == "\n":
             block_end += 1
         blocks.append(

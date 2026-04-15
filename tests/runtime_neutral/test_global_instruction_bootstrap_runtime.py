@@ -47,7 +47,7 @@ class GlobalInstructionBootstrapRuntimeTests(unittest.TestCase):
             _, payload = run_package_install(host="codex", target_root=target_root)
 
             bootstrap_path = target_root / "AGENTS.md"
-            receipt_path = target_root / ".vibeskills" / "global-instruction-bootstrap.json"
+            receipt_path = Path(str(payload["global_instruction_bootstrap_receipt"]))
             self.assertTrue(bootstrap_path.exists())
             self.assertTrue(receipt_path.exists())
             self.assertEqual("codex", payload["host_id"])
@@ -60,7 +60,7 @@ class GlobalInstructionBootstrapRuntimeTests(unittest.TestCase):
             run_package_install(host="codex", target_root=target_root)
             _, payload = run_package_install(host="codex", target_root=target_root)
 
-            receipt_path = target_root / ".vibeskills" / "global-instruction-bootstrap.json"
+            receipt_path = Path(str(payload["global_instruction_bootstrap_receipt"]))
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
             bootstrap_text = (target_root / "AGENTS.md").read_text(encoding="utf-8")
             self.assertEqual("unchanged", receipt["action"])
@@ -94,3 +94,19 @@ class GlobalInstructionBootstrapRuntimeTests(unittest.TestCase):
             self.assertIn("# Existing OpenCode rules", agents_path.read_text(encoding="utf-8"))
             self.assertEqual(1, agents_path.read_text(encoding="utf-8").count("<!-- VIBESKILLS:BEGIN managed-block"))
             self.assertEqual(original, json.loads(real_config.read_text(encoding="utf-8")))
+
+    def test_bootstrap_receipts_are_scoped_per_host_surface_with_shared_target_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            target_root = Path(tempdir)
+
+            _, codex_payload = run_package_install(host="codex", target_root=target_root)
+            _, opencode_payload = run_package_install(host="opencode", target_root=target_root)
+
+            codex_receipt = Path(str(codex_payload["global_instruction_bootstrap_receipt"]))
+            opencode_receipt = Path(str(opencode_payload["global_instruction_bootstrap_receipt"]))
+
+            self.assertTrue(codex_receipt.exists())
+            self.assertTrue(opencode_receipt.exists())
+            self.assertNotEqual(codex_receipt, opencode_receipt)
+            self.assertEqual("codex", json.loads(codex_receipt.read_text(encoding="utf-8"))["host"])
+            self.assertEqual("opencode", json.loads(opencode_receipt.read_text(encoding="utf-8"))["host"])
