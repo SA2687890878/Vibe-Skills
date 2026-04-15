@@ -594,6 +594,206 @@ function New-VibeRuntimePacketAuthorityFlagsProjection {
     }
 }
 
+function Get-VibeSpecialistDecisionSidecarPath {
+    param(
+        [Parameter(Mandatory)] [string]$SessionRoot
+    )
+
+    return Join-Path $SessionRoot 'specialist-decision.json'
+}
+
+function Get-VibeOptionalSpecialistDecisionOverride {
+    param(
+        [AllowEmptyString()] [string]$SessionRoot
+    )
+
+    if ([string]::IsNullOrWhiteSpace($SessionRoot)) {
+        return $null
+    }
+
+    $path = Get-VibeSpecialistDecisionSidecarPath -SessionRoot $SessionRoot
+    if (-not (Test-Path -LiteralPath $path)) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        path = [string]$path
+        payload = (Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json)
+    }
+}
+
+function New-VibeSpecialistDecisionProjection {
+    param(
+        [AllowNull()] [object]$RuntimeInputPacket = $null,
+        [AllowEmptyCollection()] [AllowNull()] [object[]]$ApprovedDispatch = @(),
+        [AllowEmptyCollection()] [AllowNull()] [object[]]$LocalSuggestions = @(),
+        [AllowEmptyCollection()] [AllowNull()] [object[]]$BlockedDispatch = @(),
+        [AllowEmptyCollection()] [AllowNull()] [object[]]$DegradedDispatch = @(),
+        [int]$RecommendationCount = -1,
+        [AllowNull()] [object]$OverridePayload = $null,
+        [AllowEmptyString()] [string]$OverrideSourcePath = ''
+    )
+
+    $dispatchSource = if (
+        $null -ne $RuntimeInputPacket -and
+        (Test-VibeObjectHasProperty -InputObject $RuntimeInputPacket -PropertyName 'specialist_dispatch') -and
+        $null -ne $RuntimeInputPacket.specialist_dispatch
+    ) {
+        $RuntimeInputPacket.specialist_dispatch
+    } else {
+        $null
+    }
+
+    $approvedDispatchArray = if (@($ApprovedDispatch).Count -gt 0) {
+        @($ApprovedDispatch)
+    } elseif ($null -ne $dispatchSource -and (Test-VibeObjectHasProperty -InputObject $dispatchSource -PropertyName 'approved_dispatch')) {
+        @($dispatchSource.approved_dispatch)
+    } else {
+        @()
+    }
+    $localSuggestionArray = if (@($LocalSuggestions).Count -gt 0) {
+        @($LocalSuggestions)
+    } elseif ($null -ne $dispatchSource -and (Test-VibeObjectHasProperty -InputObject $dispatchSource -PropertyName 'local_specialist_suggestions')) {
+        @($dispatchSource.local_specialist_suggestions)
+    } else {
+        @()
+    }
+    $blockedDispatchArray = if (@($BlockedDispatch).Count -gt 0) {
+        @($BlockedDispatch)
+    } elseif ($null -ne $dispatchSource -and (Test-VibeObjectHasProperty -InputObject $dispatchSource -PropertyName 'blocked')) {
+        @($dispatchSource.blocked)
+    } else {
+        @()
+    }
+    $degradedDispatchArray = if (@($DegradedDispatch).Count -gt 0) {
+        @($DegradedDispatch)
+    } elseif ($null -ne $dispatchSource -and (Test-VibeObjectHasProperty -InputObject $dispatchSource -PropertyName 'degraded')) {
+        @($dispatchSource.degraded)
+    } else {
+        @()
+    }
+
+    $approvedDispatchSkillIds = @($approvedDispatchArray | ForEach-Object {
+        if ($null -ne $_ -and (Test-VibeObjectHasProperty -InputObject $_ -PropertyName 'skill_id')) { [string]$_.skill_id } else { '' }
+    } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    $localSuggestionSkillIds = if ($null -ne $dispatchSource -and (Test-VibeObjectHasProperty -InputObject $dispatchSource -PropertyName 'local_suggestion_skill_ids') -and @($dispatchSource.local_suggestion_skill_ids).Count -gt 0) {
+        @($dispatchSource.local_suggestion_skill_ids | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    } else {
+        @($localSuggestionArray | ForEach-Object {
+            if ($null -ne $_ -and (Test-VibeObjectHasProperty -InputObject $_ -PropertyName 'skill_id')) { [string]$_.skill_id } else { '' }
+        } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    }
+    $blockedSkillIds = if ($null -ne $dispatchSource -and (Test-VibeObjectHasProperty -InputObject $dispatchSource -PropertyName 'blocked_skill_ids') -and @($dispatchSource.blocked_skill_ids).Count -gt 0) {
+        @($dispatchSource.blocked_skill_ids | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    } else {
+        @($blockedDispatchArray | ForEach-Object {
+            if ($null -ne $_ -and (Test-VibeObjectHasProperty -InputObject $_ -PropertyName 'skill_id')) { [string]$_.skill_id } else { '' }
+        } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    }
+    $degradedSkillIds = if ($null -ne $dispatchSource -and (Test-VibeObjectHasProperty -InputObject $dispatchSource -PropertyName 'degraded_skill_ids') -and @($dispatchSource.degraded_skill_ids).Count -gt 0) {
+        @($dispatchSource.degraded_skill_ids | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    } else {
+        @($degradedDispatchArray | ForEach-Object {
+            if ($null -ne $_ -and (Test-VibeObjectHasProperty -InputObject $_ -PropertyName 'skill_id')) { [string]$_.skill_id } else { '' }
+        } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    }
+    $matchedSkillIds = if ($null -ne $dispatchSource -and (Test-VibeObjectHasProperty -InputObject $dispatchSource -PropertyName 'matched_skill_ids')) {
+        @($dispatchSource.matched_skill_ids | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    } else {
+        @()
+    }
+    $surfacedSkillIds = if ($null -ne $dispatchSource -and (Test-VibeObjectHasProperty -InputObject $dispatchSource -PropertyName 'surfaced_skill_ids')) {
+        @($dispatchSource.surfaced_skill_ids | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    } else {
+        @()
+    }
+    $recommendationCountResolved = if ($RecommendationCount -ge 0) {
+        [int]$RecommendationCount
+    } elseif ($null -ne $RuntimeInputPacket -and (Test-VibeObjectHasProperty -InputObject $RuntimeInputPacket -PropertyName 'specialist_recommendations')) {
+        @($RuntimeInputPacket.specialist_recommendations).Count
+    } else {
+        @($surfacedSkillIds).Count
+    }
+
+    $decisionState = if (@($approvedDispatchSkillIds).Count -gt 0) {
+        'approved_dispatch'
+    } elseif (@($degradedSkillIds).Count -gt 0) {
+        'degraded'
+    } elseif (@($blockedSkillIds).Count -gt 0) {
+        'blocked'
+    } elseif (@($localSuggestionSkillIds).Count -gt 0) {
+        'local_suggestion_only'
+    } else {
+        'no_specialist_recommendations'
+    }
+
+    $resolutionMode = switch ($decisionState) {
+        'approved_dispatch' { 'approved_dispatch' }
+        'degraded' { 'degraded' }
+        'blocked' { 'blocked' }
+        'local_suggestion_only' { 'local_suggestion_only' }
+        default { 'pending_resolution' }
+    }
+    $resolutionNotes = switch ($decisionState) {
+        'approved_dispatch' { 'Bounded specialist recommendations were surfaced and auto-promoted into approved dispatch.' }
+        'degraded' { 'Specialist recommendations existed, but execution remained explicitly degraded before live native dispatch closed cleanly.' }
+        'blocked' { 'Specialist recommendations existed, but execution stayed blocked before live native dispatch could proceed.' }
+        'local_suggestion_only' { 'Residual local specialist suggestions remained advisory and require explicit escalation before execution.' }
+        default { 'No bounded specialist recommendations were frozen for this run; execution must explicitly resolve whether no specialist was needed or a repo-asset fallback was used.' }
+    }
+
+    $repoAssetFallback = [pscustomobject]@{
+        used = $false
+        asset_paths = @()
+        reason = ''
+        legal_basis = ''
+        traceability_basis = @()
+    }
+
+    if ($null -ne $OverridePayload) {
+        if ((Test-VibeObjectHasProperty -InputObject $OverridePayload -PropertyName 'decision_state') -and -not [string]::IsNullOrWhiteSpace([string]$OverridePayload.decision_state)) {
+            $decisionState = [string]$OverridePayload.decision_state
+        }
+        if ((Test-VibeObjectHasProperty -InputObject $OverridePayload -PropertyName 'resolution_mode') -and -not [string]::IsNullOrWhiteSpace([string]$OverridePayload.resolution_mode)) {
+            $resolutionMode = [string]$OverridePayload.resolution_mode
+        }
+        if ((Test-VibeObjectHasProperty -InputObject $OverridePayload -PropertyName 'notes') -and -not [string]::IsNullOrWhiteSpace([string]$OverridePayload.notes)) {
+            $resolutionNotes = [string]$OverridePayload.notes
+        }
+        if ((Test-VibeObjectHasProperty -InputObject $OverridePayload -PropertyName 'repo_asset_fallback') -and $null -ne $OverridePayload.repo_asset_fallback) {
+            $repoAssetFallbackSource = $OverridePayload.repo_asset_fallback
+            $repoAssetFallbackAssetPaths = if (Test-VibeObjectHasProperty -InputObject $repoAssetFallbackSource -PropertyName 'asset_paths') {
+                @($repoAssetFallbackSource.asset_paths | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+            } else {
+                @()
+            }
+            $repoAssetFallback = [pscustomobject]@{
+                used = if (Test-VibeObjectHasProperty -InputObject $repoAssetFallbackSource -PropertyName 'used') { [bool]$repoAssetFallbackSource.used } else { @($repoAssetFallbackAssetPaths).Count -gt 0 }
+                asset_paths = @($repoAssetFallbackAssetPaths)
+                reason = if ((Test-VibeObjectHasProperty -InputObject $repoAssetFallbackSource -PropertyName 'reason') -and -not [string]::IsNullOrWhiteSpace([string]$repoAssetFallbackSource.reason)) { [string]$repoAssetFallbackSource.reason } else { '' }
+                legal_basis = if ((Test-VibeObjectHasProperty -InputObject $repoAssetFallbackSource -PropertyName 'legal_basis') -and -not [string]::IsNullOrWhiteSpace([string]$repoAssetFallbackSource.legal_basis)) { [string]$repoAssetFallbackSource.legal_basis } else { '' }
+                traceability_basis = @($repoAssetFallbackSource.traceability_basis | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        decision_state = $decisionState
+        resolution_mode = $resolutionMode
+        recommendation_count = [int]$recommendationCountResolved
+        matched_skill_ids = @($matchedSkillIds)
+        surfaced_skill_ids = @($surfacedSkillIds)
+        approved_dispatch_skill_ids = @($approvedDispatchSkillIds)
+        local_suggestion_skill_ids = @($localSuggestionSkillIds)
+        blocked_skill_ids = @($blockedSkillIds)
+        degraded_skill_ids = @($degradedSkillIds)
+        repo_asset_fallback = $repoAssetFallback
+        notes = $resolutionNotes
+        source = if ([string]::IsNullOrWhiteSpace($OverrideSourcePath)) { 'runtime_structural_projection' } else { 'runtime_structural_projection_plus_sidecar' }
+        override_source_path = if ([string]::IsNullOrWhiteSpace($OverrideSourcePath)) { $null } else { [string]$OverrideSourcePath }
+    }
+}
+
 function New-VibeRuntimeInputPacketProjection {
     param(
         [Parameter(Mandatory)] [string]$RunId,
@@ -639,6 +839,13 @@ function New-VibeRuntimeInputPacketProjection {
     } else {
         $null
     }
+
+    $packetSpecialistDecision = New-VibeSpecialistDecisionProjection `
+        -ApprovedDispatch @($SpecialistDispatch.approved_dispatch) `
+        -LocalSuggestions @($SpecialistDispatch.local_specialist_suggestions) `
+        -BlockedDispatch $(if ($SpecialistDispatch.PSObject.Properties.Name -contains 'blocked' -and $null -ne $SpecialistDispatch.blocked) { @($SpecialistDispatch.blocked) } else { @() }) `
+        -DegradedDispatch $(if ($SpecialistDispatch.PSObject.Properties.Name -contains 'degraded' -and $null -ne $SpecialistDispatch.degraded) { @($SpecialistDispatch.degraded) } else { @() }) `
+        -RecommendationCount @($SpecialistRecommendations).Count
 
     return [pscustomobject]@{
         stage = 'runtime_input_freeze'
@@ -694,6 +901,7 @@ function New-VibeRuntimeInputPacketProjection {
             approval_owner = if ($Policy.child_specialist_suggestion_contract.PSObject.Properties.Name -contains 'approval_owner') { [string]$Policy.child_specialist_suggestion_contract.approval_owner } else { 'root_vibe' }
             status = if ($Policy.child_specialist_suggestion_contract.PSObject.Properties.Name -contains 'status') { [string]$Policy.child_specialist_suggestion_contract.status } else { 'auto_promote_when_safe_same_round' }
         }
+        specialist_decision = $packetSpecialistDecision
         overlay_decisions = @($OverlayDecisions)
         authority_flags = $AuthorityFlagsProjection
         storage = $StorageProjection
@@ -1898,6 +2106,7 @@ function New-VibeRuntimeSummaryProjection {
         [AllowNull()] [object]$StorageProjection = $null,
         [AllowNull()] [object]$MemoryActivationReport,
         [AllowNull()] [object]$DeliveryAcceptanceReport,
+        [AllowNull()] [object]$SpecialistDecision = $null,
         [AllowNull()] [object]$SpecialistUserDisclosure = $null,
         [AllowNull()] [object]$SpecialistConsultation = $null,
         [AllowNull()] [object]$SpecialistLifecycleDisclosure = $null,
@@ -1920,6 +2129,7 @@ function New-VibeRuntimeSummaryProjection {
         storage = $StorageProjection
         memory_activation = New-VibeRuntimeSummaryMemoryActivationProjection -MemoryActivationReport $MemoryActivationReport
         delivery_acceptance = New-VibeRuntimeSummaryDeliveryAcceptanceProjection -DeliveryAcceptanceReport $DeliveryAcceptanceReport
+        specialist_decision = $SpecialistDecision
         specialist_user_disclosure = $SpecialistUserDisclosure
         specialist_consultation = $SpecialistConsultation
         specialist_lifecycle_disclosure = $SpecialistLifecycleDisclosure
