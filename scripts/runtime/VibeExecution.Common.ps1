@@ -1201,6 +1201,7 @@ function Get-VibeObservedChangedPaths {
 
     $resolvedRoot = [System.IO.Path]::GetFullPath($SnapshotRoot)
     $ignoredRelativePaths = New-Object System.Collections.Generic.List[string]
+    $ignoreRootSubtree = $false
     foreach ($ignoredPath in @($IgnoredPaths)) {
         if ([string]::IsNullOrWhiteSpace([string]$ignoredPath)) {
             continue
@@ -1211,6 +1212,7 @@ function Get-VibeObservedChangedPaths {
             continue
         }
         if ([System.StringComparer]::OrdinalIgnoreCase.Equals($resolvedRoot, $resolvedIgnoredPath)) {
+            $ignoreRootSubtree = $true
             continue
         }
 
@@ -1221,6 +1223,10 @@ function Get-VibeObservedChangedPaths {
         if (-not $ignoredRelativePaths.Contains($relativePath)) {
             $ignoredRelativePaths.Add($relativePath) | Out-Null
         }
+    }
+
+    if ($ignoreRootSubtree) {
+        return @()
     }
 
     $beforeEntries = if ($null -ne $BeforeSnapshot -and (Test-VibeObjectHasProperty -InputObject $BeforeSnapshot -PropertyName 'entries') -and $null -ne $BeforeSnapshot.entries) {
