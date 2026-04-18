@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import locale
+import os
 import subprocess
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -35,7 +36,25 @@ def _preview_stream(value: bytes | str | None) -> str | None:
     if value in (None, b"", ""):
         return None
     if isinstance(value, bytes):
-        text = value.decode("utf-8", errors="replace")
+        if value.startswith(b"\xff\xfe"):
+            text = value.decode("utf-16", errors="replace")
+        elif value.startswith(b"\xfe\xff"):
+            text = value.decode("utf-16-be", errors="replace")
+        else:
+            preview_encodings = ["utf-8-sig", str(locale.getpreferredencoding(False) or "").strip(), "latin-1"]
+            text = ""
+            for encoding in preview_encodings:
+                normalized = encoding.strip()
+                if not normalized:
+                    continue
+                try:
+                    text = value.decode(normalized, errors="replace")
+                except LookupError:
+                    continue
+                break
+            if not text:
+                text = value.decode("latin-1", errors="replace")
+        text = text.replace("\x00", "")
     else:
         text = value
     flattened = " ".join(text.split())
@@ -44,6 +63,28 @@ def _preview_stream(value: bytes | str | None) -> str | None:
     if len(flattened) > 160:
         return flattened[:157] + "..."
     return flattened
+
+
+def _resolve_bridge_timeout(timeout: float | None) -> float | None:
+    if timeout is not None:
+        return timeout
+    raw = str(os.environ.get("VGO_POWERSHELL_BRIDGE_TIMEOUT_SECONDS") or "").strip()
+    if not raw:
+        return 300.0
+    try:
+        resolved = float(raw)
+    except ValueError:
+        return 300.0
+    if resolved <= 0:
+        return None
+    return resolved
+
+
+def _command_preview(command: Sequence[str]) -> str:
+    preview = " ".join(str(part) for part in command[:8]).strip()
+    if len(command) > 8:
+        preview += " ..."
+    return preview
 
 
 def _decode_json_object_stdout(
@@ -115,16 +156,29 @@ def run_powershell_json_command(
     cwd: Path,
     bridge_label: str,
     env: Mapping[str, str] | None = None,
+    timeout: float | None = None,
 ) -> dict[str, Any]:
-    completed = subprocess.run(
-        list(command),
-        cwd=cwd,
-        capture_output=True,
-        check=False,
-        env=dict(env) if env is not None else None,
-    )
+    resolved_timeout = _resolve_bridge_timeout(timeout)
+    try:
+        completed = subprocess.run(
+            list(command),
+            cwd=cwd,
+            capture_output=True,
+            check=False,
+            env=dict(env) if env is not None else None,
+            timeout=resolved_timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        detail_parts = [f"timeout={resolved_timeout}s", f"cwd={cwd}", f"command={_command_preview(command)}"]
+        stdout_preview = _preview_stream(exc.stdout)
+        stderr_preview = _preview_stream(exc.stderr)
+        if stdout_preview:
+            detail_parts.append(f"stdout={stdout_preview}")
+        if stderr_preview:
+            detail_parts.append(f"stderr={stderr_preview}")
+        raise RuntimeError(f"{bridge_label} timed out ({'; '.join(detail_parts)})") from exc
     if completed.returncode != 0:
-        detail_parts = [f"exit={completed.returncode}"]
+        detail_parts = [f"exit={completed.returncode}", f"cwd={cwd}", f"command={_command_preview(command)}"]
         stdout_preview = _preview_stream(completed.stdout)
         stderr_preview = _preview_stream(completed.stderr)
         if stdout_preview:
