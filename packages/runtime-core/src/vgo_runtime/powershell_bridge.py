@@ -10,6 +10,14 @@ from typing import Any, Mapping, Sequence
 
 
 LOGGER = logging.getLogger(__name__)
+SENSITIVE_COMMAND_FLAGS = frozenset(
+    {
+        "-task",
+        "-prompt",
+        "--task",
+        "--prompt",
+    }
+)
 
 
 def _preferred_bridge_encodings() -> tuple[str, ...]:
@@ -105,10 +113,39 @@ def _resolve_bridge_timeout(timeout: float | None) -> float | None:
 
 
 def _command_preview(command: Sequence[str]) -> str:
-    preview = " ".join(str(part) for part in command[:8]).strip()
-    if len(command) > 8:
-        preview += " ..."
-    return preview
+    parts = [str(part) for part in command]
+    if not parts:
+        return ""
+
+    executable = Path(parts[0]).name or parts[0]
+    script_name: str | None = None
+    for index, part in enumerate(parts[1:], start=1):
+        lowered = part.lower()
+        if lowered in {"-file", "--file"} and index + 1 < len(parts):
+            script_name = Path(parts[index + 1]).name or parts[index + 1]
+            break
+        if lowered.endswith((".ps1", ".py", ".sh", ".cmd", ".bat")):
+            script_name = Path(part).name or part
+            break
+
+    arg_count = max(len(parts) - 1, 0)
+    if script_name:
+        return f"{executable} ... {script_name} ({arg_count} args)"
+    if len(parts) > 2:
+        return f"{executable} ({arg_count} args)"
+
+    redacted: list[str] = []
+    redact_next = False
+    for part in parts:
+        lowered = part.lower()
+        if redact_next:
+            redacted.append("<redacted>")
+            redact_next = False
+            continue
+        redacted.append(part)
+        if lowered in SENSITIVE_COMMAND_FLAGS:
+            redact_next = True
+    return " ".join(redacted)
 
 
 def _build_stream_detail(
