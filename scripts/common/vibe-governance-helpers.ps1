@@ -703,32 +703,61 @@ function Get-VgoPowerShellCommand {
     throw 'Unable to resolve a PowerShell host for governed sub-process execution.'
 }
 
+function Test-VgoWindowsAppsPythonStubPath {
+    param(
+        [AllowEmptyString()] [string]$Path,
+        [AllowEmptyString()] [string]$CommandName = ''
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $false
+    }
+
+    $normalizedCommand = if ($null -eq $CommandName) { '' } else { ([string]$CommandName).Trim().ToLowerInvariant() }
+    if ($normalizedCommand -notin @('python', 'python3')) {
+        return $false
+    }
+
+    $normalizedPath = [string]$Path
+    return $normalizedPath -match '(^|[\\/])Microsoft[\\/]WindowsApps[\\/].*python3?(\.(exe|cmd|bat))?$'
+}
+
+function Resolve-VgoPythonCandidate {
+    param(
+        [Parameter(Mandatory)] [string]$CommandName,
+        [string[]]$PrefixArguments = @()
+    )
+
+    $resolved = Get-Command $CommandName -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
+    if ([string]::IsNullOrWhiteSpace($resolved) -or -not (Test-Path -LiteralPath $resolved)) {
+        return $null
+    }
+
+    if (Test-VgoWindowsAppsPythonStubPath -Path $resolved -CommandName $CommandName) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        host_path = [System.IO.Path]::GetFullPath($resolved)
+        host_leaf = [System.IO.Path]::GetFileName($resolved).ToLowerInvariant()
+        prefix_arguments = @($PrefixArguments)
+    }
+}
+
 function Get-VgoPythonCommand {
-    $python = Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
-    if (-not [string]::IsNullOrWhiteSpace($python) -and (Test-Path -LiteralPath $python)) {
-        return [pscustomobject]@{
-            host_path = [System.IO.Path]::GetFullPath($python)
-            host_leaf = [System.IO.Path]::GetFileName($python).ToLowerInvariant()
-            prefix_arguments = @()
-        }
+    $python = Resolve-VgoPythonCandidate -CommandName 'python'
+    if ($null -ne $python) {
+        return $python
     }
 
-    $python3 = Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
-    if (-not [string]::IsNullOrWhiteSpace($python3) -and (Test-Path -LiteralPath $python3)) {
-        return [pscustomobject]@{
-            host_path = [System.IO.Path]::GetFullPath($python3)
-            host_leaf = [System.IO.Path]::GetFileName($python3).ToLowerInvariant()
-            prefix_arguments = @()
-        }
+    $python3 = Resolve-VgoPythonCandidate -CommandName 'python3'
+    if ($null -ne $python3) {
+        return $python3
     }
 
-    $pyLauncher = Get-Command py -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
-    if (-not [string]::IsNullOrWhiteSpace($pyLauncher) -and (Test-Path -LiteralPath $pyLauncher)) {
-        return [pscustomobject]@{
-            host_path = [System.IO.Path]::GetFullPath($pyLauncher)
-            host_leaf = [System.IO.Path]::GetFileName($pyLauncher).ToLowerInvariant()
-            prefix_arguments = @('-3')
-        }
+    $pyLauncher = Resolve-VgoPythonCandidate -CommandName 'py' -PrefixArguments @('-3')
+    if ($null -ne $pyLauncher) {
+        return $pyLauncher
     }
 
     throw "Unable to resolve a Python host for governed execution. Tried 'python', 'python3', and 'py -3'."

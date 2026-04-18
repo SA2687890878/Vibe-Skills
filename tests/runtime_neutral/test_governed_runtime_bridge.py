@@ -792,6 +792,37 @@ class GovernedRuntimeBridgeTests(unittest.TestCase):
             self.assertTrue(str(resolved["host_leaf"]).startswith("python3"))
             self.assertEqual([], resolved["prefix_arguments"])
 
+    def test_resolve_vgo_python_command_spec_skips_windowsapps_python3_stub_and_uses_python(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            windowsapps_dir = root / "Microsoft" / "WindowsApps"
+            real_dir = root / "real-python"
+            windowsapps_dir.mkdir(parents=True)
+            real_dir.mkdir(parents=True)
+            _create_fake_command(windowsapps_dir, "python3")
+            _create_fake_command(real_dir, "python")
+
+            resolved = resolve_python_command_spec_via_powershell("${VGO_PYTHON}", [windowsapps_dir, real_dir])
+
+            self.assertEqual("python", str(resolved["host_leaf"]))
+            self.assertEqual(str((real_dir / "python").resolve()), str(Path(str(resolved["host_path"])).resolve()))
+            self.assertEqual([], resolved["prefix_arguments"])
+
+    def test_resolve_vgo_python_command_spec_skips_windowsapps_python_stub_and_uses_py_launcher(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            windowsapps_dir = root / "Microsoft" / "WindowsApps"
+            launcher_dir = root / "launcher"
+            windowsapps_dir.mkdir(parents=True)
+            launcher_dir.mkdir(parents=True)
+            _create_fake_command(windowsapps_dir, "python")
+            _create_fake_command(launcher_dir, "py")
+
+            resolved = resolve_python_command_spec_via_powershell("${VGO_PYTHON}", [windowsapps_dir, launcher_dir])
+
+            self.assertTrue(str(resolved["host_leaf"]).startswith("py"))
+            self.assertEqual(["-3"], resolved["prefix_arguments"])
+
     def test_resolve_vgo_python_command_spec_uses_py_launcher_with_dash3_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             fake_dir = Path(tempdir)
@@ -801,6 +832,21 @@ class GovernedRuntimeBridgeTests(unittest.TestCase):
 
             self.assertTrue(str(resolved["host_leaf"]).startswith("py"))
             self.assertEqual(["-3"], resolved["prefix_arguments"])
+
+    def test_verification_gates_use_governed_python_helper(self) -> None:
+        gate_paths = [
+            REPO_ROOT / "scripts" / "verify" / "vibe-installed-runtime-freshness-gate.ps1",
+            REPO_ROOT / "scripts" / "verify" / "vibe-release-install-runtime-coherence-gate.ps1",
+            REPO_ROOT / "scripts" / "verify" / "vibe-release-notes-quality-gate.ps1",
+            REPO_ROOT / "scripts" / "verify" / "vibe-release-truth-gate.ps1",
+            REPO_ROOT / "scripts" / "verify" / "vibe-workflow-acceptance-gate.ps1",
+        ]
+
+        for gate_path in gate_paths:
+            content = gate_path.read_text(encoding="utf-8")
+            self.assertIn("Get-VgoPythonCommand", content, str(gate_path))
+            self.assertIn("prefix_arguments", content, str(gate_path))
+            self.assertNotIn("Get-Command python3 -ErrorAction SilentlyContinue", content, str(gate_path))
 
 
 if __name__ == "__main__":
