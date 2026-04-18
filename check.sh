@@ -76,6 +76,59 @@ run_powershell_file() {
   "${cmd[@]}" "$@"
 }
 
+resolve_executable_candidate() {
+  local candidate="${1:-}"
+  [[ -n "${candidate}" ]] || return 1
+  local resolved=""
+  if resolved="$(command -v "${candidate}" 2>/dev/null)"; then
+    if [[ -n "${resolved}" ]]; then
+      printf '%s' "${resolved}"
+      return 0
+    fi
+  fi
+  if [[ -f "${candidate}" ]]; then
+    if [[ "${candidate}" == /* ]]; then
+      printf '%s' "${candidate}"
+    else
+      printf '%s/%s' "$(cd "$(dirname "${candidate}")" 2>/dev/null && pwd)" "$(basename "${candidate}")"
+    fi
+    return 0
+  fi
+  return 1
+}
+
+probe_direct_runtime_executable() {
+  local host_id="$1"
+  local env_name="" default_command=""
+  case "${host_id}" in
+    codex)
+      env_name="VGO_CODEX_EXECUTABLE"
+      default_command="codex"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  local env_value="" resolved="" source="" command_name="${default_command}"
+  if [[ -n "${env_name}" ]]; then
+    env_value="${!env_name:-}"
+  fi
+  if [[ -n "${env_value}" ]]; then
+    command_name="${env_value}"
+    if resolved="$(resolve_executable_candidate "${env_value}" 2>/dev/null)"; then
+      source="env:${env_name}"
+    fi
+  fi
+  if [[ -z "${resolved}" && -n "${default_command}" ]]; then
+    if resolved="$(resolve_executable_candidate "${default_command}" 2>/dev/null)"; then
+      source="path:${default_command}"
+    fi
+  fi
+
+  printf '%s\t%s\t%s\n' "${command_name}" "${resolved}" "${source}"
+}
+
 adapter_query_for_host() {
   local host_id="$1"
   local property="$2"
@@ -784,11 +837,29 @@ if [[ "${HOST_ID}" == "claude-code" ]]; then
 fi
 check_path "host closure manifest" "${TARGET_ROOT}/.vibeskills/host-closure.json"
 if [[ -f "${TARGET_ROOT}/.vibeskills/host-closure.json" ]]; then
+  direct_runtime_command=""
+  direct_runtime_resolved=""
+  direct_runtime_source=""
+  if [[ "${HOST_ID}" == "codex" ]]; then
+    IFS=$'\t' read -r direct_runtime_command direct_runtime_resolved direct_runtime_source < <(probe_direct_runtime_executable "${HOST_ID}" || printf '\t\t\n')
+    if [[ -n "${direct_runtime_resolved}" ]]; then
+      echo "[OK] direct runtime executable -> ${direct_runtime_resolved}"
+      PASS=$((PASS+1))
+    else
+      warn_note "direct runtime executable unavailable for ${HOST_ID} (${direct_runtime_command:-codex})"
+    fi
+  fi
   closure_state="$(json_query_scalar_from_file "${TARGET_ROOT}/.vibeskills/host-closure.json" 'host_closure_state' 2>/dev/null || true)"
   if [[ -n "${closure_state}" ]]; then
     if [[ "${closure_state}" == "closed_ready" ]]; then
-      echo "[OK] host closure state -> ${closure_state}"
-      PASS=$((PASS+1))
+      if [[ "${HOST_ID}" == "codex" && -z "${direct_runtime_resolved}" ]]; then
+        warn_note "host closure receipt stale -> ${closure_state} (live direct runtime unavailable for ${HOST_ID})"
+      else
+        echo "[OK] host closure state -> ${closure_state}"
+        PASS=$((PASS+1))
+      fi
+    elif [[ "${HOST_ID}" == "codex" && -n "${direct_runtime_resolved}" ]]; then
+      warn_note "host closure receipt stale -> ${closure_state} (live direct runtime ready via ${direct_runtime_source:-path})"
     else
       warn_note "host closure state -> ${closure_state}"
     fi
