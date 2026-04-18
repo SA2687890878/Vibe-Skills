@@ -23,11 +23,19 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'VibeConsultation.Common.ps1')
 . (Join-Path $PSScriptRoot '..\common\AntiProxyGoalDrift.ps1')
 
+function Get-VibeExplicitNonUiSignalRegex {
+    return 'non[- ]?ui|non[- ]?interactive|without ui|without user interface|headless|runtime[- ]?only|pure runtime|infrastructure( fix| repair| task| change)?|infra[- ]?(fix|repair|task|change)?|backend[- ]?only|cli[- ]?only|automation[- ]?only|非\s*ui|非交互|无界面|纯运行时|基础设施(修复|任务|改动)?|仅自动化|纯后端|命令行'
+}
+
 function Test-VibeTaskNeedsManualSpotChecks {
     param(
         [Parameter(Mandatory)] [string]$Task,
         [AllowEmptyString()] [string]$Deliverable = ''
     )
+
+    if (Test-VibeTaskNeedsDocumentArtifactBaseline -Task $Task -Deliverable $Deliverable) {
+        return $false
+    }
 
     if (-not (Test-VibeTaskHasUiArtifactSignals -Task $Task -Deliverable $Deliverable)) {
         return $false
@@ -56,7 +64,17 @@ function Test-VibeTaskHasExplicitNonUiSignals {
     )
 
     $text = Get-VibeTaskSignalText -Task $Task -Deliverable $Deliverable
-    return $text -match 'non[- ]?ui|non[- ]?interactive|without ui|without user interface|headless|runtime[- ]?only|pure runtime|infrastructure( fix| repair| task| change)?|infra[- ]?(fix|repair|task|change)?|backend[- ]?only|cli[- ]?only|automation[- ]?only|非\s*ui|非交互|无界面|纯运行时|基础设施(修复|任务|改动)?|仅自动化|纯后端|命令行'
+    return $text -match (Get-VibeExplicitNonUiSignalRegex)
+}
+
+function Get-VibeTaskSignalTextWithoutExplicitNonUiPhrases {
+    param(
+        [Parameter(Mandatory)] [string]$Task,
+        [AllowEmptyString()] [string]$Deliverable = ''
+    )
+
+    $text = Get-VibeTaskSignalText -Task $Task -Deliverable $Deliverable
+    return ($text -replace (Get-VibeExplicitNonUiSignalRegex), ' ')
 }
 
 function Test-VibeTaskHasUiArtifactSignals {
@@ -75,7 +93,7 @@ function Test-VibeTaskHasStrongInteractiveUiSignals {
         [AllowEmptyString()] [string]$Deliverable = ''
     )
 
-    $text = Get-VibeTaskSignalText -Task $Task -Deliverable $Deliverable
+    $text = Get-VibeTaskSignalTextWithoutExplicitNonUiPhrases -Task $Task -Deliverable $Deliverable
     return $text -match '(?<!non[-\s])\bui\b|(?<!non[-\s])\bux\b|frontend|page|screen|dashboard|dialog|modal|layout|responsive|user[- ]?facing|visual|interface|click|tap|form|navigation|用户|界面|交互|可视化|体验'
 }
 

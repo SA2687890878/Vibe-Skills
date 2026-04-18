@@ -794,6 +794,80 @@ function Resolve-VibeExecutionTargetRoot {
     return Resolve-VgoTargetRoot -HostId (Resolve-VgoHostId -HostId $env:VCO_HOST_ID)
 }
 
+function Test-VibeInstalledRuntimeExecutionContext {
+    param(
+        [Parameter(Mandatory)] [string]$RepoRoot,
+        [AllowEmptyString()] [string]$TargetRoot = ''
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TargetRoot)) {
+        return $false
+    }
+
+    $installedSkillRoot = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $TargetRoot 'skills') 'vibe'))
+    return (Test-VgoPathWithin -ParentPath $installedSkillRoot -ChildPath $RepoRoot)
+}
+
+function New-VibeInstalledRuntimeVerificationUnit {
+    param(
+        [Parameter(Mandatory)] [string]$UnitId,
+        [Parameter(Mandatory)] [string]$ScriptPath
+    )
+
+    return [pscustomobject]@{
+        unit_id = $UnitId
+        kind = 'powershell_file'
+        parallelizable = $true
+        write_scope = 'scripts/verify'
+        script_path = $ScriptPath
+        arguments = @('-TargetRoot', '${TARGET_ROOT}')
+        cwd = '${REPO_ROOT}'
+        timeout_seconds = 240
+        expected_exit_code = 0
+        expected_artifacts = @()
+    }
+}
+
+function Get-VibeEffectiveExecutionPolicy {
+    param(
+        [Parameter(Mandatory)] [object]$ExecutionPolicy,
+        [Parameter(Mandatory)] [string]$RepoRoot,
+        [AllowEmptyString()] [string]$TargetRoot = ''
+    )
+
+    if (-not (Test-VibeInstalledRuntimeExecutionContext -RepoRoot $RepoRoot -TargetRoot $TargetRoot)) {
+        return $ExecutionPolicy
+    }
+
+    $policyCopy = $ExecutionPolicy | ConvertTo-Json -Depth 100 | ConvertFrom-Json
+    foreach ($profileCandidate in @($policyCopy.profiles)) {
+        foreach ($wave in @($profileCandidate.waves)) {
+            $mappedUnits = foreach ($unit in @($wave.units)) {
+                switch ([string]$unit.unit_id) {
+                    'runtime-neutral-freshness-gate-tests' {
+                        New-VibeInstalledRuntimeVerificationUnit `
+                            -UnitId 'installed-runtime-freshness-gate' `
+                            -ScriptPath 'scripts/verify/vibe-installed-runtime-freshness-gate.ps1'
+                        continue
+                    }
+                    'version-consistency-gate' {
+                        New-VibeInstalledRuntimeVerificationUnit `
+                            -UnitId 'release-install-runtime-coherence-gate' `
+                            -ScriptPath 'scripts/verify/vibe-release-install-runtime-coherence-gate.ps1'
+                        continue
+                    }
+                    default {
+                        $unit
+                    }
+                }
+            }
+            $wave.units = @($mappedUnits)
+        }
+    }
+
+    return $policyCopy
+}
+
 $runtime = Get-VibeRuntimeContext -ScriptPath $PSCommandPath
 if ([string]::IsNullOrWhiteSpace($RunId)) {
     $RunId = New-VibeRunId
@@ -834,7 +908,11 @@ $hierarchyState = Get-VibeHierarchyState `
     -DelegationEnvelopePath $(if ($runtimeInputPacket -and $runtimeInputPacket.hierarchy) { [string]$runtimeInputPacket.hierarchy.delegation_envelope_path } else { '' }) `
     -HierarchyContract $runtime.runtime_input_packet_policy.hierarchy_contract
 
-$policy = $runtime.execution_runtime_policy
+$executionTargetRoot = Resolve-VibeExecutionTargetRoot -RuntimeInputPacket $runtimeInputPacket -Runtime $runtime
+$policy = Get-VibeEffectiveExecutionPolicy `
+    -ExecutionPolicy $runtime.execution_runtime_policy `
+    -RepoRoot ([System.IO.Path]::GetFullPath($runtime.repo_root)) `
+    -TargetRoot $executionTargetRoot
 $proofRegistry = $runtime.proof_class_registry
 $profile = Get-VibeExecutionProfileById -ExecutionPolicy $policy -ProfileId ([string]$policy.default_profile_id)
 
@@ -845,7 +923,6 @@ New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $resultsRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $proofRoot -Force | Out-Null
 
-$executionTargetRoot = Resolve-VibeExecutionTargetRoot -RuntimeInputPacket $runtimeInputPacket -Runtime $runtime
 $tokens = @{
     '${REPO_ROOT}' = [System.IO.Path]::GetFullPath($runtime.repo_root)
     '${SESSION_ROOT}' = [System.IO.Path]::GetFullPath($sessionRoot)
