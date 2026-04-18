@@ -15,5 +15,5 @@ def refresh_install_ledger_payload(repo_root: Path, target_root: Path) -> dict[s
         payload = refresh_install_ledger(target_root)
     except SystemExit as exc:
         raise CliError(str(exc)) from exc
-    payload['host_runtime'] = collect_host_runtime(target_root)
+    payload['host_runtime'] = collect_host_runtime(repo_root, target_root)
     return payload

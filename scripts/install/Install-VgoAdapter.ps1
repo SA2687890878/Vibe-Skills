@@ -494,6 +494,136 @@ function Resolve-VgoHostBridgeCommand {
     }
 }
 
+function Get-VgoNativeSpecialistPolicyAdapter {
+    param([string]$HostId)
+
+    $policyPath = Join-Path $RepoRoot 'config\native-specialist-execution-policy.json'
+    if (-not (Test-Path -LiteralPath $policyPath)) {
+        return $null
+    }
+
+    try {
+        $policy = Get-Content -LiteralPath $policyPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    } catch {
+        return $null
+    }
+
+    foreach ($candidate in @($policy.adapters)) {
+        if ($null -ne $candidate -and [string]$candidate.id -eq [string]$HostId) {
+            return $candidate
+        }
+    }
+    return $null
+}
+
+function Resolve-VgoDirectRuntimeExecutable {
+    param([string]$HostId)
+
+    $policyAdapter = Get-VgoNativeSpecialistPolicyAdapter -HostId $HostId
+    if ($null -eq $policyAdapter) {
+        return [pscustomobject]@{
+            required = $true
+            ready = $false
+            invocation_kind = $null
+            executable_env = $null
+            command = $null
+            resolved_path = $null
+            source = $null
+            reason = 'native_specialist_policy_missing'
+        }
+    }
+
+    $invocationKind = if ($policyAdapter.PSObject.Properties.Name -contains 'invocation_kind') { [string]$policyAdapter.invocation_kind } else { 'direct' }
+    $envName = if ($policyAdapter.PSObject.Properties.Name -contains 'executable_env') { [string]$policyAdapter.executable_env } else { '' }
+    $configuredCommand = if ($policyAdapter.PSObject.Properties.Name -contains 'command') { [string]$policyAdapter.command } else { '' }
+    $command = $configuredCommand
+    $resolvedPath = $null
+    $source = $null
+
+    if (-not [string]::IsNullOrWhiteSpace($envName)) {
+        $envValue = [Environment]::GetEnvironmentVariable($envName)
+        if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+            $command = [string]$envValue
+            $candidate = Get-Command $envValue -ErrorAction SilentlyContinue
+            if ($candidate) {
+                $resolvedPath = [string]$candidate.Source
+                $source = "env:$envName"
+            } elseif (Test-Path -LiteralPath $envValue) {
+                $resolvedPath = [System.IO.Path]::GetFullPath($envValue)
+                $source = "env:$envName"
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($resolvedPath) -and -not [string]::IsNullOrWhiteSpace($configuredCommand)) {
+        $candidate = Get-Command $configuredCommand -ErrorAction SilentlyContinue
+        if ($candidate) {
+            $resolvedPath = [string]$candidate.Source
+            $source = "path:$configuredCommand"
+        }
+    }
+
+    return [pscustomobject]@{
+        required = $true
+        ready = [bool](-not [string]::IsNullOrWhiteSpace($resolvedPath) -and $invocationKind -eq 'direct')
+        invocation_kind = if (-not [string]::IsNullOrWhiteSpace($invocationKind)) { $invocationKind } else { $null }
+        executable_env = if (-not [string]::IsNullOrWhiteSpace($envName)) { $envName } else { $null }
+        command = if (-not [string]::IsNullOrWhiteSpace($command)) { $command } else { $null }
+        resolved_path = if (-not [string]::IsNullOrWhiteSpace($resolvedPath)) { $resolvedPath } else { $null }
+        source = if (-not [string]::IsNullOrWhiteSpace($source)) { $source } else { $null }
+        reason = if (-not [string]::IsNullOrWhiteSpace($resolvedPath) -and $invocationKind -eq 'direct') {
+            'native_specialist_execution_ready'
+        } else {
+            ("native_specialist_adapter_command_unavailable:{0}" -f $(if (-not [string]::IsNullOrWhiteSpace($configuredCommand)) { $configuredCommand } else { [string]$HostId }))
+        }
+    }
+}
+
+function Get-VgoHostRuntimeReadiness {
+    param(
+        [Parameter(Mandatory)] [psobject]$Adapter,
+        [bool]$SpecialistWrapperReady
+    )
+
+    $entryMode = if (
+        $Adapter.PSObject.Properties.Name -contains 'canonical_vibe' -and
+        $null -ne $Adapter.canonical_vibe -and
+        $Adapter.canonical_vibe.PSObject.Properties.Name -contains 'entry_mode' -and
+        -not [string]::IsNullOrWhiteSpace([string]$Adapter.canonical_vibe.entry_mode)
+    ) {
+        [string]$Adapter.canonical_vibe.entry_mode
+    } else {
+        'bridged_runtime'
+    }
+
+    $readinessDriver = if ($entryMode -eq 'direct_runtime') { 'direct_runtime' } else { 'specialist_wrapper' }
+    $directRuntime = if ($readinessDriver -eq 'direct_runtime') {
+        Resolve-VgoDirectRuntimeExecutable -HostId ([string]$Adapter.id)
+    } else {
+        [pscustomobject]@{
+            required = $false
+            ready = $false
+            invocation_kind = $null
+            executable_env = $null
+            command = $null
+            resolved_path = $null
+            source = $null
+            reason = 'not_applicable'
+        }
+    }
+    $effectiveRuntimeReady = if ($readinessDriver -eq 'direct_runtime') { [bool]$directRuntime.ready } else { [bool]$SpecialistWrapperReady }
+
+    return [pscustomobject]@{
+        entry_mode = $entryMode
+        readiness_driver = $readinessDriver
+        specialist_wrapper_required = [bool]($readinessDriver -ne 'direct_runtime')
+        specialist_wrapper_ready = [bool]$SpecialistWrapperReady
+        effective_runtime_ready = [bool]$effectiveRuntimeReady
+        recommended_host_closure_state = if ($effectiveRuntimeReady) { 'closed_ready' } else { 'configured_offline_unready' }
+        direct_runtime = $directRuntime
+    }
+}
+
 function New-VgoHostSpecialistWrapper {
     param(
         [Parameter(Mandatory)] [string]$TargetRoot,
@@ -650,13 +780,17 @@ function Write-VgoHostClosure {
     $wrapperInfo = New-VgoHostSpecialistWrapper -TargetRoot $TargetRoot -HostId ([string]$Adapter.id) -BridgeCommand ([string]$bridgeResolution.command) -BridgeEnvName ([string]$bridgeResolution.env_name)
     $settingsMaterialized = Set-VgoManagedHostSettings -TargetRoot $TargetRoot -HostId ([string]$Adapter.id) -WrapperInfo $wrapperInfo
     $commandsRoot = Join-Path $TargetRoot 'commands'
-    $closureState = if ($wrapperInfo.ready) { 'closed_ready' } else { 'configured_offline_unready' }
+    $runtimeReadiness = Get-VgoHostRuntimeReadiness -Adapter $Adapter -SpecialistWrapperReady ([bool]$wrapperInfo.ready)
+    $closureState = [string]$runtimeReadiness.recommended_host_closure_state
     $closure = [ordered]@{
         schema_version = 1
         host_id = [string]$Adapter.id
         platform = Get-VgoPlatformTag
         target_root = [System.IO.Path]::GetFullPath($TargetRoot)
         install_mode = [string]$Adapter.install_mode
+        entry_mode = [string]$runtimeReadiness.entry_mode
+        host_closure_driver = [string]$runtimeReadiness.readiness_driver
+        effective_runtime_ready = [bool]$runtimeReadiness.effective_runtime_ready
         skills_root = [System.IO.Path]::GetFullPath((Join-Path $TargetRoot 'skills'))
         runtime_skill_entry = [System.IO.Path]::GetFullPath((Join-Path $TargetRoot 'skills\vibe\SKILL.md'))
         commands_root = [System.IO.Path]::GetFullPath($commandsRoot)
@@ -665,6 +799,16 @@ function Write-VgoHostClosure {
         host_closure_state = $closureState
         commands_materialized = (Test-Path -LiteralPath $commandsRoot -PathType Container)
         settings_materialized = @($settingsMaterialized)
+        direct_runtime = [ordered]@{
+            required = [bool]$runtimeReadiness.direct_runtime.required
+            ready = [bool]$runtimeReadiness.direct_runtime.ready
+            invocation_kind = [string]$runtimeReadiness.direct_runtime.invocation_kind
+            executable_env = [string]$runtimeReadiness.direct_runtime.executable_env
+            command = [string]$runtimeReadiness.direct_runtime.command
+            resolved_path = [string]$runtimeReadiness.direct_runtime.resolved_path
+            source = [string]$runtimeReadiness.direct_runtime.source
+            reason = [string]$runtimeReadiness.direct_runtime.reason
+        }
         specialist_wrapper = [ordered]@{
             launcher_path = [string]$wrapperInfo.launcher_path
             script_path = [string]$wrapperInfo.script_path

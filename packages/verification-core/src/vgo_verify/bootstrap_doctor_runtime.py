@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from vgo_contracts.host_runtime_readiness import evaluate_host_runtime_readiness
+
 from .bootstrap_doctor_support import (
     command_present,
     inspect_global_instruction_bootstrap,
@@ -162,7 +164,7 @@ def reconcile_mcp_servers_with_active_surface(
     return reconciled
 
 
-def collect_host_runtime(target_root: Path) -> dict[str, Any]:
+def collect_host_runtime(repo_root: Path, target_root: Path) -> dict[str, Any]:
     runtime_skill_entry = target_root / "skills" / "vibe" / "SKILL.md"
     commands_root = target_root / "commands"
     host_closure_path = target_root / ".vibeskills" / "host-closure.json"
@@ -190,6 +192,13 @@ def collect_host_runtime(target_root: Path) -> dict[str, Any]:
             host_closure_payload = loaded
             host_closure_valid = True
             host_id = str(host_closure_payload.get("host_id") or "").strip()
+    specialist_wrapper = host_closure_payload.get("specialist_wrapper") if host_closure_valid else None
+    specialist_wrapper_ready = bool(specialist_wrapper.get("ready")) if isinstance(specialist_wrapper, dict) else False
+    runtime_readiness = evaluate_host_runtime_readiness(
+        repo_root,
+        host_id or None,
+        specialist_wrapper_ready=specialist_wrapper_ready,
+    )
 
     runtime_skill_entry_path = str(runtime_skill_entry.resolve())
     commands_root_path = str(commands_root.resolve())
@@ -202,6 +211,7 @@ def collect_host_runtime(target_root: Path) -> dict[str, Any]:
         and str(host_closure_payload.get("commands_root") or "").strip() == commands_root_path
     )
     host_closure_commands_materialized = bool(host_closure_payload.get("commands_materialized")) if host_closure_valid else False
+    host_closure_state = str(host_closure_payload.get("host_closure_state") or "").strip() if host_closure_valid else ""
     vibe_host_ready = (
         runtime_skill_entry.exists()
         and commands_root.exists()
@@ -210,12 +220,18 @@ def collect_host_runtime(target_root: Path) -> dict[str, Any]:
         and host_closure_runtime_matches
         and host_closure_commands_match
         and host_closure_commands_materialized
+        and bool(runtime_readiness["effective_runtime_ready"])
     )
     global_instruction_bootstrap = inspect_global_instruction_bootstrap(
         target_root,
-        host_id=host_id or None,
+        host_id=str(runtime_readiness.get("host_id") or host_id or "").strip() or None,
     )
     return {
+        "host_id": str(runtime_readiness.get("host_id") or host_id or "").strip() or None,
+        "entry_mode": str(runtime_readiness["entry_mode"]),
+        "readiness_driver": str(runtime_readiness["readiness_driver"]),
+        "effective_runtime_ready": bool(runtime_readiness["effective_runtime_ready"]),
+        "host_closure_state": host_closure_state,
         "runtime_skill_entry_path": runtime_skill_entry_path,
         "runtime_skill_entry_exists": runtime_skill_entry.exists(),
         "commands_root_path": commands_root_path,
@@ -226,10 +242,12 @@ def collect_host_runtime(target_root: Path) -> dict[str, Any]:
         "host_closure_runtime_matches": host_closure_runtime_matches,
         "host_closure_commands_match": host_closure_commands_match,
         "host_closure_commands_materialized": host_closure_commands_materialized,
+        "specialist_wrapper_ready": specialist_wrapper_ready,
         "settings_surface_path": str(settings_surface_path),
         "settings_surface_exists": settings_surface_exists,
         "settings_surface_kind": settings_surface_kind,
         "vibe_host_ready": vibe_host_ready,
+        "direct_runtime": dict(runtime_readiness["direct_runtime"]),
         "global_instruction_bootstrap": global_instruction_bootstrap,
     }
 
@@ -318,6 +336,7 @@ def build_summary(
     active_mcp_path: Path,
     settings: dict[str, Any] | None,
     install_state: str,
+    host_runtime: dict[str, Any],
     plugins: list[dict[str, Any]],
     mcp_servers: list[dict[str, Any]],
     external_tools: list[dict[str, Any]],
@@ -337,6 +356,23 @@ def build_summary(
             )
     if install_state != "installed_locally":
         warnings.append(f"Install state is '{install_state}'; verify the local install receipt.")
+    if isinstance(host_runtime, dict) and not bool(host_runtime.get("vibe_host_ready")):
+        readiness_driver = str(host_runtime.get("readiness_driver") or "")
+        if readiness_driver == "direct_runtime":
+            direct_runtime = host_runtime.get("direct_runtime")
+            if isinstance(direct_runtime, dict):
+                env_name = str(direct_runtime.get("executable_env") or "").strip()
+                command = str(direct_runtime.get("command") or "codex").strip()
+                if env_name:
+                    manual_actions.append(
+                        f"Direct runtime executable is not ready. Resolve '{command}' on PATH or via {env_name}."
+                    )
+                else:
+                    manual_actions.append(
+                        f"Direct runtime executable is not ready. Resolve '{command}' on PATH and re-run check."
+                    )
+        else:
+            manual_actions.append("Host runtime is not fully ready; complete the specialist bridge setup and re-run check.")
     intent_advice_api_key_state, intent_advice_api_key_source = resolved_setting_state(settings, "VCO_INTENT_ADVICE_API_KEY")
     intent_advice_model_state, intent_advice_model_source = resolved_setting_state(settings, "VCO_INTENT_ADVICE_MODEL")
     vector_diff_api_key_state, vector_diff_api_key_source = resolved_setting_state(settings, "VCO_VECTOR_DIFF_API_KEY")
@@ -422,12 +458,13 @@ def build_bootstrap_artifact(
     secret_status_by_name = {item["name"]: item["status"] for item in secret_surfaces}
     enhancement_surfaces = collect_enhancement_surfaces(memory_governance)
     integration_surfaces = collect_integration_surfaces(tool_registry, secret_status_by_name)
-    host_runtime = collect_host_runtime(target_root)
+    host_runtime = collect_host_runtime(repo_root, target_root)
     summary = build_summary(
         settings_path=settings_path,
         active_mcp_path=active_mcp_path,
         settings=settings,
         install_state=install_state,
+        host_runtime=host_runtime,
         plugins=plugins,
         mcp_servers=mcp_servers,
         external_tools=external_tools,

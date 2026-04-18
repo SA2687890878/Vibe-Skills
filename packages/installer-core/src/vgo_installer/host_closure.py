@@ -12,6 +12,7 @@ from ._bootstrap import ensure_contracts_src_on_path
 ensure_contracts_src_on_path()
 
 from vgo_contracts.canonical_vibe_contract import uses_skill_only_activation
+from vgo_contracts.host_runtime_readiness import evaluate_host_runtime_readiness
 
 HOST_BRIDGE_COMMAND_CANDIDATES = {
     "claude-code": ["claude", "claude-code"],
@@ -321,6 +322,7 @@ def materialize_host_settings(
 
 
 def materialize_host_closure(
+    repo_root: Path,
     target_root: Path,
     adapter: dict[str, Any],
     *,
@@ -345,13 +347,21 @@ def materialize_host_closure(
         record_managed_json=record_managed_json,
     )
     commands_root = target_root / "commands"
-    closure_state = "closed_ready" if wrapper_info["ready"] else "configured_offline_unready"
+    runtime_readiness = evaluate_host_runtime_readiness(
+        repo_root,
+        host_id,
+        specialist_wrapper_ready=bool(wrapper_info["ready"]),
+    )
+    closure_state = str(runtime_readiness["recommended_host_closure_state"])
     closure = {
         "schema_version": 1,
         "host_id": host_id,
         "platform": detect_platform_tag(),
         "target_root": str(target_root.resolve()),
         "install_mode": adapter["install_mode"],
+        "entry_mode": runtime_readiness["entry_mode"],
+        "host_closure_driver": runtime_readiness["readiness_driver"],
+        "effective_runtime_ready": bool(runtime_readiness["effective_runtime_ready"]),
         "skills_root": str((target_root / "skills").resolve()),
         "runtime_skill_entry": str((target_root / "skills" / "vibe" / "SKILL.md").resolve()),
         "commands_root": str(commands_root.resolve()),
@@ -360,6 +370,7 @@ def materialize_host_closure(
         "host_closure_state": closure_state,
         "commands_materialized": commands_root.exists(),
         "settings_materialized": settings_materialized,
+        "direct_runtime": dict(runtime_readiness["direct_runtime"]),
         "specialist_wrapper": {
             "launcher_path": wrapper_info["launcher_path"],
             "script_path": wrapper_info["script_path"],

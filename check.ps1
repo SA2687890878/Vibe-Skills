@@ -101,6 +101,57 @@ function Get-InstalledRuntimeTargetRelpath {
   return $targetRel
 }
 
+function Resolve-DirectRuntimeExecutableForCheck {
+  param([string]$HostId)
+
+  $envName = $null
+  $defaultCommand = $null
+  switch ([string]$HostId) {
+    'codex' {
+      $envName = 'VGO_CODEX_EXECUTABLE'
+      $defaultCommand = 'codex'
+    }
+    default {
+      return [pscustomobject]@{
+        command = $null
+        resolved_path = $null
+        source = $null
+        ready = $false
+      }
+    }
+  }
+
+  $command = $defaultCommand
+  $resolvedPath = $null
+  $source = $null
+  $envValue = if (-not [string]::IsNullOrWhiteSpace($envName)) { [Environment]::GetEnvironmentVariable($envName) } else { $null }
+  if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+    $command = [string]$envValue
+    $candidate = Get-Command $envValue -ErrorAction SilentlyContinue
+    if ($candidate) {
+      $resolvedPath = [string]$candidate.Source
+      $source = "env:$envName"
+    } elseif (Test-Path -LiteralPath $envValue) {
+      $resolvedPath = [System.IO.Path]::GetFullPath($envValue)
+      $source = "env:$envName"
+    }
+  }
+  if ([string]::IsNullOrWhiteSpace($resolvedPath) -and -not [string]::IsNullOrWhiteSpace($defaultCommand)) {
+    $candidate = Get-Command $defaultCommand -ErrorAction SilentlyContinue
+    if ($candidate) {
+      $resolvedPath = [string]$candidate.Source
+      $source = "path:$defaultCommand"
+    }
+  }
+
+  return [pscustomobject]@{
+    command = $command
+    resolved_path = $resolvedPath
+    source = $source
+    ready = [bool](-not [string]::IsNullOrWhiteSpace($resolvedPath))
+  }
+}
+
 function Resolve-CheckTargetContext {
   param(
     [Parameter(Mandatory)] [string]$InputRoot,
@@ -637,11 +688,19 @@ function Invoke-AdapterSpecificChecks {
   Check-Path -Label "host closure manifest" -Path $hostClosurePath
   if (Test-Path -LiteralPath $hostClosurePath) {
     $hostClosure = Get-JsonObject -Path $hostClosurePath -Label 'host closure manifest'
+    $directRuntime = Resolve-DirectRuntimeExecutableForCheck -HostId $HostId
+    if ($directRuntime.ready) {
+      Check-Condition -Label ("direct runtime executable -> {0}" -f [string]$directRuntime.resolved_path) -Condition $true
+    } elseif ([string]$HostId -eq 'codex') {
+      Write-WarnNote -Message ("direct runtime executable unavailable for {0} ({1})" -f [string]$HostId, (Format-OptionalValue -Value ([string]$directRuntime.command)))
+    }
     if ($null -ne $hostClosure) {
       $closureState = if ($hostClosure.PSObject.Properties.Name -contains 'host_closure_state') { [string]$hostClosure.host_closure_state } else { '' }
       if (-not [string]::IsNullOrWhiteSpace($closureState)) {
         if ($closureState -eq 'closed_ready') {
           Check-Condition -Label 'host closure state' -Condition $true
+        } elseif ([string]$HostId -eq 'codex' -and $directRuntime.ready) {
+          Write-WarnNote -Message ("host closure receipt stale -> {0} (live direct runtime ready via {1})" -f $closureState, (Format-OptionalValue -Value ([string]$directRuntime.source)))
         } else {
           Write-WarnNote -Message ("host closure state -> {0}" -f $closureState)
         }

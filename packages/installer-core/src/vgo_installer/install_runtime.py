@@ -591,6 +591,7 @@ def main(argv: list[str] | None = None):
         record_specialist_wrapper(wrapper_path)
 
     closure_path, closure = materialize_host_closure(
+        repo_root,
         target_root,
         adapter,
         track_created_path=track_created_path,
