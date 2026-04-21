@@ -59,17 +59,64 @@ class CanonicalLaunchResult:
 CanonicalEntryResult = CanonicalLaunchResult
 
 
-def _resolve_powershell_host() -> str | None:
-    candidates = [
-        shutil.which("pwsh"),
-        shutil.which("pwsh.exe"),
-        shutil.which("powershell"),
-        shutil.which("powershell.exe"),
+def _powershell_host_policy() -> dict[str, Any]:
+    return {
+        "preferred_powershell_host": "pwsh",
+        "require_pwsh_on_non_windows": True,
+        "allow_windows_powershell_fallback": True,
+        "record_host_resolution_artifacts": True,
+    }
+
+
+def _resolve_powershell_host(*, return_diagnostics: bool = False) -> str | dict[str, Any] | None:
+    policy = _powershell_host_policy()
+    is_windows = os.name == "nt"
+    candidates: list[tuple[str, str | None, str]] = [
+        ("path-pwsh", shutil.which("pwsh"), "pwsh"),
+        ("path-pwsh-exe", shutil.which("pwsh.exe"), "pwsh"),
+        ("default-pwsh", r"C:\Program Files\PowerShell\7\pwsh.exe", "pwsh"),
+        ("preview-pwsh", r"C:\Program Files\PowerShell\7-preview\pwsh.exe", "pwsh"),
     ]
-    for candidate in candidates:
-        if candidate and Path(candidate).exists():
-            return str(Path(candidate))
-    return None
+    if is_windows and policy["allow_windows_powershell_fallback"]:
+        candidates.extend(
+            [
+                ("path-powershell", shutil.which("powershell"), "windows-powershell"),
+                ("path-powershell-exe", shutil.which("powershell.exe"), "windows-powershell"),
+            ]
+        )
+
+    checked: list[dict[str, Any]] = []
+    for name, candidate, kind in candidates:
+        resolved = str(Path(candidate)) if candidate else None
+        exists = bool(resolved and Path(resolved).exists())
+        is_file = bool(resolved and Path(resolved).is_file())
+        checked.append(
+            {
+                "candidate_name": name,
+                "candidate_kind": kind,
+                "candidate_path": resolved,
+                "exists": exists,
+                "is_file": is_file,
+            }
+        )
+        if exists and is_file:
+            diagnostics = {
+                "host_path": resolved,
+                "host_kind": kind,
+                "fallback_used": kind == "windows-powershell",
+                "candidates_checked": checked,
+                "policy": policy,
+            }
+            return diagnostics if return_diagnostics else resolved
+
+    diagnostics = {
+        "host_path": None,
+        "host_kind": None,
+        "fallback_used": False,
+        "candidates_checked": checked,
+        "policy": policy,
+    }
+    return diagnostics if return_diagnostics else None
 
 
 def _load_json_dict(path: Path, *, label: str) -> dict[str, Any]:
@@ -138,9 +185,18 @@ def invoke_vibe_runtime_entrypoint(
     if force_runtime_neutral:
         raise RuntimeError("canonical entry requires PowerShell runtime bridge")
 
-    shell = _resolve_powershell_host()
-    if shell is None:
-        raise RuntimeError("PowerShell executable not available in PATH")
+    resolution = _resolve_powershell_host(return_diagnostics=True)
+    if not isinstance(resolution, dict) or not resolution.get("host_path"):
+        checked = []
+        if isinstance(resolution, dict):
+            checked = [
+                entry.get("candidate_path") or entry.get("candidate_name") or "<unknown>"
+                for entry in resolution.get("candidates_checked", [])
+            ]
+        raise RuntimeError(
+            "PowerShell executable not available in PATH; candidates checked: " + ", ".join(checked)
+        )
+    shell = str(resolution["host_path"])
 
     bridge_path = repo_root / CANONICAL_ENTRY_BRIDGE_RELPATH
     if not bridge_path.exists():

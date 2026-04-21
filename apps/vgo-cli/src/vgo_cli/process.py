@@ -2,27 +2,90 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 from .errors import CliError
 
 
-def choose_powershell() -> str | None:
-    candidates = [
-        shutil.which('pwsh'),
-        shutil.which('pwsh.exe'),
-        shutil.which('powershell'),
-        shutil.which('powershell.exe'),
-        r'C:\Program Files\PowerShell\7\pwsh.exe',
-        r'C:\Program Files\PowerShell\7-preview\pwsh.exe',
+def _powershell_host_policy() -> dict[str, Any]:
+    return {
+        "preferred_powershell_host": "pwsh",
+        "require_pwsh_on_non_windows": True,
+        "allow_windows_powershell_fallback": True,
+        "record_host_resolution_artifacts": True,
+    }
+
+
+def _is_windows_host() -> bool:
+    return os.name == "nt"
+
+
+def choose_powershell(*, return_diagnostics: bool = False) -> str | dict[str, Any] | None:
+    policy = _powershell_host_policy()
+    is_windows = _is_windows_host()
+    candidates: list[tuple[str, str | None, str]] = [
+        ("path-pwsh", shutil.which("pwsh"), "pwsh"),
+        ("path-pwsh-exe", shutil.which("pwsh.exe"), "pwsh"),
+        ("default-pwsh", r"C:\Program Files\PowerShell\7\pwsh.exe", "pwsh"),
+        ("preview-pwsh", r"C:\Program Files\PowerShell\7-preview\pwsh.exe", "pwsh"),
     ]
-    for candidate in candidates:
-        if candidate and Path(candidate).exists():
-            return str(Path(candidate))
+    if is_windows and policy["allow_windows_powershell_fallback"]:
+        candidates.extend(
+            [
+                ("path-powershell", shutil.which("powershell"), "windows-powershell"),
+                ("path-powershell-exe", shutil.which("powershell.exe"), "windows-powershell"),
+            ]
+        )
+
+    checked: list[dict[str, Any]] = []
+    for name, candidate, kind in candidates:
+        resolved = str(Path(candidate)) if candidate else None
+        exists = bool(resolved and Path(resolved).exists())
+        is_file = bool(resolved and Path(resolved).is_file())
+        checked.append(
+            {
+                "candidate_name": name,
+                "candidate_kind": kind,
+                "candidate_path": resolved,
+                "exists": exists,
+                "is_file": is_file,
+            }
+        )
+        if exists and is_file:
+            diagnostics = {
+                "host_path": resolved,
+                "host_kind": kind,
+                "fallback_used": kind == "windows-powershell",
+                "candidates_checked": checked,
+                "policy": policy,
+            }
+            return diagnostics if return_diagnostics else resolved
+
+    if not is_windows and policy["require_pwsh_on_non_windows"]:
+        if return_diagnostics:
+            return {
+                "host_path": None,
+                "host_kind": None,
+                "fallback_used": False,
+                "candidates_checked": checked,
+                "policy": policy,
+                "error": "pwsh is required on non-Windows hosts",
+            }
+        return None
+
+    if return_diagnostics:
+        return {
+            "host_path": None,
+            "host_kind": None,
+            "fallback_used": False,
+            "candidates_checked": checked,
+            "policy": policy,
+        }
     return None
 
 
@@ -67,9 +130,17 @@ def invoke_python_core(
 
 
 def run_powershell_file(script_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    shell_path = choose_powershell()
-    if not shell_path:
-        raise CliError(f'PowerShell is required to run: {script_path}')
+    resolution = choose_powershell(return_diagnostics=True)
+    if not isinstance(resolution, dict) or not resolution.get("host_path"):
+        checked = []
+        if isinstance(resolution, dict):
+            checked = [
+                entry.get("candidate_path") or entry.get("candidate_name") or "<unknown>"
+                for entry in resolution.get("candidates_checked", [])
+            ]
+        detail = f"; candidates checked: {', '.join(checked)}" if checked else ""
+        raise CliError(f"PowerShell is required to run: {script_path}{detail}")
+    shell_path = str(resolution["host_path"])
     leaf = Path(shell_path).name.lower()
     command = [shell_path, '-NoProfile']
     if leaf.startswith('powershell'):

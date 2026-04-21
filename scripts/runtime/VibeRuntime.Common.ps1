@@ -1641,9 +1641,9 @@ function New-VibeRuntimeSummaryArtifactProjection {
         [Parameter(Mandatory)] [string]$RuntimeInputPacketPath,
         [Parameter(Mandatory)] [string]$GovernanceCapsulePath,
         [Parameter(Mandatory)] [string]$StageLineagePath,
-        [Parameter(Mandatory)] [string]$IntentContractPath,
-        [Parameter(Mandatory)] [string]$RequirementDocPath,
-        [Parameter(Mandatory)] [string]$RequirementReceiptPath,
+        [AllowEmptyString()] [string]$IntentContractPath = '',
+        [AllowEmptyString()] [string]$RequirementDocPath = '',
+        [AllowEmptyString()] [string]$RequirementReceiptPath = '',
         [AllowEmptyString()] [string]$ExecutionPlanPath = '',
         [AllowEmptyString()] [string]$ExecutionPlanReceiptPath = '',
         [AllowEmptyString()] [string]$ExecuteReceiptPath = '',
@@ -1669,9 +1669,9 @@ function New-VibeRuntimeSummaryArtifactProjection {
         runtime_input_packet = $RuntimeInputPacketPath
         governance_capsule = $GovernanceCapsulePath
         stage_lineage = $StageLineagePath
-        intent_contract = $IntentContractPath
-        requirement_doc = $RequirementDocPath
-        requirement_receipt = $RequirementReceiptPath
+        intent_contract = if ([string]::IsNullOrWhiteSpace($IntentContractPath)) { $null } else { $IntentContractPath }
+        requirement_doc = if ([string]::IsNullOrWhiteSpace($RequirementDocPath)) { $null } else { $RequirementDocPath }
+        requirement_receipt = if ([string]::IsNullOrWhiteSpace($RequirementReceiptPath)) { $null } else { $RequirementReceiptPath }
         execution_plan = if ([string]::IsNullOrWhiteSpace($ExecutionPlanPath)) { $null } else { $ExecutionPlanPath }
         execution_plan_receipt = if ([string]::IsNullOrWhiteSpace($ExecutionPlanReceiptPath)) { $null } else { $ExecutionPlanReceiptPath }
         execute_receipt = if ([string]::IsNullOrWhiteSpace($ExecuteReceiptPath)) { $null } else { $ExecuteReceiptPath }

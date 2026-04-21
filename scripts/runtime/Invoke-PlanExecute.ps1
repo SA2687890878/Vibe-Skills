@@ -82,7 +82,105 @@ function New-VibeDelegatedLaneSpec {
         lane_id = $laneId
         lane_root = $laneRoot
         spec_path = $specPath
+        repo_root = [string]$laneSpec.repo_root
         lane_entry = $LaneEntry
+    }
+}
+
+function Resolve-VibeDelegatedLaneWorkingDirectory {
+    param(
+        [Parameter(Mandatory)] [object]$LaneRuntime
+    )
+
+    $laneRoot = [System.IO.Path]::GetFullPath([string]($LaneRuntime.lane_root))
+    $requestedWorkingDirectory = if (
+        $LaneRuntime.PSObject.Properties.Name -contains 'repo_root' -and
+        -not [string]::IsNullOrWhiteSpace([string]($LaneRuntime.repo_root))
+    ) {
+        [string]($LaneRuntime.repo_root)
+    } else {
+        $null
+    }
+
+    $resolvedRepoRoot = $null
+    $repoRootValid = $false
+    if (-not [string]::IsNullOrWhiteSpace($requestedWorkingDirectory)) {
+        try {
+            $resolvedRepoRoot = [System.IO.Path]::GetFullPath($requestedWorkingDirectory)
+            $repoRootValid = Test-Path -LiteralPath $resolvedRepoRoot -PathType Container
+        } catch {
+            $resolvedRepoRoot = $requestedWorkingDirectory
+            $repoRootValid = $false
+        }
+    }
+
+    $effectiveWorkingDirectory = if ($repoRootValid) { $resolvedRepoRoot } else { $laneRoot }
+    return [pscustomobject]@{
+        lane_root = $laneRoot
+        requested_working_directory = $requestedWorkingDirectory
+        resolved_repo_root = $resolvedRepoRoot
+        repo_root_valid = [bool]$repoRootValid
+        effective_working_directory = $effectiveWorkingDirectory
+        fallback_reason = if ($repoRootValid) { $null } elseif ([string]::IsNullOrWhiteSpace($requestedWorkingDirectory)) { 'repo_root_missing' } else { 'repo_root_invalid' }
+    }
+}
+
+function Get-VibeDelegatedLanePayloadContractVersion {
+    return '1.0'
+}
+
+function Resolve-VibeDelegatedLanePayload {
+    param(
+        [AllowEmptyString()] [string]$StdoutText = '',
+        [Parameter(Mandatory)] [string]$PayloadPath
+    )
+
+    $payloadCandidates = @()
+    $payloadText = ($StdoutText -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
+    if (-not [string]::IsNullOrWhiteSpace($payloadText)) {
+        $payloadCandidates += [pscustomobject]@{
+            source = 'stdout_terminal_json'
+            content = $payloadText
+        }
+    }
+
+    if (Test-Path -LiteralPath $PayloadPath) {
+        $payloadCandidates += [pscustomobject]@{
+            source = 'lane_payload_artifact'
+            content = Get-Content -LiteralPath $PayloadPath -Raw -Encoding UTF8
+        }
+    }
+
+    $parseFailures = @()
+    foreach ($candidate in @($payloadCandidates)) {
+        if ([string]::IsNullOrWhiteSpace([string]$candidate.content)) {
+            $parseFailures += ('{0}:empty' -f [string]$candidate.source)
+            continue
+        }
+
+        try {
+            $payload = [string]$candidate.content | ConvertFrom-Json
+        } catch {
+            $parseFailures += ('{0}:invalid_json' -f [string]$candidate.source)
+            continue
+        }
+
+        if (-not ($payload.PSObject.Properties.Name -contains 'lane_receipt_path')) {
+            $parseFailures += ('{0}:missing_lane_receipt_path' -f [string]$candidate.source)
+            continue
+        }
+
+        return [pscustomobject]@{
+            payload = $payload
+            source = [string]$candidate.source
+            parse_failures = @($parseFailures)
+        }
+    }
+
+    return [pscustomobject]@{
+        payload = $null
+        source = $null
+        parse_failures = @($parseFailures)
     }
 }
 
@@ -94,7 +192,10 @@ function Start-VibeDelegatedLaneProcess {
 
     $stdoutPath = Join-Path ([string]($LaneRuntime.lane_root)) 'lane-process.stdout.log'
     $stderrPath = Join-Path ([string]($LaneRuntime.lane_root)) 'lane-process.stderr.log'
+    $payloadPath = Join-Path ([string]($LaneRuntime.lane_root)) 'lane-payload.json'
+    $launchMetadataPath = Join-Path ([string]($LaneRuntime.lane_root)) 'lane-launch.json'
     $invocation = Get-VgoPowerShellFileInvocation -ScriptPath $HelperScriptPath -ArgumentList @('-LaneSpecPath', ([string]($LaneRuntime.spec_path))) -NoProfile
+    $workingDirectoryInfo = Resolve-VibeDelegatedLaneWorkingDirectory -LaneRuntime $LaneRuntime
 
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = [string]($invocation.host_path)
@@ -102,7 +203,7 @@ function Start-VibeDelegatedLaneProcess {
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
     $startInfo.CreateNoWindow = $true
-    $startInfo.WorkingDirectory = Split-Path -Parent ([string]($LaneRuntime.spec_path))
+    $startInfo.WorkingDirectory = [string]$workingDirectoryInfo.effective_working_directory
 
     $quotedArguments = foreach ($argument in @($invocation.arguments)) {
         $text = [string]$argument
@@ -113,6 +214,40 @@ function Start-VibeDelegatedLaneProcess {
         }
     }
     $startInfo.Arguments = [string]::Join(' ', @($quotedArguments))
+
+    $launchMetadata = [pscustomobject]@{
+        lane_id = [string]($LaneRuntime.lane_id)
+        lane_root = [string]($LaneRuntime.lane_root)
+        spec_path = [string]($LaneRuntime.spec_path)
+        helper_script_path = [string]$HelperScriptPath
+        host_kind = if ($invocation.PSObject.Properties.Name -contains 'host_kind') { [string]$invocation.host_kind } else { 'pwsh' }
+        powershell_host_path = [string]($invocation.host_path)
+        fallback_used = [bool]$(if ($invocation.PSObject.Properties.Name -contains 'fallback_used') { $invocation.fallback_used } else { $false })
+        resolved_command = [string]($invocation.host_path)
+        resolved_arguments = @($invocation.arguments)
+        arguments_render_mode = 'RenderedString'
+        payload_contract_version = Get-VibeDelegatedLanePayloadContractVersion
+        requested_working_directory = if ($null -eq $workingDirectoryInfo.requested_working_directory) { $null } else { [string]$workingDirectoryInfo.requested_working_directory }
+        resolved_repo_root = if ($null -eq $workingDirectoryInfo.resolved_repo_root) { $null } else { [string]$workingDirectoryInfo.resolved_repo_root }
+        effective_working_directory = [string]$workingDirectoryInfo.effective_working_directory
+        resolved_working_directory = [string]$workingDirectoryInfo.effective_working_directory
+        repo_root_valid = [bool]$workingDirectoryInfo.repo_root_valid
+        fallback_reason = if ($null -eq $workingDirectoryInfo.fallback_reason) { $null } else { [string]$workingDirectoryInfo.fallback_reason }
+        preflight = [pscustomobject]@{
+            executable_exists = [bool](Test-Path -LiteralPath ([string]($invocation.host_path)))
+            executable_is_file = [bool](Test-Path -LiteralPath ([string]($invocation.host_path)) -PathType Leaf)
+            working_directory_exists = [bool](Test-Path -LiteralPath ([string]$workingDirectoryInfo.effective_working_directory))
+            working_directory_is_directory = [bool](Test-Path -LiteralPath ([string]$workingDirectoryInfo.effective_working_directory) -PathType Container)
+            script_exists = [bool](Test-Path -LiteralPath ([string]$HelperScriptPath))
+            script_is_file = [bool](Test-Path -LiteralPath ([string]$HelperScriptPath) -PathType Leaf)
+            script_used_as_executable = [bool]([string]($invocation.host_path) -eq [string]$HelperScriptPath)
+        }
+        stdout_path = $stdoutPath
+        stderr_path = $stderrPath
+        payload_path = $payloadPath
+        generated_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    }
+    Write-VibeJsonArtifact -Path $launchMetadataPath -Value $launchMetadata
 
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $startInfo
@@ -127,6 +262,11 @@ function Start-VibeDelegatedLaneProcess {
         process = $process
         stdout_path = $stdoutPath
         stderr_path = $stderrPath
+        payload_path = $payloadPath
+        launch_metadata_path = $launchMetadataPath
+        requested_working_directory = if ($null -eq $workingDirectoryInfo.requested_working_directory) { $null } else { [string]$workingDirectoryInfo.requested_working_directory }
+        effective_working_directory = [string]$workingDirectoryInfo.effective_working_directory
+        repo_root_valid = [bool]$workingDirectoryInfo.repo_root_valid
         stdout_task = $process.StandardOutput.ReadToEndAsync()
         stderr_task = $process.StandardError.ReadToEndAsync()
     }
@@ -152,19 +292,37 @@ function Wait-VibeDelegatedLaneProcess {
     Write-VgoUtf8NoBomText -Path ([string]($Handle.stdout_path)) -Content $stdoutText
     Write-VgoUtf8NoBomText -Path ([string]($Handle.stderr_path)) -Content $stderrText
 
-    $payloadText = ($stdoutText -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
-    if ([string]::IsNullOrWhiteSpace($payloadText)) {
-        throw ("Delegated lane process returned empty payload for {0}" -f ([string]($Handle.lane_id)))
+    $processExitCode = if ($timedOut) { -1 } else { [int]($Handle.process.ExitCode) }
+    $payloadRecovery = Resolve-VibeDelegatedLanePayload -StdoutText $stdoutText -PayloadPath ([string]($Handle.payload_path))
+    if ($timedOut -or $processExitCode -ne 0 -or $null -eq $payloadRecovery.payload) {
+        $failureReasons = @()
+        if ($timedOut) {
+            $failureReasons += 'timeout'
+        }
+        if ($processExitCode -ne 0) {
+            $failureReasons += ('exit_code={0}' -f $processExitCode)
+        }
+        if ($null -eq $payloadRecovery.payload) {
+            $failureReasons += 'payload_unavailable'
+        }
+        if (@($payloadRecovery.parse_failures).Count -gt 0) {
+            $failureReasons += ('payload_parse_failures={0}' -f ([string]::Join(', ', @($payloadRecovery.parse_failures))))
+        }
+
+        $message = @(
+            ('Delegated lane payload handoff failed for lane_id={0}' -f ([string]($Handle.lane_id))),
+            ('reasons={0}' -f ([string]::Join(', ', @($failureReasons)))),
+            ('effective_working_directory={0}' -f [string]($Handle.effective_working_directory)),
+            ('requested_working_directory={0}' -f $(if ($Handle.requested_working_directory) { [string]$Handle.requested_working_directory } else { '<none>' })),
+            ('stdout_path={0}' -f [string]($Handle.stdout_path)),
+            ('stderr_path={0}' -f [string]($Handle.stderr_path)),
+            ('payload_path={0}' -f [string]($Handle.payload_path))
+        ) -join '; '
+        $Handle.process.Dispose()
+        throw $message
     }
 
-    $payload = $payloadText | ConvertFrom-Json
-    if (-not ($payload.PSObject.Properties.Name -contains 'lane_receipt_path')) {
-        $payloadPath = Join-Path ([string]($Handle.lane_root)) 'lane-payload.json'
-        if (-not (Test-Path -LiteralPath $payloadPath)) {
-            throw ("Delegated lane payload missing lane_receipt_path and no lane-payload.json exists for {0}" -f ([string]($Handle.lane_id)))
-        }
-        $payload = Get-Content -LiteralPath $payloadPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    }
+    $payload = $payloadRecovery.payload
     $laneReceipt = Get-Content -LiteralPath ([string]($payload.lane_receipt_path)) -Raw -Encoding UTF8 | ConvertFrom-Json
     $laneResult = if ($payload.lane_result_path -and (Test-Path -LiteralPath ([string]($payload.lane_result_path)))) {
         Get-Content -LiteralPath ([string]($payload.lane_result_path)) -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -172,7 +330,6 @@ function Wait-VibeDelegatedLaneProcess {
         $null
     }
 
-    $processExitCode = if ($timedOut) { -1 } else { [int]($Handle.process.ExitCode) }
     $Handle.process.Dispose()
 
     return [pscustomobject]@{
@@ -182,6 +339,10 @@ function Wait-VibeDelegatedLaneProcess {
         timed_out = [bool]$timedOut
         stdout_path = [string]($Handle.stdout_path)
         stderr_path = [string]($Handle.stderr_path)
+        payload_path = [string]($Handle.payload_path)
+        payload_source = [string]$payloadRecovery.source
+        effective_working_directory = [string]($Handle.effective_working_directory)
+        requested_working_directory = if ($Handle.requested_working_directory) { [string]$Handle.requested_working_directory } else { $null }
         lane_receipt_path = [string]($payload.lane_receipt_path)
         lane_notes_path = [string]($payload.lane_notes_path)
         lane_result_path = if ($payload.lane_result_path) { [string]($payload.lane_result_path) } else { $null }
