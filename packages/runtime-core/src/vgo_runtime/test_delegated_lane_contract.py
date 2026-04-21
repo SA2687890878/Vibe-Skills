@@ -279,6 +279,7 @@ class CliProcessPowerShellPolicyTests(unittest.TestCase):
                 "host_path": None,
                 "host_kind": None,
                 "fallback_used": False,
+                "error": "pwsh is required on non-Windows hosts",
                 "candidates_checked": [
                     {"candidate_name": "path-pwsh", "candidate_path": None},
                     {"candidate_name": "path-powershell", "candidate_path": r"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"},
@@ -287,6 +288,7 @@ class CliProcessPowerShellPolicyTests(unittest.TestCase):
                 module.run_powershell_file(Path("demo.ps1"), "-Task", "probe")
         message = str(ctx.exception)
         self.assertIn("PowerShell is required to run: demo.ps1", message)
+        self.assertIn("pwsh is required on non-Windows hosts", message)
         self.assertIn("candidates checked:", message)
         self.assertIn("path-pwsh", message)
         self.assertIn("powershell.exe", message)

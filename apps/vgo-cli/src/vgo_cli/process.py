@@ -224,12 +224,19 @@ def run_powershell_file(script_path: Path, *args: str) -> subprocess.CompletedPr
     resolution = choose_powershell(return_diagnostics=True)
     if not isinstance(resolution, dict) or not resolution.get("host_path"):
         checked = []
+        policy_error = ""
         if isinstance(resolution, dict):
             checked = [
                 entry.get("candidate_path") or entry.get("candidate_name") or "<unknown>"
                 for entry in resolution.get("candidates_checked", [])
             ]
-        detail = f"; candidates checked: {', '.join(checked)}" if checked else ""
+            policy_error = str(resolution.get("error") or resolution.get("reason") or "").strip()
+        detail_parts: list[str] = []
+        if policy_error:
+            detail_parts.append(policy_error)
+        if checked:
+            detail_parts.append(f"candidates checked: {', '.join(checked)}")
+        detail = f"; {'; '.join(detail_parts)}" if detail_parts else ""
         raise CliError(f"PowerShell is required to run: {script_path}{detail}")
     shell_path = str(resolution["host_path"])
     leaf = Path(shell_path).name.lower()
