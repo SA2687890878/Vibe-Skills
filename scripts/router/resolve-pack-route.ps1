@@ -17,6 +17,15 @@
 )
 
 $ErrorActionPreference = "Stop"
+
+# Ensure consistent UTF-8 console output for Unicode prompts and confirm surfaces.
+if ($PSVersionTable.PSEdition -eq 'Desktop' -or $PSVersionTable.Platform -eq 'Win32NT') {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+} else {
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+}
+
 . (Join-Path $PSScriptRoot "..\runtime\VibeRuntime.Common.ps1")
 $routerModuleRoot = Join-Path $PSScriptRoot "modules"
 $routerModules = @(

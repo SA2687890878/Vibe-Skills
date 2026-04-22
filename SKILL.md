@@ -115,6 +115,8 @@ py -3 -m vgo_cli.main canonical-entry `
 
 If `py -3` is unavailable, try `python` instead.
 
+If you must invoke PowerShell through a Bash-like tool surface, do not place `$env:PYTHONPATH=...` inside a double-quoted `-Command` string. The outer shell can expand `$env` first and corrupt it to `:PYTHONPATH`, leaving `PYTHONPATH` unset and causing `ModuleNotFoundError: No module named 'vgo_cli'`. In that situation, either set `PYTHONPATH=...` in the outer shell before invoking `py -3 -m ...`, or single-quote / escape the PowerShell payload so `$env:` reaches PowerShell literally.
+
 Discoverable wrapper ids still enter canonical `vibe`; only the bounded stop changes:
 - `vibe-want` -> `--requested-stage-stop requirement_doc`
 - `vibe-how` -> `--requested-stage-stop xl_plan --requested-grade-floor XL`

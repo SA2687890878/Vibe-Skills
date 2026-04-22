@@ -13,6 +13,8 @@ def test_vibe_skill_frontloads_canonical_bootstrap_contract() -> None:
     assert content.index("## Canonical Bootstrap") < content.index("## Unified Runtime Contract")
     assert "py -3 -m vgo_cli.main canonical-entry" in content
     assert "If `py -3` is unavailable, try `python` instead." in content
+    assert "do not place `$env:PYTHONPATH=...` inside a double-quoted `-Command` string" in content
+    assert "corrupt it to `:PYTHONPATH`" in content
     assert '--artifact-root "<workspace_root>"' in content
     assert "Do not manually create `outputs/runtime/vibe-sessions/<run-id>/`" in content
     assert "Do not use the Vibe installation root as the governed artifact root" in content

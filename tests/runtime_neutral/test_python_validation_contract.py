@@ -63,6 +63,13 @@ class PythonValidationContractTests(unittest.TestCase):
         self.assertIn("requires Python ${PYTHON_MIN_MAJOR}.${PYTHON_MIN_MINOR}+", text)
         self.assertIn("python3 --version", text)
 
+    def test_router_entrypoint_forces_utf8_console_output_for_unicode_prompts(self) -> None:
+        self.assertTrue(RESOLVE_PACK_ROUTE.exists(), "router entrypoint should exist")
+
+        text = RESOLVE_PACK_ROUTE.read_text(encoding="utf-8")
+        self.assertIn("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8", text)
+        self.assertIn("$OutputEncoding = [System.Text.Encoding]::UTF8", text)
+
     def test_python_validation_targets_cover_critical_invariants(self) -> None:
         self.assertTrue(TARGETS_FILE.exists(), "canonical Python validation target list should exist")
 
