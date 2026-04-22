@@ -178,7 +178,12 @@ def resolve_target_root(target_root: str | None = None, host_id: str | None = No
     return (resolve_home_directory() / default_rel).resolve()
 
 
-def resolve_requested_canonical(requested_skill: str | None, alias_map: dict[str, Any]) -> str | None:
+def resolve_requested_canonical(
+    requested_skill: str | None,
+    alias_map: dict[str, Any],
+    *,
+    repo_root: Path | None = None,
+) -> str | None:
     if not requested_skill:
         return None
     requested = normalize_text(str(requested_skill).lstrip("$"))
@@ -188,7 +193,22 @@ def resolve_requested_canonical(requested_skill: str | None, alias_map: dict[str
     aliases = alias_map.get("aliases") or {}
     for alias, canonical in aliases.items():
         if normalize_text(alias) == requested:
-            return normalize_text(str(canonical))
+            requested = normalize_text(str(canonical))
+            break
+
+    if repo_root is None:
+        return requested
+
+    try:
+        surface = load_discoverable_entry_surface(repo_root)
+    except RuntimeError:
+        return requested
+
+    entry_ids = {normalize_text(entry.id) for entry in surface.entries if normalize_text(entry.id)}
+    if requested in entry_ids:
+        canonical_runtime_skill = normalize_text(surface.canonical_runtime_skill)
+        if canonical_runtime_skill:
+            return canonical_runtime_skill
     return requested
 
 

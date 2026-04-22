@@ -206,7 +206,11 @@ def route_prompt(
     fallback_policy = router_config["fallback_policy"]
     routing_rules = router_config["routing_rules"]
 
-    requested_canonical = resolve_requested_canonical(requested_skill or entry_intent_id, alias_map)
+    requested_canonical = resolve_requested_canonical(
+        requested_skill or entry_intent_id,
+        alias_map,
+        repo_root=repo.repo_root,
+    )
     resolved_target_root = resolve_target_root(target_root, host_id)
     custom_admission = load_custom_admission(
         repo_root=repo.repo_root,

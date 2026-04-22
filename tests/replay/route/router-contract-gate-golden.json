@@ -166,6 +166,22 @@
         "top1_top2_gap": 1.0,
         "candidate_signal": 1.0
       }
+    },
+    {
+      "id": "vibe-do-wrapper-prelaunch-routing",
+      "prompt": "execute plan phase-cleanup facial-recognition few-shot dataset download training baseline enhancements experiments latex-paper",
+      "grade": "L",
+      "task_type": "research",
+      "requested_skill": "vibe-do",
+      "expected": {
+        "route_mode": "pack_overlay",
+        "route_reason": "candidate_signal_auto_route",
+        "selected_pack": "orchestration-core",
+        "selected_skill": "vibe",
+        "confidence": 0.7,
+        "top1_top2_gap": 1.0,
+        "candidate_signal": 1.0
+      }
     }
   ]
 }

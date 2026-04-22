@@ -263,6 +263,20 @@ class RouterBridgeTests(unittest.TestCase):
         self.assertIn("confirm_ui", result)
         self.assertTrue(result["confirm_ui"]["enabled"])
 
+    def test_vibe_do_wrapper_keywords_fold_back_to_canonical_vibe_before_prelaunch_routing(self) -> None:
+        result = run_bridge(
+            "execute plan phase-cleanup facial-recognition few-shot dataset download training baseline enhancements experiments latex-paper",
+            "L",
+            "research",
+            requested_skill="vibe-do",
+        )
+
+        self.assertEqual("pack_overlay", result["route_mode"])
+        self.assertEqual("candidate_signal_auto_route", result["route_reason"])
+        self.assertEqual("orchestration-core", result["selected"]["pack_id"])
+        self.assertEqual("vibe", result["selected"]["skill"])
+        self.assertEqual("vibe", result["alias"]["requested_canonical"])
+
 
 if __name__ == "__main__":
     unittest.main()

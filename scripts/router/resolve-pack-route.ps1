@@ -391,7 +391,18 @@ $minCandidateSignalForConfirmOverride = if ($th.min_candidate_signal_for_confirm
 $minCandidateSignalForAutoRoute = if ($th.min_candidate_signal_for_auto_route -ne $null) { [double]$th.min_candidate_signal_for_auto_route } else { [double]$th.auto_route }
 $enforceConfirmOnLegacyFallback = if ($rules.enforce_confirm_on_legacy_fallback -ne $null) { [bool]$rules.enforce_confirm_on_legacy_fallback } else { $false }
 $aliasResult = Resolve-Alias -Skill $RequestedSkill -AliasMap $aliasMap
-$requestedCanonical = [string]$aliasResult.canonical
+$requestedCanonical = Resolve-RequestedCanonicalForRouting -AliasResult $aliasResult -RepoRoot ([string]$repoRoot)
+if ($aliasResult -and $aliasResult.PSObject.Properties.Name -notcontains 'routing_canonical') {
+    $aliasResult | Add-Member -NotePropertyName routing_canonical -NotePropertyValue $requestedCanonical -Force
+}
+if ($aliasResult -and $aliasResult.PSObject.Properties.Name -notcontains 'wrapper_entry_folded') {
+    $wrapperEntryFolded = (
+        -not [string]::IsNullOrWhiteSpace([string]$requestedCanonical) -and
+        -not [string]::IsNullOrWhiteSpace([string]$aliasResult.canonical) -and
+        -not [string]::Equals([string]$requestedCanonical, [string]$aliasResult.canonical, [System.StringComparison]::OrdinalIgnoreCase)
+    )
+    $aliasResult | Add-Member -NotePropertyName wrapper_entry_folded -NotePropertyValue ([bool]$wrapperEntryFolded) -Force
+}
 $promptNormalization = Get-RoutingPromptNormalization -PromptText $Prompt
 $promptLower = [string]$promptNormalization.normalized_lower
 $Grade = Resolve-RouterGradeValue -InputGrade $Grade -PromptText $Prompt
