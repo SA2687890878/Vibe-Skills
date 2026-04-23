@@ -2796,19 +2796,34 @@ function New-VibeHostUserBriefingProjection {
         return $null
     }
 
+    $hasLifecycleDisclosure = ($null -ne $LifecycleDisclosure -and [bool]$LifecycleDisclosure.enabled)
+    $hasBoundedReturnControl = (
+        $null -ne $BoundedReturnControl -and
+        (Test-VibeObjectHasProperty -InputObject $BoundedReturnControl -PropertyName 'enabled') -and
+        [bool]$BoundedReturnControl.enabled
+    )
+    $executionHandoffSegments = @($segmentArray | Where-Object { [string]$_.segment_id -eq 'execution_handoff' })
+    $hasExecutionHandoffOnly = (
+        @($executionHandoffSegments).Count -gt 0 -and
+        @($executionHandoffSegments).Count -eq @($segmentArray).Count
+    )
     $failedConsultationSegments = @($segmentArray | Where-Object { [string]$_.category -eq 'consultation' -and [string]$_.status -eq 'gate_failed' })
     $freezeGatePassed = [bool](@($failedConsultationSegments).Count -eq 0)
 
     return [pscustomobject]@{
         enabled = [bool](@($segmentArray).Count -gt 0)
-        mode = if ($null -ne $LifecycleDisclosure -and [bool]$LifecycleDisclosure.enabled) {
-            if ($null -ne $BoundedReturnControl -and (Test-VibeObjectHasProperty -InputObject $BoundedReturnControl -PropertyName 'enabled') -and [bool]$BoundedReturnControl.enabled) {
+        mode = if ($hasExecutionHandoffOnly -and -not $hasLifecycleDisclosure -and -not $hasBoundedReturnControl) {
+            'execution_handoff_host_briefing'
+        } elseif ($hasLifecycleDisclosure) {
+            if ($hasBoundedReturnControl) {
                 'progressive_host_user_briefing'
             } else {
                 'progressive_specialist_host_briefing'
             }
-        } else {
+        } elseif ($hasBoundedReturnControl) {
             'bounded_return_host_briefing'
+        } else {
+            'host_user_briefing'
         }
         freeze_gate_passed = $freezeGatePassed
         segment_count = @($segmentArray).Count

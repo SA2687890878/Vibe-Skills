@@ -272,6 +272,26 @@ def _load_json_dict_if_exists(path: Path | None) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _artifact_paths(summary: dict[str, Any]) -> dict[str, Any]:
+    artifacts = summary.get("artifacts") or {}
+    return artifacts if isinstance(artifacts, dict) else {}
+
+
+def _artifact_path_value(artifacts: dict[str, Any], key: str) -> str | None:
+    value = artifacts.get(key)
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip()
+    return candidate or None
+
+
+def _load_intent_contract_from_artifacts(artifacts: dict[str, Any]) -> dict[str, Any] | None:
+    intent_contract_path = _artifact_path_value(artifacts, "intent_contract")
+    if not intent_contract_path:
+        return None
+    return _load_json_dict_if_exists(Path(intent_contract_path))
+
+
 def _normalize_prompt_token(text: str) -> str:
     lowered = text.strip().lower()
     lowered = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "-", lowered)
@@ -388,12 +408,11 @@ def _load_continuation_context_from_summary(
     summary = _load_json_dict_if_exists(summary_path)
     if not summary:
         return None
-    artifacts = summary.get("artifacts") or {}
-    required_path = artifacts.get(required_artifact)
-    intent_contract_path = artifacts.get("intent_contract")
+    artifacts = _artifact_paths(summary)
+    required_path = _artifact_path_value(artifacts, required_artifact)
     if not required_path or not Path(required_path).exists():
         return None
-    intent_contract = _load_json_dict_if_exists(Path(intent_contract_path)) if intent_contract_path else None
+    intent_contract = _load_intent_contract_from_artifacts(artifacts)
     if not intent_contract:
         return None
     return {
@@ -458,10 +477,8 @@ def _coerce_bounded_return_control(summary: dict[str, Any]) -> dict[str, Any] | 
     if not token or not source_run_id or not terminal_stage or not allowed_followup:
         return None
 
-    artifacts = summary.get("artifacts") or {}
-    if not isinstance(artifacts, dict):
-        artifacts = {}
-    intent_contract = _load_json_dict_if_exists(Path(artifacts["intent_contract"])) if artifacts.get("intent_contract") else None
+    artifacts = _artifact_paths(summary)
+    intent_contract = _load_intent_contract_from_artifacts(artifacts)
     return {
         "summary_path": str(summary.get("summary_path") or ""),
         "source_run_id": source_run_id,
@@ -479,10 +496,8 @@ def _has_explicit_bounded_return_control(summary: dict[str, Any]) -> bool:
 
 
 def _build_malformed_bounded_return_control(summary: dict[str, Any], summary_path: Path) -> dict[str, Any]:
-    artifacts = summary.get("artifacts") or {}
-    if not isinstance(artifacts, dict):
-        artifacts = {}
-    intent_contract = _load_json_dict_if_exists(Path(artifacts["intent_contract"])) if artifacts.get("intent_contract") else None
+    artifacts = _artifact_paths(summary)
+    intent_contract = _load_intent_contract_from_artifacts(artifacts)
     return {
         "summary_path": str(summary_path),
         "source_run_id": str(summary.get("run_id") or summary_path.parent.name),

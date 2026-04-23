@@ -525,6 +525,8 @@ if ($requestedStop -eq 'plan_execute') {
         $null
     }
 
+    # plan_execute stops before cleanup/user-facing execution handoff is finalized, so this early return
+    # intentionally does not synthesize bounded-return credentials or a host-user briefing.
     return Complete-VibeGovernedRuntimeStop `
         -RunId $RunId `
         -Mode $Mode `
@@ -617,6 +619,16 @@ $deliveryAcceptanceReport = if (Test-Path -LiteralPath $deliveryAcceptanceReport
 } else {
     $null
 }
+$deliveryAcceptanceReportArtifactPath = if (Test-Path -LiteralPath $deliveryAcceptanceReportPath) {
+    [string]$deliveryAcceptanceReportPath
+} else {
+    ''
+}
+$deliveryAcceptanceMarkdownArtifactPath = if (Test-Path -LiteralPath $deliveryAcceptanceMarkdownPath) {
+    [string]$deliveryAcceptanceMarkdownPath
+} else {
+    ''
+}
 $specialistLifecycleDisclosure = New-VibeSpecialistLifecycleDisclosureProjection `
     -RuntimeInputPacket $runtimeInputPacket `
     -DiscussionConsultationReceipt $discussionConsultation.receipt `
@@ -690,10 +702,12 @@ $criticalArtifactPaths = @(
     [string]$planningConsultation.receipt_path,
     [string]$specialistLifecycleDisclosurePath,
     [string]$cleanup.receipt_path,
-    [string]$deliveryAcceptanceReportPath,
     [string]$memoryActivation.report_path,
     [string]$memoryActivation.markdown_path
 )
+if (-not [string]::IsNullOrWhiteSpace($deliveryAcceptanceReportArtifactPath)) {
+    $criticalArtifactPaths += $deliveryAcceptanceReportArtifactPath
+}
 if ($hostStageDisclosure) {
     $criticalArtifactPaths += [string]$hostStageDisclosurePath
 }
@@ -730,8 +744,8 @@ $summaryArtifacts = New-VibeRuntimeSummaryArtifactProjection `
     -HostStageDisclosurePath $(if ($hostStageDisclosure) { [string]$hostStageDisclosurePath } else { '' }) `
     -HostUserBriefingPath ([string]$hostUserBriefingPath) `
     -CleanupReceiptPath ([string]$cleanup.receipt_path) `
-    -DeliveryAcceptanceReportPath ([string]$deliveryAcceptanceReportPath) `
-    -DeliveryAcceptanceMarkdownPath ([string]$deliveryAcceptanceMarkdownPath) `
+    -DeliveryAcceptanceReportPath $deliveryAcceptanceReportArtifactPath `
+    -DeliveryAcceptanceMarkdownPath $deliveryAcceptanceMarkdownArtifactPath `
     -MemoryActivationReportPath ([string]$memoryActivation.report_path) `
     -MemoryActivationMarkdownPath ([string]$memoryActivation.markdown_path) `
     -DelegationEnvelopePath ([string]$hierarchyState.delegation_envelope_path) `

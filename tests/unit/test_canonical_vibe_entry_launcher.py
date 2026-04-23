@@ -347,9 +347,56 @@ def test_resolve_effective_prompt_ignores_bounded_preferred_summary_without_expl
 
 def test_runtime_summary_path_for_run_id_rejects_invalid_path_segments(tmp_path: Path) -> None:
     assert canonical_entry._runtime_summary_path_for_run_id(tmp_path, "../escape") is None
-    assert canonical_entry._runtime_summary_path_for_run_id(tmp_path, r"..\\escape") is None
+    assert canonical_entry._runtime_summary_path_for_run_id(tmp_path, r"..\escape") is None
     assert canonical_entry._runtime_summary_path_for_run_id(tmp_path, "nested/run") is None
-    assert canonical_entry._runtime_summary_path_for_run_id(tmp_path, r"nested\\run") is None
+    assert canonical_entry._runtime_summary_path_for_run_id(tmp_path, r"nested\run") is None
+
+
+def test_load_continuation_context_from_summary_ignores_non_string_artifact_paths(tmp_path: Path) -> None:
+    summary_path = tmp_path / "runtime-summary.json"
+    _write_json(
+        summary_path,
+        {
+            "run_id": "prior-run",
+            "terminal_stage": "xl_plan",
+            "artifacts": {
+                "execution_plan": ["not", "a", "path"],
+                "intent_contract": {"bad": "path-shape"},
+            },
+        },
+    )
+
+    continuation = canonical_entry._load_continuation_context_from_summary(
+        summary_path,
+        required_artifact="execution_plan",
+    )
+
+    assert continuation is None
+
+
+def test_bounded_return_helpers_ignore_non_string_intent_contract_paths(tmp_path: Path) -> None:
+    summary = {
+        "run_id": "prior-bounded-run",
+        "task": "plan runtime entry hardening",
+        "terminal_stage": "xl_plan",
+        "artifacts": {
+            "intent_contract": ["not", "a", "path"],
+        },
+        "bounded_return_control": {
+            "explicit_user_reentry_required": True,
+            "source_run_id": "prior-bounded-run",
+            "terminal_stage": "xl_plan",
+            "allowed_followup_entry_ids": ["vibe", "vibe-do"],
+            "reentry_token": "token-123",  # noqa: S106 - non-secret fixture token
+        },
+    }
+
+    guard = canonical_entry._coerce_bounded_return_control(summary)
+    malformed = canonical_entry._build_malformed_bounded_return_control(summary, tmp_path / "runtime-summary.json")
+
+    assert guard is not None
+    assert guard["intent_goal"] == ""
+    assert malformed["intent_goal"] == ""
 
 
 def test_resolve_effective_prompt_skips_malformed_bounded_preferred_summary(tmp_path: Path) -> None:

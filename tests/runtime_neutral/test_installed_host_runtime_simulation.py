@@ -14,7 +14,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 INSTALL_SCRIPT_SH = REPO_ROOT / "install.sh"
 INSTALL_SCRIPT_PS1 = REPO_ROOT / "install.ps1"
-TEST_SANDBOX_ROOT = REPO_ROOT.parent / ".pytest-tmp-installed-host-sim"
+TEST_SANDBOX_ROOT = Path(tempfile.gettempdir()) / "vibe-skills-pytest-installed-host-sim"
 PLANNING_TASK = "Create a PRD and backlog for a small feature with quality gate requirements $vibe"
 DEBUG_TASK = "I have a failing test and a stack trace. Help me debug systematically before proposing fixes. $vibe"
 EXECUTION_TASK = "Implement a bounded runtime enhancement with verification and cleanup $vibe"
@@ -417,6 +417,11 @@ class InstalledHostRuntimeSimulationTests(unittest.TestCase):
                 host_user_briefing_path = Path(debug_state["artifacts"]["host_user_briefing"])
                 self.assertTrue(host_user_briefing_path.exists(), host_id)
                 host_user_briefing = host_user_briefing_path.read_text(encoding="utf-8")
+                self.assertEqual(
+                    "progressive_specialist_host_briefing",
+                    debug_state["summary"]["host_user_briefing"]["mode"],
+                    host_id,
+                )
                 self.assertIn("Execution handoff is still pending under governed vibe.", host_user_briefing, host_id)
                 self.assertIn(
                     "next required action: load each disclosed `native_skill_entrypoint`",

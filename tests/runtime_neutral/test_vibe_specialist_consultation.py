@@ -1076,6 +1076,30 @@ class VibeSpecialistConsultationTests(unittest.TestCase):
             result["rendered_text"],
         )
 
+    def test_host_user_briefing_uses_execution_handoff_mode_without_lifecycle_or_bounded_return(self) -> None:
+        result = run_runtime_common_json(
+            """
+            $deliveryAcceptanceReport = [pscustomobject]@{
+                summary = [pscustomobject]@{
+                    gate_result = 'MANUAL_REVIEW_REQUIRED'
+                    readiness_state = 'manual_review_required'
+                    completion_language_allowed = $false
+                    incomplete_layers = @('workflow_completion_truth')
+                }
+                execution_context = [pscustomobject]@{
+                    specialist_host_continuation_pending = $true
+                    specialist_effective_execution_status = 'direct_current_session_routed'
+                }
+            }
+            $result = New-VibeHostUserBriefingProjection -DeliveryAcceptanceReport $deliveryAcceptanceReport
+            $result | ConvertTo-Json -Depth 20
+            """
+        )
+
+        self.assertEqual("execution_handoff_host_briefing", result["mode"])
+        self.assertEqual(["execution_handoff"], [str(segment["segment_id"]) for segment in list(result["segments"])])
+        self.assertIn("Execution handoff is still pending under governed vibe.", result["rendered_text"])
+
     def test_consultation_window_invokes_specialist_and_emits_progressive_disclosure(self) -> None:
         shell = resolve_powershell()
         if shell is None:
