@@ -2816,12 +2816,44 @@ function Get-VibeTaskSignalCount {
 
     $hits = 0
     foreach ($pattern in @($Patterns)) {
-        if (-not [string]::IsNullOrWhiteSpace($pattern) -and $TaskLower -match $pattern) {
+        if (-not [string]::IsNullOrWhiteSpace($pattern) -and (Test-VibeTaskSignalHit -TaskLower $TaskLower -Pattern $pattern)) {
             $hits++
         }
     }
 
     return $hits
+}
+
+function Test-VibeTaskSignalHit {
+    param(
+        [Parameter(Mandatory)] [string]$TaskLower,
+        [Parameter(Mandatory)] [string]$Pattern
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TaskLower) -or [string]::IsNullOrWhiteSpace($Pattern)) {
+        return $false
+    }
+
+    $needle = $Pattern.ToLowerInvariant()
+    if ([Regex]::IsMatch($needle, '[\p{IsCJKUnifiedIdeographs}]')) {
+        return $TaskLower.Contains($needle)
+    }
+
+    $looksLikeRegex = [Regex]::IsMatch($needle, '[\[\]\(\)\.\*\+\?\|\\]')
+    if ($looksLikeRegex) {
+        return ($TaskLower -match $needle)
+    }
+
+    if ([Regex]::IsMatch($needle, '[a-z0-9]')) {
+        $tokens = @([Regex]::Split($needle, '[-_\s/]+') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        if ($tokens.Count -gt 0) {
+            $escapedTokens = @($tokens | ForEach-Object { [Regex]::Escape($_) })
+            $boundaryPattern = '(?<![a-z0-9])' + ($escapedTokens -join '[-_\s/]*') + '(?![a-z0-9])'
+            return [Regex]::IsMatch($TaskLower, $boundaryPattern)
+        }
+    }
+
+    return $TaskLower.Contains($needle)
 }
 
 function Get-VibeInferredTaskType {
@@ -2830,6 +2862,19 @@ function Get-VibeInferredTaskType {
     )
 
     $taskLower = $Task.ToLowerInvariant()
+    $routerDiagnosticContextPatterns = @(
+        'router',
+        'routing',
+        'misroute'
+    )
+    $routerDiagnosticPatterns = @(
+        'fallback',
+        'threshold',
+        'confidence',
+        'candidate[- ]scor',
+        'grade[- ]selection',
+        'task[- ]classification'
+    )
     $reviewPatterns = @(
         'review',
         'code review',
@@ -2860,12 +2905,6 @@ function Get-VibeInferredTaskType {
         'inaccurate',
         'friction',
         'error',
-        'fallback',
-        'threshold',
-        'confidence',
-        'candidate[- ]scor',
-        'grade[- ]selection',
-        'task[- ]classification',
         '错误',
         '修复',
         '问题',
@@ -2898,14 +2937,12 @@ function Get-VibeInferredTaskType {
         'change',
         'create',
         'add',
-        'integrat',
+        'integrate',
+        'integration',
         'install',
         'runtime',
         'router',
         'routing',
-        'workflow',
-        'contract',
-        'gate',
         '更新',
         '增强',
         '执行',
@@ -2920,6 +2957,13 @@ function Get-VibeInferredTaskType {
     $debugScore = Get-VibeTaskSignalCount -TaskLower $taskLower -Patterns $debugPatterns
     $researchScore = Get-VibeTaskSignalCount -TaskLower $taskLower -Patterns $researchPatterns
     $codingScore = Get-VibeTaskSignalCount -TaskLower $taskLower -Patterns $codingPatterns
+    $routerContextScore = Get-VibeTaskSignalCount -TaskLower $taskLower -Patterns $routerDiagnosticContextPatterns
+    if ($routerContextScore -gt 0) {
+        $routerDebugScore = Get-VibeTaskSignalCount -TaskLower $taskLower -Patterns $routerDiagnosticPatterns
+        if ($routerDebugScore -gt $debugScore) {
+            $debugScore = $routerDebugScore
+        }
+    }
     $scores = [ordered]@{
         review = $reviewScore
         debug = $debugScore
@@ -2949,6 +2993,7 @@ function Get-VibeInternalGrade {
 
     $grade = ''
     $taskLower = $Task.ToLowerInvariant()
+    $inferredTaskType = Get-VibeInferredTaskType -Task $Task
     $xlPatterns = @(
         'xl',
         'multi-agent',
@@ -2971,7 +3016,7 @@ function Get-VibeInternalGrade {
         '全链路',
         '端到端'
     )
-    $lPatterns = @(
+    $planningPatterns = @(
         'design',
         'plan',
         'architecture',
@@ -3008,8 +3053,6 @@ function Get-VibeInternalGrade {
         'candidate[- ]scor',
         'heuristic',
         'windows',
-        'claude',
-        'codex',
         '访谈',
         '规划',
         '设计',
@@ -3030,6 +3073,17 @@ function Get-VibeInternalGrade {
         '分类',
         '评分'
     )
+    $planningPriorityPatterns = @(
+        'quality gate',
+        'freshness gate',
+        'prd',
+        'backlog',
+        'roadmap',
+        'acceptance criteria',
+        'user story',
+        '用户故事',
+        '验收标准'
+    )
 
     foreach ($pattern in $xlPatterns) {
         if ($taskLower -match $pattern) {
@@ -3038,12 +3092,15 @@ function Get-VibeInternalGrade {
         }
     }
 
+    if (-not $grade -and $inferredTaskType -in @('coding', 'debug', 'review', 'research')) {
+        $grade = 'L'
+    }
+
     if (-not $grade) {
-        foreach ($pattern in $lPatterns) {
-            if ($taskLower -match $pattern) {
-                $grade = 'L'
-                break
-            }
+        $planningSignalCount = Get-VibeTaskSignalCount -TaskLower $taskLower -Patterns $planningPatterns
+        $planningPrioritySignalCount = Get-VibeTaskSignalCount -TaskLower $taskLower -Patterns $planningPriorityPatterns
+        if ($planningSignalCount -ge 2 -or $planningPrioritySignalCount -gt 0) {
+            $grade = 'L'
         }
     }
 

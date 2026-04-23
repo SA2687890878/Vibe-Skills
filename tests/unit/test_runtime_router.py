@@ -40,10 +40,42 @@ def test_runtime_router_infers_debug_from_keyword_style_router_prompt() -> None:
     assert infer_task_type(task) == 'debug'
 
 
+def test_runtime_router_avoids_suffix_fix_false_positive_for_docs_cleanup() -> None:
+    assert infer_task_type('suffix cleanup in docs') == 'planning'
+
+
+def test_runtime_router_avoids_codex_code_false_positive_for_docs_copy() -> None:
+    assert infer_task_type('codex bootstrap wording in docs') == 'planning'
+
+
+def test_runtime_router_keeps_clinical_grade_selection_prompt_as_planning() -> None:
+    assert infer_task_type('clinical decision support grade selection evidence profile') == 'planning'
+
+
+def test_runtime_router_keeps_ml_pipeline_prompt_as_planning() -> None:
+    assert infer_task_type('ml pipeline workflow pack artifacts for deployment') == 'planning'
+
+
 def test_runtime_governance_promotes_keyword_style_router_prompt_to_l() -> None:
     task = 'router confidence-low fallback misroute task-classification grade-selection candidate-scoring'
 
     assert choose_internal_grade('planning', task=task) == 'L'
+
+
+def test_runtime_governance_keeps_docs_cleanup_prompt_at_m() -> None:
+    assert choose_internal_grade('planning', task='suffix cleanup in docs') == 'M'
+
+
+def test_runtime_governance_keeps_codex_docs_prompt_at_m() -> None:
+    assert choose_internal_grade('planning', task='codex bootstrap wording in docs') == 'M'
+
+
+def test_runtime_governance_keeps_microwave_docs_prompt_at_m() -> None:
+    assert choose_internal_grade('planning', task='microwave prompt examples for docs') == 'M'
+
+
+def test_runtime_governance_preserves_prd_backlog_quality_gate_as_l() -> None:
+    assert choose_internal_grade('planning', task='create PRD and backlog with quality gate') == 'L'
 
 
 def test_runtime_governance_promotes_install_to_runtime_rollout_to_xl() -> None:

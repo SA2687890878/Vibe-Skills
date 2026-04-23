@@ -21,8 +21,6 @@ def resolve_powershell() -> str | None:
         shutil.which("pwsh.exe"),
         r"C:\Program Files\PowerShell\7\pwsh.exe",
         r"C:\Program Files\PowerShell\7-preview\pwsh.exe",
-        shutil.which("powershell"),
-        shutil.which("powershell.exe"),
     ]
     for candidate in candidates:
         if candidate and Path(candidate).exists():
@@ -73,10 +71,22 @@ def _to_bash_path(path: Path) -> str:
     return resolved
 
 
-def _to_windows_path(path: Path) -> str:
+def _powershell_requires_windows_paths(powershell: str | None) -> bool:
+    if os.name == "nt":
+        return True
+    if not powershell:
+        return False
+    executable = Path(powershell).name.casefold()
+    return executable in {"powershell", "powershell.exe"}
+
+
+def _to_windows_path(path: Path, powershell: str | None = None) -> str:
     resolved_path = path.resolve()
     resolved = str(resolved_path)
     if os.name == "nt" or (len(resolved) >= 3 and resolved[1:3] == ':/'):
+        return resolved
+
+    if not _powershell_requires_windows_paths(powershell):
         return resolved
 
     converted = _run_path_tool("cygpath", "-w", resolved_path) or _run_path_tool("wslpath", "-w", resolved_path)
@@ -115,9 +125,19 @@ def test_to_windows_path_does_not_require_cygpath_for_native_windows_paths(monke
     def fail_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         raise AssertionError("subprocess.run should not be used for native Windows paths")
 
+    monkeypatch.setattr(os, "name", "nt", raising=False)
     monkeypatch.setattr(subprocess, "run", fail_run)
 
     assert _to_windows_path(tmp_path).lower() == str(tmp_path.resolve()).lower()
+
+
+def test_to_windows_path_keeps_posix_path_for_pwsh(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def fail_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("subprocess.run should not be used when pwsh accepts POSIX paths")
+
+    monkeypatch.setattr(subprocess, "run", fail_run)
+
+    assert _to_windows_path(tmp_path, powershell="/usr/bin/pwsh") == str(tmp_path.resolve())
 
 
 def test_to_bash_path_prefers_cygpath_for_non_wsl_bash(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -217,14 +237,14 @@ class CheckInstalledRuntimeRootTests(unittest.TestCase):
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
-                _to_windows_path(installed_root / "check.ps1"),
+                _to_windows_path(installed_root / "check.ps1", powershell),
                 "-HostId",
                 "codex",
                 "-Profile",
                 "minimal",
                 "-SkipRuntimeFreshnessGate",
                 "-TargetRoot",
-                _to_windows_path(installed_root),
+                _to_windows_path(installed_root, powershell),
             ],
             cwd=REPO_ROOT,
             **_capture_text_kwargs(),
@@ -270,13 +290,13 @@ class CheckInstalledRuntimeRootTests(unittest.TestCase):
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
-                _to_windows_path(installed_root / "check.ps1"),
+                _to_windows_path(installed_root / "check.ps1", powershell),
                 "-HostId",
                 "codex",
                 "-Profile",
                 "minimal",
                 "-TargetRoot",
-                _to_windows_path(target_root),
+                _to_windows_path(target_root, powershell),
             ],
             cwd=REPO_ROOT,
             **_capture_text_kwargs(),
@@ -324,13 +344,13 @@ class CheckInstalledRuntimeRootTests(unittest.TestCase):
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
-                _to_windows_path(installed_root / "check.ps1"),
+                _to_windows_path(installed_root / "check.ps1", powershell),
                 "-HostId",
                 "codex",
                 "-Profile",
                 "minimal",
                 "-TargetRoot",
-                _to_windows_path(target_root),
+                _to_windows_path(target_root, powershell),
             ],
             cwd=REPO_ROOT,
             **_capture_text_kwargs(),

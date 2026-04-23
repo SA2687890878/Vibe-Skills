@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 
 @dataclass(frozen=True, slots=True)
@@ -8,6 +9,27 @@ class RuntimeGovernanceProfile:
     mode: str
     governance_scope: str = 'root_governed'
     freeze_before_requirement_doc: bool = True
+
+
+_CJK_PATTERN = re.compile(r'[\u3400-\u9fff]')
+
+
+def _marker_matches(text: str, marker: str) -> bool:
+    candidate = str(marker).strip().lower()
+    if not text or not candidate:
+        return False
+    if _CJK_PATTERN.search(candidate):
+        return candidate in text
+    if re.search(r'[a-z0-9]', candidate):
+        parts = [re.escape(piece) for piece in re.split(r'[-_\s/]+', candidate) if piece]
+        if parts:
+            pattern = r'(?<![a-z0-9])' + r'[-_\s/]*'.join(parts) + r'(?![a-z0-9])'
+            return re.search(pattern, text) is not None
+    return candidate in text
+
+
+def _signal_count(text: str, markers: tuple[str, ...]) -> int:
+    return sum(1 for marker in markers if _marker_matches(text, marker))
 
 
 def normalize_runtime_mode(mode: str | None) -> str:
@@ -39,43 +61,37 @@ def choose_internal_grade(task_type: str, task: str | None = None) -> str:
         '全链路',
         '端到端',
     )
-    l_markers = (
-        'debug',
-        'bug',
-        'fix',
-        'repair',
-        'patch',
-        'review',
-        'code review',
-        'implement',
-        'build',
-        'upgrade',
-        'update',
-        'modify',
-        'change',
+    planning_markers = (
+        'design',
+        'plan',
+        'architecture',
+        'refactor',
+        'migrate',
+        'governance',
         'install',
-        'integrat',
+        'integrate',
+        'integration',
         'router',
         'routing',
         'runtime',
         'workflow',
         'contract',
-        'gate',
         'regression',
         'verification',
         'threshold',
         'confidence',
         'classification',
-        'scoring',
+        'candidate scoring',
         'heuristic',
         'windows',
-        'claude',
-        'codex',
-        '修复',
-        '修改',
+        '规划',
+        '设计',
+        '治理',
         '安装',
         '运行时',
         '路由',
+        '工作流',
+        '契约',
         '回归',
         '验证',
         '阈值',
@@ -83,12 +99,26 @@ def choose_internal_grade(task_type: str, task: str | None = None) -> str:
         '分类',
         '评分',
     )
+    planning_priority_markers = (
+        'quality gate',
+        'freshness gate',
+        'prd',
+        'backlog',
+        'roadmap',
+        'acceptance criteria',
+        'user story',
+        '用户故事',
+        '验收标准',
+    )
 
-    if task_lower and any(marker in task_lower for marker in xl_markers):
+    if task_lower and any(_marker_matches(task_lower, marker) for marker in xl_markers):
         return 'XL'
     if normalized in {'coding', 'debug', 'review', 'research'}:
         return 'L'
-    if task_lower and any(marker in task_lower for marker in l_markers):
+    if task_lower and (
+        _signal_count(task_lower, planning_markers) >= 2
+        or any(_marker_matches(task_lower, marker) for marker in planning_priority_markers)
+    ):
         return 'L'
     if task and len(str(task)) > 180:
         return 'L'

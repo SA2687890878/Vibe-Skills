@@ -48,13 +48,15 @@ def resolve_powershell() -> str | None:
         shutil.which("pwsh.exe"),
         r"C:\Program Files\PowerShell\7\pwsh.exe",
         r"C:\Program Files\PowerShell\7-preview\pwsh.exe",
-        shutil.which("powershell"),
-        shutil.which("powershell.exe"),
     ]
     for candidate in candidates:
         if candidate and Path(candidate).exists():
             return str(Path(candidate))
     return None
+
+
+def ps_quote(value: object) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
 
 
 def load_json(path: str | Path) -> dict[str, object]:
@@ -203,6 +205,8 @@ def install_host(target_root: Path, host_id: str, *, env: dict[str, str]) -> Non
             shell,
             "-NoLogo",
             "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
             "-File",
             str(INSTALL_SCRIPT_PS1),
             "-HostId",
@@ -256,14 +260,16 @@ def run_installed_runtime(
         shell,
         "-NoLogo",
         "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
         "-Command",
         (
             "& { "
-            f"$result = & '{installed_root / 'scripts' / 'runtime' / 'invoke-vibe-runtime.ps1'}' "
-            f"-Task '{task}' "
+            f"$result = & {ps_quote(installed_root / 'scripts' / 'runtime' / 'invoke-vibe-runtime.ps1')} "
+            f"-Task {ps_quote(task)} "
             "-Mode interactive_governed "
-            f"-RunId '{run_id}' "
-            f"-ArtifactRoot '{artifact_root}'; "
+            f"-RunId {ps_quote(run_id)} "
+            f"-ArtifactRoot {ps_quote(artifact_root)}; "
             "$result | ConvertTo-Json -Depth 20 }"
         ),
     ]

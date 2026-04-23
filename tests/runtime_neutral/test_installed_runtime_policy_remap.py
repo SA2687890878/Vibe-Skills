@@ -27,13 +27,15 @@ def resolve_powershell() -> str | None:
         shutil.which("pwsh.exe"),
         r"C:\Program Files\PowerShell\7\pwsh.exe",
         r"C:\Program Files\PowerShell\7-preview\pwsh.exe",
-        shutil.which("powershell"),
-        shutil.which("powershell.exe"),
     ]
     for candidate in candidates:
         if candidate and Path(candidate).exists():
             return str(Path(candidate))
     return None
+
+
+def ps_quote(value: object) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
 
 
 def create_fake_bridge(directory: Path, host_id: str) -> Path:
@@ -98,6 +100,8 @@ def install_claude_runtime(target_root: Path, env: dict[str, str]) -> Path:
             shell,
             "-NoLogo",
             "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
             "-File",
             str(REPO_ROOT / "install.ps1"),
             "-HostId",
@@ -129,14 +133,16 @@ def run_installed_runtime(installed_root: Path, *, artifact_root: Path, env: dic
         shell,
         "-NoLogo",
         "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
         "-Command",
         (
             "& { "
-            f"$result = & '{installed_root / 'scripts' / 'runtime' / 'invoke-vibe-runtime.ps1'}' "
-            f"-Task '{RUNTIME_TASK}' "
+            f"$result = & {ps_quote(installed_root / 'scripts' / 'runtime' / 'invoke-vibe-runtime.ps1')} "
+            f"-Task {ps_quote(RUNTIME_TASK)} "
             "-Mode interactive_governed "
-            f"-RunId '{run_id}' "
-            f"-ArtifactRoot '{artifact_root}'; "
+            f"-RunId {ps_quote(run_id)} "
+            f"-ArtifactRoot {ps_quote(artifact_root)}; "
             "$result | ConvertTo-Json -Depth 20 }"
         ),
     ]
@@ -146,6 +152,7 @@ def run_installed_runtime(installed_root: Path, *, artifact_root: Path, env: dic
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         env=env,
         check=True,
     )

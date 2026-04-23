@@ -1127,11 +1127,11 @@
                                                                           "latex manuscript",
                                                                           "router",
                                                                           "routing",
-                                                                          "pack",
-                                                                          "fallback",
+                                                                          "router pack",
+                                                                          "routing fallback",
                                                                           "route confidence",
                                                                           "task classification",
-                                                                          "grade selection",
+                                                                          "routing grade selection",
                                                                           "candidate scoring"
                                                                       ],
                                                 "equivalent_group":  null,
@@ -3717,10 +3717,10 @@
                                                                                "docking",
                                                                                "router",
                                                                                "routing",
-                                                                               "fallback",
+                                                                               "routing fallback",
                                                                                "route confidence",
                                                                                "task classification",
-                                                                               "grade selection",
+                                                                               "routing grade selection",
                                                                                "candidate scoring"
                                                                            ],
                                                      "equivalent_group":  "clinical-reporting",
@@ -3959,13 +3959,16 @@
                                                                    "research"
                                                                ],
                                                 "positive_keywords":  [
-                                                                          "latchbio",
-                                                                          "workflow",
-                                                                          "pipeline",
-                                                                          "bioinformatics platform",
-                                                                          "生信平台",
-                                                                          "数据管道"
-                                                                      ],
+                                                                             "latchbio",
+                                                                             "latch workflow",
+                                                                             "latchbio workflow",
+                                                                             "latch pipeline",
+                                                                             "latchbio pipeline",
+                                                                             "bioinformatics platform",
+                                                                             "latch sdk",
+                                                                             "生信平台",
+                                                                             "数据管道"
+                                                                         ],
                                                 "negative_keywords":  [
                                                                           "dicom",
                                                                           "sec"

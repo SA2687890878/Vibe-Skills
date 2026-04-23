@@ -21,4 +21,7 @@ def test_compatibility_wrapper_shims_require_launch_before_proof_validation() ->
         content = path.read_text(encoding="utf-8")
         assert "Launch canonical-entry first" in content, path.as_posix()
         assert "do not preflight-scan the current workspace or repository for canonical proof files before launch" in content, path.as_posix()
-        assert "session root" in content, path.as_posix()
+        if "commands" in path.parts:
+            assert "Validate canonical receipts only after canonical-entry returns a session root." in content, path.as_posix()
+        else:
+            assert "Launch canonical-entry first; validate receipts only after it returns a session root" in content, path.as_posix()
