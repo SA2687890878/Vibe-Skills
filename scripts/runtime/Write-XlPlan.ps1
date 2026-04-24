@@ -67,6 +67,12 @@ function Get-VibeDispatchPlanLines {
                 ('  Verification: {0}' -f [string]$recommendation.verification_expectation)
             )
         }
+        if (
+            $recommendation.PSObject.Properties.Name -contains 'host_selection_action' -and
+            -not [string]::IsNullOrWhiteSpace([string]$recommendation.host_selection_action)
+        ) {
+            $lines += ('  Host selection: {0} ({1})' -f [string]$recommendation.host_selection_action, [string]$recommendation.host_selection_mode)
+        }
     }
 
     return @($lines)
@@ -144,6 +150,15 @@ $specialistDecision = if (
     $null -ne $runtimeInputPacket.specialist_decision
 ) {
     $runtimeInputPacket.specialist_decision
+} else {
+    $null
+}
+$hostSpecialistDispatchDecision = if (
+    $runtimeInputPacket -and
+    $runtimeInputPacket.PSObject.Properties.Name -contains 'host_specialist_dispatch_decision' -and
+    $null -ne $runtimeInputPacket.host_specialist_dispatch_decision
+) {
+    $runtimeInputPacket.host_specialist_dispatch_decision
 } else {
     $null
 }
@@ -355,12 +370,19 @@ if ($specialistDecision) {
         $lines += ('- Repo-asset fallback assets: {0}' -f [string]::Join(', ', @($specialistDecision.repo_asset_fallback.asset_paths)))
     }
 }
+if ($hostSpecialistDispatchDecision) {
+    $lines += @(
+        '',
+        '## Host Specialist Dispatch Decision'
+    )
+    $lines += @(Get-VibeHostSpecialistDispatchDecisionMarkdownLines -Decision $hostSpecialistDispatchDecision)
+}
 if (@($approvedDispatch).Count -gt 0 -or @($localSuggestions).Count -gt 0) {
     $lines += @(
         '',
         '## Specialist Skill Dispatch Plan',
         '- Specialist routing is mandatory and bounded inside governed `vibe`; it does not transfer runtime authority away from vibe.',
-        '- Eligible specialist recommendations should auto-promote into `approved_dispatch` by default.',
+        '- Eligible specialist recommendations should auto-promote into `approved_dispatch` by default unless a valid host specialist dispatch decision curates the surfaced set.',
         '- Before specialist execution starts, governed `vibe` emits one unified disclosure for the effective `approved_dispatch` set using each skill''s real `native_skill_entrypoint`.',
         '- Each specialist must be invoked through its native workflow, input contract, and validation style.',
         '- Specialist outputs remain subordinate to the frozen requirement and the governed plan.'

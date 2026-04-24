@@ -421,6 +421,121 @@ function Resolve-VibeHostPhaseDecomposition {
     }
 }
 
+function Get-VibeHostSpecialistDispatchContract {
+    param(
+        [AllowNull()] [object]$Policy = $null
+    )
+
+    $dispatchPolicy = $null
+    if ($null -ne $Policy -and (Test-VibeObjectHasProperty -InputObject $Policy -PropertyName 'host_specialist_dispatch_contract')) {
+        $dispatchPolicy = $Policy.host_specialist_dispatch_contract
+    }
+
+    $selectionModes = if (
+        $null -ne $dispatchPolicy -and
+        (Test-VibeObjectHasProperty -InputObject $dispatchPolicy -PropertyName 'selection_modes') -and
+        $null -ne $dispatchPolicy.selection_modes
+    ) {
+        @(Get-VibeNormalizedStringList -Values $dispatchPolicy.selection_modes)
+    } else {
+        @('inherit_runtime_default', 'curated_only')
+    }
+    if (@($selectionModes).Count -eq 0) {
+        $selectionModes = @('inherit_runtime_default', 'curated_only')
+    }
+
+    $defaultSelectionMode = if (
+        $null -ne $dispatchPolicy -and
+        (Test-VibeObjectHasProperty -InputObject $dispatchPolicy -PropertyName 'default_selection_mode') -and
+        -not [string]::IsNullOrWhiteSpace([string]$dispatchPolicy.default_selection_mode)
+    ) {
+        [string]$dispatchPolicy.default_selection_mode
+    } else {
+        'inherit_runtime_default'
+    }
+    if ($defaultSelectionMode -notin $selectionModes) {
+        $defaultSelectionMode = 'inherit_runtime_default'
+    }
+
+    return [pscustomobject]@{
+        enabled = if ($null -ne $dispatchPolicy -and (Test-VibeObjectHasProperty -InputObject $dispatchPolicy -PropertyName 'enabled')) { [bool]$dispatchPolicy.enabled } else { $true }
+        scope = if ($null -ne $dispatchPolicy -and (Test-VibeObjectHasProperty -InputObject $dispatchPolicy -PropertyName 'scope') -and -not [string]::IsNullOrWhiteSpace([string]$dispatchPolicy.scope)) { [string]$dispatchPolicy.scope } else { 'root_only' }
+        selection_modes = @($selectionModes)
+        default_selection_mode = [string]$defaultSelectionMode
+    }
+}
+
+function Resolve-VibeHostSpecialistDispatchDecision {
+    param(
+        [AllowNull()] [object]$HostDecision = $null,
+        [AllowNull()] [object[]]$Recommendations = @(),
+        [AllowEmptyString()] [string]$GovernanceScope = '',
+        [AllowNull()] [object]$Policy = $null
+    )
+
+    $contract = Get-VibeHostSpecialistDispatchContract -Policy $Policy
+    if (-not [bool]$contract.enabled) {
+        return $null
+    }
+    if ($null -eq $HostDecision -or -not (Test-VibeObjectHasProperty -InputObject $HostDecision -PropertyName 'specialist_dispatch_decision')) {
+        return $null
+    }
+
+    $decision = $HostDecision.specialist_dispatch_decision
+    if ($null -eq $decision) {
+        return $null
+    }
+    if (-not $decision.PSObject) {
+        throw 'structured host specialist dispatch decision must be a JSON object'
+    }
+    if ([string]$contract.scope -eq 'root_only' -and -not [string]::Equals([string]$GovernanceScope, 'root', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'structured host specialist dispatch decision is currently supported only in root governance scope'
+    }
+
+    $selectionMode = if (
+        (Test-VibeObjectHasProperty -InputObject $decision -PropertyName 'selection_mode') -and
+        -not [string]::IsNullOrWhiteSpace([string]$decision.selection_mode)
+    ) {
+        [string]$decision.selection_mode
+    } else {
+        [string]$contract.default_selection_mode
+    }
+    if ($selectionMode -notin @($contract.selection_modes)) {
+        throw ('structured host specialist dispatch decision selection_mode `{0}` is not supported' -f $selectionMode)
+    }
+
+    $approvedSkillIds = @(Get-VibeNormalizedStringList -Values $(if (Test-VibeObjectHasProperty -InputObject $decision -PropertyName 'approved_skill_ids') { $decision.approved_skill_ids } else { @() }))
+    $deferredSkillIds = @(Get-VibeNormalizedStringList -Values $(if (Test-VibeObjectHasProperty -InputObject $decision -PropertyName 'deferred_skill_ids') { $decision.deferred_skill_ids } else { @() }))
+    $rejectedSkillIds = @(Get-VibeNormalizedStringList -Values $(if (Test-VibeObjectHasProperty -InputObject $decision -PropertyName 'rejected_skill_ids') { $decision.rejected_skill_ids } else { @() }))
+
+    $duplicateSkillIds = @(
+        @($approvedSkillIds | Where-Object { $_ -in $deferredSkillIds }) +
+        @($approvedSkillIds | Where-Object { $_ -in $rejectedSkillIds }) +
+        @($deferredSkillIds | Where-Object { $_ -in $rejectedSkillIds })
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+    if (@($duplicateSkillIds).Count -gt 0) {
+        throw ('structured host specialist dispatch decision contains duplicate skill ids across decision lists: {0}' -f [string]::Join(', ', @($duplicateSkillIds)))
+    }
+
+    $surfacedSkillIds = @($Recommendations | ForEach-Object {
+        if ($null -ne $_ -and (Test-VibeObjectHasProperty -InputObject $_ -PropertyName 'skill_id')) { [string]$_.skill_id } else { '' }
+    } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+    $explicitSkillIds = @(@($approvedSkillIds) + @($deferredSkillIds) + @($rejectedSkillIds) | Select-Object -Unique)
+    $unknownSkillIds = @($explicitSkillIds | Where-Object { $_ -notin $surfacedSkillIds })
+    if (@($unknownSkillIds).Count -gt 0) {
+        throw ('structured host specialist dispatch decision referenced skill ids outside the surfaced recommendation set: {0}' -f [string]::Join(', ', @($unknownSkillIds)))
+    }
+
+    return [pscustomobject]@{
+        protocol_version = if ((Test-VibeObjectHasProperty -InputObject $decision -PropertyName 'protocol_version') -and -not [string]::IsNullOrWhiteSpace([string]$decision.protocol_version)) { [string]$decision.protocol_version } else { 'v1' }
+        derived_by = if ((Test-VibeObjectHasProperty -InputObject $decision -PropertyName 'derived_by') -and -not [string]::IsNullOrWhiteSpace([string]$decision.derived_by)) { [string]$decision.derived_by } else { 'host' }
+        selection_mode = [string]$selectionMode
+        approved_skill_ids = @($approvedSkillIds)
+        deferred_skill_ids = @($deferredSkillIds)
+        rejected_skill_ids = @($rejectedSkillIds)
+    }
+}
+
 function Get-VibeExecutionPhaseBindingForRecord {
     param(
         [AllowNull()] [object]$PhaseDecomposition = $null,
@@ -537,6 +652,25 @@ function Get-VibeExecutionPhaseMarkdownLines {
     }
 
     return @($lines)
+}
+
+function Get-VibeHostSpecialistDispatchDecisionMarkdownLines {
+    param(
+        [AllowNull()] [object]$Decision = $null
+    )
+
+    if ($null -eq $Decision) {
+        return @()
+    }
+
+    return @(
+        '- Host specialist curation remains bounded to the surfaced recommendation ids from the current governed run.',
+        '- Runtime validation remains authoritative for blocked and degraded specialist outcomes.',
+        ('- Selection mode: {0}' -f [string]$Decision.selection_mode),
+        ('- Approved skill ids: {0}' -f $(if (@($Decision.approved_skill_ids).Count -gt 0) { [string]::Join(', ', @($Decision.approved_skill_ids)) } else { 'none' })),
+        ('- Deferred skill ids: {0}' -f $(if (@($Decision.deferred_skill_ids).Count -gt 0) { [string]::Join(', ', @($Decision.deferred_skill_ids)) } else { 'none' })),
+        ('- Rejected skill ids: {0}' -f $(if (@($Decision.rejected_skill_ids).Count -gt 0) { [string]::Join(', ', @($Decision.rejected_skill_ids)) } else { 'none' }))
+    )
 }
 
 function New-VibeHostAdapterIdentityProjection {
@@ -1216,7 +1350,7 @@ function Get-VibeSpecialistDecisionDefaultNotes {
     )
 
     switch ($ResolutionMode) {
-        'approved_dispatch' { return 'Bounded specialist recommendations were surfaced and auto-promoted into approved dispatch.' }
+        'approved_dispatch' { return 'Bounded specialist recommendations were surfaced and promoted into effective approved dispatch.' }
         'degraded' { return 'Specialist recommendations existed, but execution remained explicitly degraded before live native dispatch closed cleanly.' }
         'blocked' { return 'Specialist recommendations existed, but execution stayed blocked before live native dispatch could proceed.' }
         'local_suggestion_only' { return 'Residual local specialist suggestions remained advisory and require explicit escalation before execution.' }
@@ -1226,7 +1360,7 @@ function Get-VibeSpecialistDecisionDefaultNotes {
     }
 
     switch ($DecisionState) {
-        'approved_dispatch' { return 'Bounded specialist recommendations were surfaced and auto-promoted into approved dispatch.' }
+        'approved_dispatch' { return 'Bounded specialist recommendations were surfaced and promoted into effective approved dispatch.' }
         'degraded' { return 'Specialist recommendations existed, but execution remained explicitly degraded before live native dispatch closed cleanly.' }
         'blocked' { return 'Specialist recommendations existed, but execution stayed blocked before live native dispatch could proceed.' }
         'local_suggestion_only' { return 'Residual local specialist suggestions remained advisory and require explicit escalation before execution.' }
@@ -1448,6 +1582,7 @@ function New-VibeRuntimeInputPacketProjection {
         [AllowEmptyString()] [string]$RouterScriptPath = '',
         [AllowEmptyString()] [string]$RuntimeSelectedSkill = 'vibe',
         [AllowNull()] [object]$ExecutionPhaseDecomposition = $null,
+        [AllowNull()] [object]$HostSpecialistDispatchDecision = $null,
         [AllowNull()] [object[]]$SpecialistRecommendations = @(),
         [Parameter(Mandatory)] [object]$SpecialistDispatch,
         [AllowNull()] [object[]]$OverlayDecisions = @(),
@@ -1530,6 +1665,7 @@ function New-VibeRuntimeInputPacketProjection {
         }
         custom_admission = $customAdmission
         execution_phase_decomposition = $ExecutionPhaseDecomposition
+        host_specialist_dispatch_decision = $HostSpecialistDispatchDecision
         specialist_recommendations = @($SpecialistRecommendations)
         specialist_dispatch = [pscustomobject]@{
             approved_dispatch = [object[]]@($SpecialistDispatch.approved_dispatch)
@@ -1544,6 +1680,11 @@ function New-VibeRuntimeInputPacketProjection {
             degraded_skill_ids = if ($SpecialistDispatch.PSObject.Properties.Name -contains 'degraded_skill_ids' -and $null -ne $SpecialistDispatch.degraded_skill_ids) { [object[]]@($SpecialistDispatch.degraded_skill_ids) } else { @() }
             ghost_match_skill_ids = if ($SpecialistDispatch.PSObject.Properties.Name -contains 'ghost_match_skill_ids' -and $null -ne $SpecialistDispatch.ghost_match_skill_ids) { [object[]]@($SpecialistDispatch.ghost_match_skill_ids) } else { @() }
             promotion_outcomes = if ($SpecialistDispatch.PSObject.Properties.Name -contains 'promotion_outcomes' -and $null -ne $SpecialistDispatch.promotion_outcomes) { [object[]]@($SpecialistDispatch.promotion_outcomes) } else { @() }
+            host_decision_applied = ($null -ne $HostSpecialistDispatchDecision)
+            host_selection_mode = if ($null -ne $HostSpecialistDispatchDecision -and (Test-VibeObjectHasProperty -InputObject $HostSpecialistDispatchDecision -PropertyName 'selection_mode')) { [string]$HostSpecialistDispatchDecision.selection_mode } else { $null }
+            host_approved_skill_ids = if ($null -ne $HostSpecialistDispatchDecision -and (Test-VibeObjectHasProperty -InputObject $HostSpecialistDispatchDecision -PropertyName 'approved_skill_ids')) { [object[]]@($HostSpecialistDispatchDecision.approved_skill_ids) } else { @() }
+            host_deferred_skill_ids = if ($null -ne $HostSpecialistDispatchDecision -and (Test-VibeObjectHasProperty -InputObject $HostSpecialistDispatchDecision -PropertyName 'deferred_skill_ids')) { [object[]]@($HostSpecialistDispatchDecision.deferred_skill_ids) } else { @() }
+            host_rejected_skill_ids = if ($null -ne $HostSpecialistDispatchDecision -and (Test-VibeObjectHasProperty -InputObject $HostSpecialistDispatchDecision -PropertyName 'rejected_skill_ids')) { [object[]]@($HostSpecialistDispatchDecision.rejected_skill_ids) } else { @() }
             escalation_required = Get-VibeNestedPropertySafe -InputObject $SpecialistDispatch -PropertyPath @('escalation_required') -DefaultValue $false
             escalation_status = Get-VibeNestedPropertySafe -InputObject $SpecialistDispatch -PropertyPath @('escalation_status') -DefaultValue ''
             approval_owner = Get-VibeNestedPropertySafe -InputObject $Policy -PropertyPath @('child_specialist_suggestion_contract', 'approval_owner') -DefaultValue 'root_vibe'

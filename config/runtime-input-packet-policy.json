@@ -127,6 +127,15 @@
       }
     }
   },
+  "host_specialist_dispatch_contract": {
+    "enabled": true,
+    "scope": "root_only",
+    "selection_modes": [
+      "inherit_runtime_default",
+      "curated_only"
+    ],
+    "default_selection_mode": "inherit_runtime_default"
+  },
   "specialist_binding_profiles": {
     "planning": {
       "match_skill_patterns": [

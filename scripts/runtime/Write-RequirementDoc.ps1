@@ -626,12 +626,29 @@ if ($runtimeInputPacket) {
         }
     }
 
+    $hostSpecialistDispatchDecision = if (
+        $runtimeInputPacket.PSObject.Properties.Name -contains 'host_specialist_dispatch_decision' -and
+        $null -ne $runtimeInputPacket.host_specialist_dispatch_decision
+    ) {
+        $runtimeInputPacket.host_specialist_dispatch_decision
+    } else {
+        $null
+    }
+    $hostSpecialistDispatchLines = @(Get-VibeHostSpecialistDispatchDecisionMarkdownLines -Decision $hostSpecialistDispatchDecision)
+    if (@($hostSpecialistDispatchLines).Count -gt 0) {
+        $lines += @(
+            '',
+            '## Host Specialist Dispatch Decision'
+        )
+        $lines += @($hostSpecialistDispatchLines)
+    }
+
     $specialistRecommendations = @($runtimeInputPacket.specialist_recommendations)
     if ($specialistRecommendations.Count -gt 0) {
         $lines += @(
             '',
             '## Specialist Recommendations',
-            'These are mandatory bounded native specialist recommendations carried inside the governed `vibe` runtime. Eligible recommendations should auto-promote into bounded dispatch while `vibe` remains the only runtime authority.',
+            'These are mandatory bounded native specialist recommendations carried inside the governed `vibe` runtime. Eligible recommendations should auto-promote into bounded dispatch by default unless a valid host specialist dispatch decision curates the surfaced set while `vibe` remains the only runtime authority.',
             'If execution reaches non-empty effective `approved_dispatch`, governed `vibe` must emit one unified pre-execution disclosure that lists only actually executing Skills and each real `native_skill_entrypoint`.'
         )
         foreach ($recommendation in $specialistRecommendations) {

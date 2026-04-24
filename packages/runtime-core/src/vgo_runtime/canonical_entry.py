@@ -344,16 +344,14 @@ def _load_runtime_input_packet_from_summary(summary_path: Path | None) -> dict[s
     return None
 
 
-def _inherit_phase_decomposition_from_bounded_reentry(
+def _inherit_frozen_host_decision_fields_from_bounded_reentry(
     *,
     host_decision: dict[str, Any] | None,
     bounded_reentry: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
-    """Preserve frozen execution-phase decomposition across bounded re-entry."""
+    """Preserve frozen host decision fields across bounded re-entry."""
     decision = _normalize_host_decision(host_decision)
     if bounded_reentry is None:
-        return decision
-    if decision and decision.get("phase_decomposition") is not None:
         return decision
 
     summary_path_raw = str(bounded_reentry.get("summary_path") or "").strip()
@@ -364,13 +362,29 @@ def _inherit_phase_decomposition_from_bounded_reentry(
     if not runtime_packet:
         return decision
 
-    prior_phase_decomposition = runtime_packet.get("execution_phase_decomposition")
-    if not isinstance(prior_phase_decomposition, dict):
-        return decision
-
     effective_decision = copy.deepcopy(decision) if decision else {}
-    effective_decision["phase_decomposition"] = copy.deepcopy(prior_phase_decomposition)
-    return effective_decision
+
+    if effective_decision.get("phase_decomposition") is None:
+        prior_phase_decomposition = runtime_packet.get("execution_phase_decomposition")
+        if isinstance(prior_phase_decomposition, dict):
+            effective_decision["phase_decomposition"] = copy.deepcopy(prior_phase_decomposition)
+
+    governance_scope = str(runtime_packet.get("governance_scope") or "").strip()
+    if not governance_scope:
+        hierarchy = runtime_packet.get("hierarchy")
+        if isinstance(hierarchy, dict):
+            governance_scope = str(hierarchy.get("governance_scope") or "").strip()
+    if (
+        governance_scope.lower() == "root"
+        and effective_decision.get("specialist_dispatch_decision") is None
+    ):
+        prior_specialist_dispatch_decision = runtime_packet.get("host_specialist_dispatch_decision")
+        if isinstance(prior_specialist_dispatch_decision, dict):
+            effective_decision["specialist_dispatch_decision"] = copy.deepcopy(
+                prior_specialist_dispatch_decision
+            )
+
+    return effective_decision or None
 
 
 def _normalize_prompt_token(text: str) -> str:
@@ -1148,7 +1162,7 @@ def launch_canonical_vibe(
         bounded_reentry_token=bounded_reentry_token,
         host_decision=normalized_host_decision,
     )
-    effective_host_decision = _inherit_phase_decomposition_from_bounded_reentry(
+    effective_host_decision = _inherit_frozen_host_decision_fields_from_bounded_reentry(
         host_decision=normalized_host_decision,
         bounded_reentry=validated_reentry,
     )

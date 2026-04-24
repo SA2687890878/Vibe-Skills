@@ -633,8 +633,8 @@ class BridgeFailureLayeringTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual("xl_plan", result["terminal_stage"])
 
-    def test_launch_canonical_vibe_inherits_phase_decomposition_for_bounded_reentry(self):
-        """Carry frozen execution-phase decomposition into approval-only bounded continuation launches."""
+    def test_launch_canonical_vibe_inherits_frozen_host_decision_fields_for_bounded_reentry(self):
+        """Carry frozen host decision fields into approval-only bounded continuation launches."""
         module = _load_canonical_entry_module()
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -647,6 +647,7 @@ class BridgeFailureLayeringTests(unittest.TestCase):
             runtime_packet_path.write_text(
                 json.dumps(
                     {
+                        "governance_scope": "root",
                         "execution_phase_decomposition": {
                             "phases": [
                                 {
@@ -657,7 +658,15 @@ class BridgeFailureLayeringTests(unittest.TestCase):
                                     "goal": "Collect sources",
                                 }
                             ]
-                        }
+                        },
+                        "host_specialist_dispatch_decision": {
+                            "protocol_version": "v1",
+                            "derived_by": "host",
+                            "selection_mode": "curated_only",
+                            "approved_skill_ids": ["scientific-writing"],
+                            "deferred_skill_ids": ["scikit-learn"],
+                            "rejected_skill_ids": [],
+                        },
                     }
                 ),
                 encoding="utf-8",
@@ -729,6 +738,17 @@ class BridgeFailureLayeringTests(unittest.TestCase):
         self.assertEqual(
             "phase-1",
             captured["host_decision"]["phase_decomposition"]["phases"][0]["phase_id"],
+        )
+        self.assertEqual(
+            {
+                "protocol_version": "v1",
+                "derived_by": "host",
+                "selection_mode": "curated_only",
+                "approved_skill_ids": ["scientific-writing"],
+                "deferred_skill_ids": ["scikit-learn"],
+                "rejected_skill_ids": [],
+            },
+            captured["host_decision"]["specialist_dispatch_decision"],
         )
 
     def test_canonical_entry_reads_shared_policy_file_override(self):

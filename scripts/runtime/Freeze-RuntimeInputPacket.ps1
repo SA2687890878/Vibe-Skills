@@ -624,6 +624,7 @@ function Split-VibeSpecialistDispatch {
         [Parameter(Mandatory)] [object[]]$Recommendations,
         [string[]]$MatchedSkillIds = @(),
         [string[]]$ApprovedSpecialistSkillIds = @(),
+        [AllowNull()] [object]$HostSpecialistDispatchDecision = $null,
         [AllowNull()] [object]$SuggestionContract = $null
     )
 
@@ -631,6 +632,35 @@ function Split-VibeSpecialistDispatch {
     foreach ($skillId in @($ApprovedSpecialistSkillIds)) {
         if (-not [string]::IsNullOrWhiteSpace([string]$skillId)) {
             $approvedLookup[[string]$skillId] = $true
+        }
+    }
+    $hostApprovedLookup = @{}
+    $hostDeferredLookup = @{}
+    $hostRejectedLookup = @{}
+    $hostSelectionMode = if (
+        $null -ne $HostSpecialistDispatchDecision -and
+        $HostSpecialistDispatchDecision.PSObject.Properties.Name -contains 'selection_mode' -and
+        -not [string]::IsNullOrWhiteSpace([string]$HostSpecialistDispatchDecision.selection_mode)
+    ) {
+        [string]$HostSpecialistDispatchDecision.selection_mode
+    } else {
+        ''
+    }
+    if ($null -ne $HostSpecialistDispatchDecision) {
+        foreach ($skillId in @($HostSpecialistDispatchDecision.approved_skill_ids)) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$skillId)) {
+                $hostApprovedLookup[[string]$skillId] = $true
+            }
+        }
+        foreach ($skillId in @($HostSpecialistDispatchDecision.deferred_skill_ids)) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$skillId)) {
+                $hostDeferredLookup[[string]$skillId] = $true
+            }
+        }
+        foreach ($skillId in @($HostSpecialistDispatchDecision.rejected_skill_ids)) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$skillId)) {
+                $hostRejectedLookup[[string]$skillId] = $true
+            }
         }
     }
 
@@ -666,9 +696,52 @@ function Split-VibeSpecialistDispatch {
             continue
         }
 
-        if ([string]$recommendation.recommended_promotion_action -eq 'auto_dispatch' -and
+        $hostSelectionAction = ''
+        if ($hostApprovedLookup.ContainsKey($skillId)) {
+            $hostSelectionAction = 'approve'
+        } elseif ($hostDeferredLookup.ContainsKey($skillId)) {
+            $hostSelectionAction = 'defer'
+        } elseif ($hostRejectedLookup.ContainsKey($skillId)) {
+            $hostSelectionAction = 'reject'
+        } elseif ([string]$hostSelectionMode -eq 'curated_only') {
+            $hostSelectionAction = 'curated_only_unspecified'
+        }
+
+        $record = Copy-VibeRecordObject -InputObject $recommendation
+        if (-not [string]::IsNullOrWhiteSpace($hostSelectionAction)) {
+            $record | Add-Member -NotePropertyName host_selection_applied -NotePropertyValue $true -Force
+            $record | Add-Member -NotePropertyName host_selection_mode -NotePropertyValue $hostSelectionMode -Force
+            $record | Add-Member -NotePropertyName host_selection_action -NotePropertyValue $hostSelectionAction -Force
+        }
+
+        if (
+            [string]$hostSelectionAction -eq 'approve' -and
+            [string]$recommendation.recommended_promotion_action -eq 'auto_dispatch'
+        ) {
+            $approvedDispatch += $record
+            $promotionOutcomes += [pscustomobject]@{
+                skill_id = $skillId
+                promotion_state = 'approved_dispatch'
+                destructive = [bool]$recommendation.destructive
+                destructive_reason_codes = @($recommendation.destructive_reason_codes)
+                contract_complete = [bool]$recommendation.contract_complete
+                recommended_promotion_action = [string]$recommendation.recommended_promotion_action
+            }
+        } elseif (
+            [string]$hostSelectionAction -in @('defer', 'reject', 'curated_only_unspecified')
+        ) {
+            $localSuggestions += $record
+            $promotionOutcomes += [pscustomobject]@{
+                skill_id = $skillId
+                promotion_state = 'local_suggestion'
+                destructive = [bool]$recommendation.destructive
+                destructive_reason_codes = @($recommendation.destructive_reason_codes)
+                contract_complete = [bool]$recommendation.contract_complete
+                recommended_promotion_action = [string]$recommendation.recommended_promotion_action
+            }
+        } elseif ([string]$recommendation.recommended_promotion_action -eq 'auto_dispatch' -and
             ($GovernanceScope -eq 'root' -or $approvedLookup.ContainsKey($skillId))) {
-            $approvedDispatch += $recommendation
+            $approvedDispatch += $record
             $promotionOutcomes += [pscustomobject]@{
                 skill_id = $skillId
                 promotion_state = 'approved_dispatch'
@@ -678,7 +751,7 @@ function Split-VibeSpecialistDispatch {
                 recommended_promotion_action = [string]$recommendation.recommended_promotion_action
             }
         } else {
-            $localSuggestions += $recommendation
+            $localSuggestions += $record
             $promotionOutcomes += [pscustomobject]@{
                 skill_id = $skillId
                 promotion_state = 'local_suggestion'
@@ -813,6 +886,11 @@ $specialistRecommendations = @(Get-VibeSpecialistRecommendations `
 $specialistRecommendations = @(Add-VibeExecutionPhaseMetadataToRecords `
     -Records @($specialistRecommendations) `
     -PhaseDecomposition $executionPhaseDecomposition)
+$hostSpecialistDispatchDecision = Resolve-VibeHostSpecialistDispatchDecision `
+    -HostDecision $hostDecision `
+    -Recommendations @($specialistRecommendations) `
+    -GovernanceScope ([string]$hierarchyState.governance_scope) `
+    -Policy $policy
 $matchedSkillIds = @()
 if (-not [string]::IsNullOrWhiteSpace($routerSelectedSkill) -and -not [string]::Equals($routerSelectedSkill, $runtimeSelectedSkill, [System.StringComparison]::OrdinalIgnoreCase)) {
     $matchedSkillIds += [string]$routerSelectedSkill
@@ -822,6 +900,7 @@ $specialistDispatch = Split-VibeSpecialistDispatch `
     -Recommendations @($specialistRecommendations) `
     -MatchedSkillIds @($matchedSkillIds) `
     -ApprovedSpecialistSkillIds @($ApprovedSpecialistSkillIds) `
+    -HostSpecialistDispatchDecision $hostSpecialistDispatchDecision `
     -SuggestionContract $policy.child_specialist_suggestion_contract
 $hierarchyProjection = New-VibeHierarchyProjection -HierarchyState $hierarchyState -IncludeGovernanceScope
 $authorityFlagsProjection = New-VibeRuntimePacketAuthorityFlagsProjection `
@@ -853,6 +932,7 @@ $packet = New-VibeRuntimeInputPacketProjection `
     -RouterScriptPath $routerScriptPath `
     -RuntimeSelectedSkill $runtimeSelectedSkill `
     -ExecutionPhaseDecomposition $executionPhaseDecomposition `
+    -HostSpecialistDispatchDecision $hostSpecialistDispatchDecision `
     -SpecialistRecommendations @($specialistRecommendations) `
     -SpecialistDispatch $specialistDispatch `
     -OverlayDecisions @($overlayDecisions) `

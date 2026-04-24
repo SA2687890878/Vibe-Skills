@@ -171,9 +171,10 @@ If a canonical run returns `bounded_return_control.explicit_user_reentry_require
 Structured host decision SOP:
 - Do not ask the user to repeat magic words such as `approve`, `continue`, `1`, or `enter unattended mode` just to satisfy routing or bounded re-entry.
 - For complex or obviously multi-part work, the host should decompose the task into execution phases before launch. Keep that decomposition inside `--host-decision-json -> phase_decomposition` so canonical `vibe` can freeze it under the single requirement/plan surface. Do not create a second runtime, second requirement doc, or second plan.
+- If the surfaced specialist set needs curation, keep it inside `--host-decision-json -> specialist_dispatch_decision`. Host curation stays bounded to the surfaced recommendation ids from the current governed run; do not invent unsurfaced specialists or bypass runtime validation.
 - For routing confirmation, inspect the returned machine-readable route contract under `runtime-summary.json -> host_user_briefing.route_decision_contract` when present. Convert the user's natural-language reply into a structured route decision and relaunch canonical `vibe` with `--host-decision-json`.
 - For bounded stage re-entry, inspect `runtime-summary.json -> bounded_return_control.host_decision_contract` when present. Convert the user's natural-language approval or revision into a structured decision and relaunch canonical `vibe` with `--host-decision-json`, `--continue-from-run-id`, and `--bounded-reentry-token`.
-- Route decisions must stay inside the surfaced confirm options. Bounded stage approvals must stay inside the surfaced approval action contract. Runtime validation remains authoritative.
+- Route decisions must stay inside the surfaced confirm options. Bounded stage approvals must stay inside the surfaced approval action contract. Specialist curation must stay inside the surfaced specialist recommendation ids. Runtime validation remains authoritative.
 - Keep the task context stable across re-entry. Do not reduce the next canonical launch prompt to the user's short approval text alone when the governed task context is already known.
 
 Discoverable wrapper labels may request an earlier terminal stage (that changes where the run stops, not which runtime owns authority):
@@ -197,7 +198,8 @@ That means:
 - governed `vibe` runs must surface bounded specialist recommendations and treat router-selected specialist skills as route truth or executable recommendation candidates
 - direct specialist handling should stay in the current host session by default; do not create hidden specialist sub-sessions unless policy explicitly opts back into that bridge path
 - runtime-selected skill remains `vibe` for governed entry
-- eligible specialist help MUST be promoted (elevated) into bounded native-mode dispatch as a default governance policy -- this is a required action, not a passive auto-behavior
+- eligible specialist help MUST be promoted (elevated) into bounded native-mode dispatch as the default governance policy unless a valid structured host specialist dispatch decision curates the surfaced set
+- host orchestration power is bounded: it may approve, defer, or reject only surfaced specialist recommendation ids, and runtime validation still decides blocked/degraded outcomes
 - specialist help must preserve the specialist skill's own workflow, inputs, outputs, and validation style
 - specialist help must not create a second requirement doc, second plan surface, or second runtime authority
 
