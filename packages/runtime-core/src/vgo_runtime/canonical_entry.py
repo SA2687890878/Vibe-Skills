@@ -902,6 +902,8 @@ def _find_latest_bounded_return_control(
 ) -> dict[str, Any] | None:
     preferred_summary_path = _runtime_summary_path_for_run_id(artifact_root, preferred_run_id)
     if preferred_summary_path and preferred_summary_path.is_file():
+        if not _has_verified_host_launch_receipt(preferred_summary_path):
+            return None
         preferred_summary = _load_json_dict_if_exists(preferred_summary_path)
         if preferred_summary and _has_explicit_bounded_return_control(preferred_summary):
             preferred_guard = _coerce_bounded_return_control(preferred_summary)
@@ -912,6 +914,8 @@ def _find_latest_bounded_return_control(
 
     for summary_path in _iter_runtime_summaries(artifact_root):
         if run_id and summary_path.parent.name == run_id:
+            continue
+        if not _has_verified_host_launch_receipt(summary_path):
             continue
         summary = _load_json_dict_if_exists(summary_path)
         if not summary:

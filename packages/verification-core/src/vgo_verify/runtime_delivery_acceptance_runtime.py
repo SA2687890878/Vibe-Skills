@@ -178,7 +178,10 @@ def evaluate_delivery_acceptance(repo_root: Path, session_root: Path) -> dict[st
     if tdd_evidence_payload_notes:
         code_task_tdd_evidence_notes.append(tdd_evidence_payload_notes)
 
-    approved_dispatch = specialist_accounting.get("approved_dispatch") or specialist_dispatch.get("approved_dispatch") or []
+    if "approved_dispatch" in specialist_accounting:
+        approved_dispatch = specialist_accounting.get("approved_dispatch") or []
+    else:
+        approved_dispatch = specialist_dispatch.get("approved_dispatch") or []
     approved_dispatch_skill_ids = _normalize_skill_id_list(approved_dispatch)
     runtime_specialist_execution_status = str(specialist_accounting.get("effective_execution_status") or "").strip()
     effective_specialist_execution_status = runtime_specialist_execution_status

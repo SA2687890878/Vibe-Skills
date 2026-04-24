@@ -574,6 +574,63 @@ def test_load_continuation_context_from_summary_requires_verified_host_launch_re
     assert continuation is None
 
 
+def test_find_latest_bounded_return_control_rejects_unverified_preferred_summary(tmp_path: Path) -> None:
+    _write_bounded_return_summary(
+        tmp_path,
+        run_id="prior-bounded-run",
+        terminal_stage="xl_plan",
+        allowed_followup_entry_ids=["vibe", "vibe-do-it"],
+        reentry_token="token-123",  # noqa: S106 - non-secret fixture token
+        task="plan runtime entry hardening",
+    )
+    _write_host_launch_receipt(
+        tmp_path / "outputs" / "runtime" / "vibe-sessions" / "prior-bounded-run",
+        run_id="prior-bounded-run",
+        launch_status="launched",
+    )
+
+    guard = canonical_entry._find_latest_bounded_return_control(
+        artifact_root=tmp_path,
+        run_id="current-run",
+        preferred_run_id="prior-bounded-run",
+    )
+
+    assert guard is None
+
+
+def test_find_latest_bounded_return_control_skips_unverified_history_entries(tmp_path: Path) -> None:
+    older_summary = _write_bounded_return_summary(
+        tmp_path,
+        run_id="older-verified-run",
+        terminal_stage="xl_plan",
+        allowed_followup_entry_ids=["vibe", "vibe-do-it"],
+        reentry_token="token-older",  # noqa: S106 - non-secret fixture token
+        task="plan runtime entry hardening",
+    )
+    newer_summary = _write_bounded_return_summary(
+        tmp_path,
+        run_id="newer-unverified-run",
+        terminal_stage="xl_plan",
+        allowed_followup_entry_ids=["vibe", "vibe-do-it"],
+        reentry_token="token-newer",  # noqa: S106 - non-secret fixture token
+        task="plan runtime entry hardening",
+    )
+    _write_host_launch_receipt(
+        tmp_path / "outputs" / "runtime" / "vibe-sessions" / "newer-unverified-run",
+        run_id="newer-unverified-run",
+        launch_status="launched",
+    )
+    newer_summary.touch()
+
+    guard = canonical_entry._find_latest_bounded_return_control(
+        artifact_root=tmp_path,
+        run_id="current-run",
+    )
+
+    assert guard is not None
+    assert guard["source_run_id"] == "older-verified-run"
+
+
 def test_bounded_return_helpers_ignore_non_string_intent_contract_paths(tmp_path: Path) -> None:
     summary = {
         "run_id": "prior-bounded-run",

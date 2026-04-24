@@ -468,6 +468,39 @@ class RuntimeDeliveryAcceptanceTests(unittest.TestCase):
             report["residual_risks"],
         )
 
+    def test_runtime_delivery_acceptance_prefers_explicit_empty_manifest_dispatch_over_stale_runtime_packet(self) -> None:
+        stale_runtime_dispatch = [
+            {
+                "skill_id": "systematic-debugging",
+                "native_skill_entrypoint": "/tmp/systematic-debugging/SKILL.md",
+            }
+        ]
+        session_root = self._build_session(
+            approved_dispatch=stale_runtime_dispatch,
+            specialist_accounting={
+                "approved_dispatch": [],
+                "approved_dispatch_count": 0,
+                "effective_execution_status": "none",
+            },
+            phase_execute_specialist_decision={
+                "decision_state": "no_specialist_recommendations",
+                "resolution_mode": "no_specialist_needed",
+                "repo_asset_fallback": {
+                    "used": False,
+                    "asset_paths": [],
+                    "reason": "",
+                    "legal_basis": "",
+                    "traceability_basis": [],
+                },
+            },
+        )
+        report = evaluate(REPO_ROOT, session_root)
+
+        self.assertEqual("PASS", report["summary"]["gate_result"])
+        self.assertEqual([], report["execution_context"]["approved_dispatch_skill_ids"])
+        self.assertFalse(report["execution_context"]["specialist_host_continuation_pending"])
+        self.assertEqual("passing", report["truth_results"]["specialist_decision_truth"]["state"])
+
     def test_runtime_delivery_acceptance_passes_when_current_session_specialist_execution_is_recorded(self) -> None:
         approved_dispatch = [
             {

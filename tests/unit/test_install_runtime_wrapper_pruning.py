@@ -154,6 +154,28 @@ def test_prune_known_legacy_wrapper_paths_preserves_same_name_user_owned_aliases
     assert current.exists()
 
 
+def test_prune_known_legacy_wrapper_paths_does_not_treat_broad_tracked_roots_as_wrapper_ownership(tmp_path: Path) -> None:
+    target_root = tmp_path / "target"
+    commands_root = target_root / "commands"
+    commands_root.mkdir(parents=True, exist_ok=True)
+
+    legacy = commands_root / "vibe-do.md"
+    current = commands_root / "vibe.md"
+    legacy.write_text("user-owned legacy alias\n", encoding="utf-8")
+    current.write_text("current public wrapper\n", encoding="utf-8")
+
+    previous_ledger = {
+        "specialist_wrapper_paths": [str(current)],
+        "created_paths": [str(target_root)],
+        "owned_tree_roots": [str(commands_root)],
+    }
+
+    install_runtime.prune_known_legacy_wrapper_paths(target_root, "codex", [current], previous_ledger)
+
+    assert legacy.exists()
+    assert current.exists()
+
+
 def test_prune_retired_discoverable_wrapper_paths_preserves_user_owned_same_name_wrappers(tmp_path: Path) -> None:
     target_root = tmp_path / "target"
     command_wrapper = target_root / "commands" / "vibe-how-do-we-do.md"

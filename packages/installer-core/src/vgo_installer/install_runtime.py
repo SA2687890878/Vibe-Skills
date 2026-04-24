@@ -357,13 +357,12 @@ def _iter_previous_install_owned_wrapper_paths(
 
     resolved_paths: list[Path] = []
     seen: set[Path] = set()
-    for ledger_key in ("specialist_wrapper_paths", "created_paths", "owned_tree_roots"):
-        for raw_path in previous_install_ledger.get(ledger_key) or []:
-            candidate = _resolve_ledger_path_within_target(target_root, raw_path)
-            if candidate is None or candidate in seen:
-                continue
-            seen.add(candidate)
-            resolved_paths.append(candidate)
+    for raw_path in previous_install_ledger.get("specialist_wrapper_paths") or []:
+        candidate = _resolve_ledger_path_within_target(target_root, raw_path)
+        if candidate is None or candidate in seen:
+            continue
+        seen.add(candidate)
+        resolved_paths.append(candidate)
     return resolved_paths
 
 
@@ -378,7 +377,7 @@ def _is_installer_owned_wrapper_cleanup_candidate(
             return True
         if owned_path.name == "SKILL.md" and owned_path.parent == resolved_candidate:
             return True
-        if _path_is_within(resolved_candidate, owned_path) or _path_is_within(owned_path, resolved_candidate):
+        if _path_is_within(owned_path, resolved_candidate):
             return True
     return False
 
