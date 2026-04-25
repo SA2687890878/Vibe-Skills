@@ -551,6 +551,38 @@ def test_resolve_effective_prompt_keeps_prompt_when_no_prior_continuation_contex
     assert prompt == "execute plan phase-cleanup"
 
 
+def test_parse_host_decision_json_reads_file_payload(tmp_path: Path) -> None:
+    decision_path = tmp_path / "host-decision.json"
+    decision_path.write_text(
+        '{"decision_kind":"approval_response","decision_action":"approve_requirement"}\n',
+        encoding="utf-8-sig",
+    )
+
+    assert canonical_entry._parse_host_decision_json(None, str(decision_path)) == {
+        "decision_kind": "approval_response",
+        "decision_action": "approve_requirement",
+    }
+
+
+def test_parse_host_decision_json_rejects_inline_and_file(tmp_path: Path) -> None:
+    decision_path = tmp_path / "host-decision.json"
+    decision_path.write_text('{"decision_kind":"approval_response"}\n', encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="either --host-decision-json or --host-decision-json-file"):
+        canonical_entry._parse_host_decision_json(
+            '{"decision_kind":"approval_response"}',
+            str(decision_path),
+        )
+
+
+def test_parse_host_decision_json_rejects_invalid_file_payload(tmp_path: Path) -> None:
+    decision_path = tmp_path / "host-decision.json"
+    decision_path.write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="invalid JSON in --host-decision-json-file"):
+        canonical_entry._parse_host_decision_json(None, str(decision_path))
+
+
 def test_resolve_effective_prompt_ignores_bounded_preferred_summary_without_explicit_allow(
     tmp_path: Path,
 ) -> None:

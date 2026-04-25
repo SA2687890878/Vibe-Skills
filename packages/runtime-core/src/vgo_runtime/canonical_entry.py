@@ -465,8 +465,24 @@ def _normalize_host_decision(host_decision: dict[str, Any] | None) -> dict[str, 
     return host_decision
 
 
-def _parse_host_decision_json(host_decision_json: str | None) -> dict[str, Any] | None:
+def _parse_host_decision_json(
+    host_decision_json: str | None,
+    host_decision_json_file: str | None = None,
+) -> dict[str, Any] | None:
     raw = str(host_decision_json or "").strip()
+    file_path_text = str(host_decision_json_file or "").strip()
+    if raw and file_path_text:
+        raise RuntimeError("use either --host-decision-json or --host-decision-json-file, not both")
+    if file_path_text:
+        try:
+            raw = Path(file_path_text).read_text(encoding="utf-8-sig").strip()
+        except OSError as exc:
+            raise RuntimeError("unable to read --host-decision-json-file") from exc
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("invalid JSON in --host-decision-json-file") from exc
+        return _normalize_host_decision(payload)
     if not raw:
         return None
     try:
@@ -1546,9 +1562,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--continue-from-run-id")
     parser.add_argument("--bounded-reentry-token")
     parser.add_argument("--host-decision-json")
+    parser.add_argument("--host-decision-json-file")
     parser.add_argument("--force-runtime-neutral", action="store_true")
     args = parser.parse_args(argv)
-    host_decision = _parse_host_decision_json(args.host_decision_json)
+    host_decision = _parse_host_decision_json(args.host_decision_json, args.host_decision_json_file)
 
     result = launch_canonical_vibe(
         repo_root=args.repo_root,
