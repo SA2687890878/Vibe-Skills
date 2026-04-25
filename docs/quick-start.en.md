@@ -64,15 +64,7 @@ The current public, host-visible entries are only:
 
 `vibe-upgrade` is the governed upgrade entry for the current host installation.
 
-These older stage entries are no longer public entries and should not be advertised or installed:
-
-- `Vibe: What Do I Want?`
-- `Vibe: How Do We Do It?`
-- `Vibe: Do It`
-- `vibe init`
-- `vibe run`
-- `vibe-l`
-- `vibe-xl`
+Older stage-specific and legacy CLI entries are retired from the public host-visible surface and should not be advertised or installed.
 
 If you want a stronger execution lane, use only the public lightweight overrides:
 

@@ -143,17 +143,17 @@ if ($hasReceipt -and $hasRuntimePacket -and $hasGovernanceCapsule -and $hasStage
 
     if (Test-ObjectHasProperty -InputObject $runtimePacket -PropertyName 'specialist_recommendations') {
         $hasSpecialistRecommendations = @($runtimePacket.specialist_recommendations).Count -ge 1
-        $hasNoSpecialistNeededDecision = $false
+        $hasNoSpecialistResolution = $false
         if (Test-ObjectHasProperty -InputObject $runtimePacket -PropertyName 'specialist_decision') {
             $specialistDecision = $runtimePacket.specialist_decision
-            $hasNoSpecialistNeededDecision = (
+            $hasNoSpecialistResolution = (
                 (Test-ObjectHasProperty -InputObject $specialistDecision -PropertyName 'decision_state') -and
                 (Test-ObjectHasProperty -InputObject $specialistDecision -PropertyName 'resolution_mode') -and
                 [string]$specialistDecision.decision_state -eq 'no_specialist_recommendations' -and
-                [string]$specialistDecision.resolution_mode -eq 'no_specialist_needed'
+                [string]$specialistDecision.resolution_mode -in @('no_matching_specialist', 'no_specialist_needed')
             )
         }
-        Add-Assertion -Assertions $assertions -Pass ($hasSpecialistRecommendations -or $hasNoSpecialistNeededDecision) -Message 'runtime packet carries specialist recommendations or explicit no-specialist decision'
+        Add-Assertion -Assertions $assertions -Pass ($hasSpecialistRecommendations -or $hasNoSpecialistResolution) -Message 'runtime packet carries specialist recommendations or no-specialist resolution'
     }
 
     if (Test-ObjectHasProperty -InputObject $runtimePacket -PropertyName 'specialist_dispatch') {

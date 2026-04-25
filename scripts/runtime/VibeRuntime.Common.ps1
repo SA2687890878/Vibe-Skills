@@ -1554,6 +1554,7 @@ function Get-VibeSpecialistDecisionDefaultNotes {
         'blocked' { return 'Specialist recommendations existed, but execution stayed blocked before live native dispatch could proceed.' }
         'local_suggestion_only' { return 'Residual local specialist suggestions remained advisory and require explicit escalation before execution.' }
         'no_specialist_needed' { return 'No bounded specialist recommendations were frozen for this run, and governed execution explicitly recorded that no specialist help was needed.' }
+        'no_matching_specialist' { return 'No bounded specialist recommendations matched this run; host-led execution remains responsible for decomposition and delivery.' }
         'repo_asset_fallback' { return 'No bounded specialist recommendations were frozen for this run, and governed execution explicitly recorded a repo-asset fallback that must remain traceable.' }
         'pending_resolution' { return 'No bounded specialist recommendations were frozen for this run; execution must explicitly resolve whether no specialist was needed or a repo-asset fallback was used.' }
     }
@@ -1691,7 +1692,7 @@ function New-VibeSpecialistDecisionProjection {
         'local_suggestion_only' { 'local_suggestion_only' }
         default {
             if ([int]$recommendationCountResolved -eq 0) {
-                'no_specialist_needed'
+                'no_matching_specialist'
             } else {
                 'pending_resolution'
             }
@@ -1899,6 +1900,7 @@ function New-VibeRuntimeInputPacketProjection {
         }
         custom_admission = $customAdmission
         continuation_context = if ($null -ne $continuationContext) { $continuationContext } else { $null }
+        host_decision = if ($null -ne $HostDecision) { $HostDecision } else { $null }
         execution_phase_decomposition = $ExecutionPhaseDecomposition
         code_task_tdd_decision = $CodeTaskTddDecision
         host_specialist_dispatch_decision = $HostSpecialistDispatchDecision

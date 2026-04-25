@@ -82,7 +82,12 @@ def _load_canonical_entry_module() -> types.ModuleType:
             path.write_text(json.dumps(receipt.model_dump()), encoding="utf-8")
             return path
 
+        def read_host_launch_receipt(path):
+            """Load a host-launch receipt stub from disk."""
+            return HostLaunchReceipt(**json.loads(Path(path).read_text(encoding="utf-8")))
+
         host_receipt_module.HostLaunchReceipt = HostLaunchReceipt
+        host_receipt_module.read_host_launch_receipt = read_host_launch_receipt
         host_receipt_module.write_host_launch_receipt = write_host_launch_receipt
         sys.modules[host_receipt_module.__name__] = host_receipt_module
 
@@ -98,6 +103,19 @@ def _load_canonical_entry_module() -> types.ModuleType:
         return module
     finally:
         _restore_modules(originals)
+
+
+def _write_verified_host_receipt(session_root: Path, run_id: str) -> None:
+    """Write the minimum verified host receipt required by continuation lookup."""
+    (session_root / "host-launch-receipt.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "launch_status": "verified",
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def _load_cli_process_module() -> types.ModuleType:
@@ -510,6 +528,7 @@ class BridgeFailureLayeringTests(unittest.TestCase):
             artifact_root = Path(temp_dir)
             session_root = artifact_root / "outputs" / "runtime" / "vibe-sessions" / "run-req"
             session_root.mkdir(parents=True, exist_ok=True)
+            _write_verified_host_receipt(session_root, "run-req")
             intent_contract_path = session_root / "intent-contract.json"
             intent_contract_path.write_text(json.dumps({"goal": "freeze requirement"}), encoding="utf-8")
             (session_root / "runtime-summary.json").write_text(
@@ -555,6 +574,7 @@ class BridgeFailureLayeringTests(unittest.TestCase):
             artifact_root = Path(temp_dir)
             session_root = artifact_root / "outputs" / "runtime" / "vibe-sessions" / "run-req"
             session_root.mkdir(parents=True, exist_ok=True)
+            _write_verified_host_receipt(session_root, "run-req")
             intent_contract_path = session_root / "intent-contract.json"
             intent_contract_path.write_text(json.dumps({"goal": "freeze requirement"}), encoding="utf-8")
             (session_root / "runtime-summary.json").write_text(
@@ -599,6 +619,7 @@ class BridgeFailureLayeringTests(unittest.TestCase):
             artifact_root = Path(temp_dir)
             session_root = artifact_root / "outputs" / "runtime" / "vibe-sessions" / "run-plan"
             session_root.mkdir(parents=True, exist_ok=True)
+            _write_verified_host_receipt(session_root, "run-plan")
             intent_contract_path = session_root / "intent-contract.json"
             intent_contract_path.write_text(json.dumps({"goal": "continue planning"}), encoding="utf-8")
             (session_root / "runtime-summary.json").write_text(
@@ -633,6 +654,56 @@ class BridgeFailureLayeringTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual("xl_plan", result["terminal_stage"])
 
+    def test_bounded_preferred_continuation_does_not_fallback_to_other_runs(self):
+        """Keep explicit bounded continuation scoped to the selected source run."""
+        module = _load_canonical_entry_module()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            artifact_root = Path(temp_dir)
+            sessions_root = artifact_root / "outputs" / "runtime" / "vibe-sessions"
+            preferred_root = sessions_root / "run-preferred"
+            fallback_root = sessions_root / "run-other"
+            preferred_root.mkdir(parents=True, exist_ok=True)
+            fallback_root.mkdir(parents=True, exist_ok=True)
+            _write_verified_host_receipt(preferred_root, "run-preferred")
+            _write_verified_host_receipt(fallback_root, "run-other")
+            fallback_intent_path = fallback_root / "intent-contract.json"
+            fallback_intent_path.write_text(json.dumps({"goal": "wrong run"}), encoding="utf-8")
+            (preferred_root / "runtime-summary.json").write_text(
+                json.dumps(
+                    {
+                        "run_id": "run-preferred",
+                        "artifacts": {},
+                        "bounded_return_control": {
+                            "explicit_user_reentry_required": True,
+                            "reentry_token": "token-preferred",
+                            "source_run_id": "run-preferred",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (fallback_root / "runtime-summary.json").write_text(
+                json.dumps(
+                    {
+                        "run_id": "run-other",
+                        "artifacts": {
+                            "intent_contract": str(fallback_intent_path),
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = module._find_continuation_context(
+                artifact_root=artifact_root,
+                required_artifact="intent_contract",
+                run_id="run-next",
+                preferred_run_id="run-preferred",
+                allow_bounded_preferred=True,
+            )
+
+        self.assertIsNone(result)
+
     def test_launch_canonical_vibe_inherits_frozen_host_decision_fields_for_bounded_reentry(self):
         """Carry frozen host decision fields into approval-only bounded continuation launches."""
         module = _load_canonical_entry_module()
@@ -641,6 +712,7 @@ class BridgeFailureLayeringTests(unittest.TestCase):
             artifact_root = repo_root / ".vibeskills"
             prior_session_root = artifact_root / "outputs" / "runtime" / "vibe-sessions" / "run-req"
             prior_session_root.mkdir(parents=True, exist_ok=True)
+            _write_verified_host_receipt(prior_session_root, "run-req")
             intent_contract_path = prior_session_root / "intent-contract.json"
             intent_contract_path.write_text(json.dumps({"goal": "freeze requirement"}), encoding="utf-8")
             runtime_packet_path = prior_session_root / "runtime-input-packet.json"

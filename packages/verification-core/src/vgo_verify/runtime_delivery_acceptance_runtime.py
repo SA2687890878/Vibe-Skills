@@ -459,7 +459,7 @@ def evaluate_delivery_acceptance(repo_root: Path, session_root: Path) -> dict[st
         workflow_truth_notes.append(
             "Current-session specialist execution resolved the handoff, but approved specialist execution stayed degraded."
         )
-    elif specialist_host_resolution_state == "executed":
+    elif specialist_host_resolution_state == "executed" and execution_status == "completed":
         workflow_truth_notes.append(
             "Approved execution was completed through direct current-session host continuation and recorded in specialist-execution.json."
         )
@@ -602,6 +602,11 @@ def evaluate_delivery_acceptance(repo_root: Path, session_root: Path) -> dict[st
                 specialist_decision_state = "manual_review_required"
                 specialist_decision_notes.append(
                     "No specialist recommendation was frozen and the no-match resolution remained pending."
+                )
+            elif resolution_mode == "no_matching_specialist":
+                specialist_decision_state = "passing"
+                specialist_decision_notes.append(
+                    "No bounded specialist matched the task; host-led execution remained responsible for decomposition and delivery."
                 )
             elif resolution_mode == "no_specialist_needed":
                 if repo_asset_used or repo_asset_paths or repo_asset_reason or repo_asset_legal_basis or repo_asset_traceability:

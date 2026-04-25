@@ -64,15 +64,7 @@ VibeSkills 重点解决五件事：
 
 `vibe-upgrade` 是受管升级入口，用来更新当前宿主安装。
 
-下面这些旧阶段入口已经不再作为公开入口宣传或安装：
-
-- `Vibe: What Do I Want?`
-- `Vibe: How Do We Do It?`
-- `Vibe: Do It`
-- `vibe init`
-- `vibe run`
-- `vibe-l`
-- `vibe-xl`
+旧阶段专用入口和旧 CLI 入口已经退出公开的宿主可见入口，不应再宣传或安装。
 
 如果你想提高执行强度，只使用公开的轻量覆盖：
 

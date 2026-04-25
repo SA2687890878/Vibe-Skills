@@ -182,6 +182,8 @@ class StructuredBoundedReentryContinuationTests(unittest.TestCase):
             self.assertIn("continuation_context", packet)
             self.assertTrue(packet["continuation_context"]["structured_bounded_reentry"])
             self.assertTrue(packet["continuation_context"]["control_only_prompt"])
+            self.assertEqual("approval_response", packet["host_decision"]["decision_kind"])
+            self.assertEqual("approve_requirement", packet["host_decision"]["decision_action"])
 
     def test_stale_host_specialist_dispatch_decision_is_safely_shrunk(self) -> None:
         shell = resolve_powershell()

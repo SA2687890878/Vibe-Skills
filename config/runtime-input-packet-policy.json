@@ -175,7 +175,6 @@
     "deliverable": {
       "match_skill_patterns": [
         "latex",
-        "tex",
         "paper",
         "submission",
         "publication",

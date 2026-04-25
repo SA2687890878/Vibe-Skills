@@ -710,6 +710,9 @@ def _find_continuation_context(
     allow_bounded_preferred: bool = False,
 ) -> dict[str, Any] | None:
     preferred_summary = _runtime_summary_path_for_run_id(artifact_root, preferred_run_id)
+    bounded_preferred_locked = allow_bounded_preferred and bool(str(preferred_run_id or "").strip())
+    if bounded_preferred_locked and (preferred_summary is None or not preferred_summary.is_file()):
+        return None
     if preferred_summary and preferred_summary.is_file():
         preferred_summary_payload = _load_json_dict_if_exists(preferred_summary)
         preferred_is_bounded = bool(preferred_summary_payload) and _has_explicit_bounded_return_control(
@@ -722,6 +725,8 @@ def _find_continuation_context(
             )
             if continuation:
                 return continuation
+            if bounded_preferred_locked:
+                return None
 
     for summary_path in _iter_runtime_summaries(artifact_root):
         if run_id and summary_path.parent.name == run_id:
@@ -1259,7 +1264,7 @@ def _extract_terminal_stage(stage_lineage: dict[str, Any]) -> str | None:
     return stage_name or None
 
 
-def _runtime_packet_records_no_specialist_needed(runtime_packet: dict[str, Any]) -> bool:
+def _runtime_packet_records_no_specialist_resolution(runtime_packet: dict[str, Any]) -> bool:
     specialist_decision = runtime_packet.get("specialist_decision")
     if not isinstance(specialist_decision, dict):
         return False
@@ -1267,7 +1272,7 @@ def _runtime_packet_records_no_specialist_needed(runtime_packet: dict[str, Any])
     resolution_mode = str(specialist_decision.get("resolution_mode") or "").strip()
     return (
         decision_state == "no_specialist_recommendations"
-        and resolution_mode == "no_specialist_needed"
+        and resolution_mode in {"no_matching_specialist", "no_specialist_needed"}
     )
 
 
@@ -1331,8 +1336,8 @@ def assert_minimum_truth_consistency(
     specialist_recommendations = runtime_packet.get("specialist_recommendations")
     if not isinstance(specialist_recommendations, list):
         raise RuntimeError("canonical truth packet missing specialist recommendation evidence")
-    if not specialist_recommendations and not _runtime_packet_records_no_specialist_needed(runtime_packet):
-        raise RuntimeError("canonical truth packet must preserve specialist recommendation or no-specialist decision evidence")
+    if not specialist_recommendations and not _runtime_packet_records_no_specialist_resolution(runtime_packet):
+        raise RuntimeError("canonical truth packet must preserve specialist recommendation or no-specialist resolution evidence")
 
     specialist_dispatch = runtime_packet.get("specialist_dispatch")
     if not isinstance(specialist_dispatch, dict):

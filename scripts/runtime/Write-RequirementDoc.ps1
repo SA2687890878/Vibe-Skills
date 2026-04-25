@@ -415,9 +415,11 @@ $hostExplicitTddNotApplicable = (
 )
 if (@($codeTaskTddEvidenceRequirements).Count -gt 0 -and -not $hostExplicitTddNotApplicable) {
     $codeTaskTddDecision.mode = 'required'
+    $codeTaskTddDecision.source = 'intent_contract'
     $codeTaskTddDecision.reason = 'Explicit code-task TDD evidence requirements were supplied by the intent contract.'
 } elseif (@($codeTaskTddExceptions).Count -gt 0 -and -not $hostExplicitTddNotApplicable) {
     $codeTaskTddDecision.mode = 'exception_approved'
+    $codeTaskTddDecision.source = 'intent_contract'
     $codeTaskTddDecision.reason = 'Explicit code-task TDD exception requirements were supplied by the intent contract.'
 }
 if ([string]$codeTaskTddDecision.mode -eq 'required' -and @($codeTaskTddEvidenceRequirements).Count -eq 0) {
