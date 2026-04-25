@@ -79,6 +79,7 @@ def test_build_wrapper_descriptors_renders_skill_wrappers_for_skill_only_hosts()
     assert 'validate canonical proof artifacts only inside that launched session root.' in rendered['vibe'].content
     assert 'Claude Code Bash-safe launch shape' in rendered['vibe'].content
     assert '--host-decision-json-file "$DECISION_JSON"' in rendered['vibe'].content
+    assert 'include a non-empty `revision_delta`' in rendered['vibe'].content
     assert '$ARGUMENTS' in rendered['vibe'].content
     assert 'name: vibe-upgrade' in rendered['vibe-upgrade'].content
     assert 'Wrapper entry: Vibe: Upgrade (`vibe-upgrade`)' in rendered['vibe-upgrade'].content

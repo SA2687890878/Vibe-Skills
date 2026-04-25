@@ -170,6 +170,20 @@ PYTHONPATH="$REPO_ROOT/apps/vgo-cli/src" py -3 -m vgo_cli.main canonical-entry \
   --host-decision-json-file "$DECISION_JSON"
 ```
 
+For a host-inferred revision, do not ask the user to approve first. Keep the same re-entry credentials, use the current bounded stage's revise action, and include a non-empty `revision_delta`. The runtime validates this as a same-stage refreeze instead of advancing:
+
+```json
+{
+  "decision_kind": "approval_response",
+  "decision_action": "revise_requirement",
+  "approval_decision": "revise",
+  "revision_delta": [
+    "Freeze one public small/medium face dataset downloaded locally.",
+    "Require a polished LaTeX paper and compiled PDF."
+  ]
+}
+```
+
 If you must invoke PowerShell through a Bash-like tool surface, do not place `$env:PYTHONPATH=...` inside a double-quoted `-Command` string. The outer shell can expand `$env` first and corrupt it to `:PYTHONPATH`, leaving `PYTHONPATH` unset and causing `ModuleNotFoundError: No module named 'vgo_cli'`. In that situation, either set `PYTHONPATH=...` in the outer shell before invoking `py -3 -m ...`, or single-quote / escape the PowerShell payload so `$env:` reaches PowerShell literally.
 
 Public discoverable entries still enter canonical `vibe`; only the bounded stop contract changes:
@@ -212,6 +226,7 @@ Structured host decision SOP:
 - If the surfaced specialist set needs curation, keep it inside `--host-decision-json -> specialist_dispatch_decision`. Host curation stays bounded to the surfaced recommendation ids from the current governed run; do not invent unsurfaced specialists or bypass runtime validation.
 - For routing confirmation, inspect the returned machine-readable route contract under `runtime-summary.json -> host_user_briefing.route_decision_contract` when present. Convert the user's natural-language reply into a structured route decision and relaunch canonical `vibe` with `--host-decision-json` or `--host-decision-json-file`.
 - For bounded stage re-entry, inspect `runtime-summary.json -> bounded_return_control.host_decision_contract` when present. Convert the user's natural-language approval or revision into a structured decision and relaunch canonical `vibe` with `--host-decision-json-file` when the host tool surface is Bash-like, plus `--continue-from-run-id` and `--bounded-reentry-token`.
+- A structured approval advances to the next progressive stop. A structured revision must include `revision_delta` and refreezes the same bounded stage (`requirement_doc` or `xl_plan`) without asking the user for a separate approval first.
 - Route decisions must stay inside the surfaced confirm options. Bounded stage approvals must stay inside the surfaced approval action contract. Specialist curation must stay inside the surfaced specialist recommendation ids. Runtime validation remains authoritative.
 - Keep the task context stable across re-entry. Do not reduce the next canonical launch prompt to the user's short approval text alone when the governed task context is already known.
 

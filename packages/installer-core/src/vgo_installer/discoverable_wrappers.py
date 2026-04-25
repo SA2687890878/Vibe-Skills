@@ -214,6 +214,8 @@ def _body_lines(host_id: str, entry: DiscoverableEntry, *, contract: dict[str, o
             '  --host-decision-json-file "$DECISION_JSON"',
             "```",
             "",
+            "For a host-inferred revision, keep the same re-entry command shape but write `decision_action` as `revise_requirement` or `revise_plan`, set `approval_decision` to `revise`, and include a non-empty `revision_delta`. Structured revision refreezes the same bounded stage; it does not advance like approval.",
+            "",
             "Do not place JSON decisions inside a Bash-wrapped PowerShell command. Use `--host-decision-json-file` so quoting, Unicode paths, and re-entry tokens stay intact.",
         ]
     return [

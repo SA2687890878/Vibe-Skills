@@ -54,6 +54,39 @@ def build_host_decision_json() -> str:
     )
 
 
+def build_host_revision_decision_json() -> str:
+    return json.dumps(
+        {
+            "decision_kind": "approval_response",
+            "decision_action": "revise_requirement",
+            "approval_decision": "revise",
+            "revision_delta": [
+                "Add one public small/medium face dataset downloaded locally.",
+                "Require a polished LaTeX paper and compiled PDF.",
+            ],
+            "continuation_context": {
+                "structured_bounded_reentry": True,
+                "reentry_action": "revise",
+                "source_run_id": "prior-run",
+                "terminal_stage": "requirement_doc",
+                "next_stage": "xl_plan",
+                "revision_target_stage": "requirement_doc",
+                "revision_delta": [
+                    "Add one public small/medium face dataset downloaded locally.",
+                    "Require a polished LaTeX paper and compiled PDF.",
+                ],
+                "prior_task": "write a facial-recognition research paper",
+                "prior_task_type": "research",
+                "prior_goal": "write a facial-recognition research paper",
+                "prior_deliverable": "LaTeX paper and compiled PDF",
+                "prior_constraints": ["public-dataset", "local-download"],
+                "control_only_prompt": True,
+            },
+        },
+        ensure_ascii=False,
+    )
+
+
 def run_freeze(*, artifact_root: Path, host_decision_json: str) -> dict[str, object]:
     shell = resolve_powershell()
     if shell is None:
@@ -324,6 +357,27 @@ class StructuredBoundedReentryContinuationTests(unittest.TestCase):
             self.assertTrue(packet["continuation_context"]["control_only_prompt"])
             self.assertEqual("approval_response", packet["host_decision"]["decision_kind"])
             self.assertEqual("approve_requirement", packet["host_decision"]["decision_action"])
+
+    def test_freeze_preserves_structured_revision_delta_for_same_stage_refreeze(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            artifact_root = Path(tempdir) / "artifacts"
+            payload = run_freeze(
+                artifact_root=artifact_root,
+                host_decision_json=build_host_revision_decision_json(),
+            )
+            packet = payload["packet"]
+
+            self.assertEqual("research", packet["canonical_router"]["task_type"])
+            self.assertEqual("revise", packet["host_reentry_action"])
+            self.assertEqual("requirement_doc", packet["host_revision_target_stage"])
+            self.assertEqual(
+                [
+                    "Add one public small/medium face dataset downloaded locally.",
+                    "Require a polished LaTeX paper and compiled PDF.",
+                ],
+                packet["host_revision_delta"],
+            )
+            self.assertEqual("revise_requirement", packet["host_decision"]["decision_action"])
 
     def test_stale_host_specialist_dispatch_decision_is_safely_shrunk(self) -> None:
         shell = resolve_powershell()
