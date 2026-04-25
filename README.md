@@ -677,35 +677,35 @@ The runtime core behind **VibeSkills** is **VCO**. This is not a single-point to
 
 ## ⚙️ Installation & Skills Management
 
-You do not need to learn the whole architecture before you install VibeSkills.
+Install first, learn the internals later. Most users only need one page and one copied prompt.
 
-### Default install path
+### Fast path
 
-1. Decide which app you are installing into: `codex`, `claude-code`, `cursor`, `windsurf`, `openclaw`, or `opencode`
-2. If this is your first install and you have no special constraint, choose `install + full`
-3. Open the main install guide:
+1. Pick your host: `codex`, `claude-code`, `cursor`, `windsurf`, `openclaw`, or `opencode`.
+2. Pick your action: `install` for a first install, `update` if VibeSkills is already installed.
+3. Pick your version: `full` is the recommended default; `minimal` is the smaller framework-only path.
+4. Open the install entry:
    [Prompt-based install (recommended)](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/one-click-install-release-copy.en.md)
-4. Copy the prompt that matches your app and version, then paste it into that AI app
-5. Finish the install, then continue with [Getting Started](#-getting-started)
+5. Copy the matching prompt into your AI app and let it run the install and check steps.
 
 ### `full` or `minimal`?
 
-- Choose `full` if you want the recommended setup and the simplest default path
-- Choose `minimal` only if you deliberately want the smaller framework-only install
+- Choose `full` if you want the normal VibeSkills experience.
+- Choose `minimal` only if you deliberately want the smaller governance framework first.
 
-### When should you open the other install docs?
+### Open More Docs Only When Needed
 
-- If you are not sure which host path matches your app, start with the [cold-start host matrix](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/cold-start-install-paths.en.md)
-- If you want the longer step-by-step command path, use the [multi-host command reference](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/recommended-full-path.en.md)
-- If you need host-specific notes for OpenClaw or OpenCode, open the [OpenClaw host guide](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/openclaw-path.en.md) or the [OpenCode host guide](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/opencode-path.en.md)
-- If you need an offline or manual copy path, open the [manual install guide](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/manual-copy-install.en.md)
+- Unsure which host root applies? Use the [cold-start host matrix](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/cold-start-install-paths.en.md).
+- Want raw commands instead of prompts? Use the [multi-host command reference](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/recommended-full-path.en.md).
+- Need OpenClaw or OpenCode details? Open the [OpenClaw guide](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/openclaw-path.en.md) or [OpenCode guide](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/opencode-path.en.md).
+- Need offline setup? Use the [manual install guide](https://github.com/foryourhealth111-pixel/Vibe-Skills/blob/main/docs/install/manual-copy-install.en.md).
 
 <details>
 <summary><b>🔧 Advanced install details</b></summary>
 
-Only read this part if you need manual configuration, troubleshooting, or advanced customization.
+Only read this part if you are configuring paths by hand, debugging install state, or integrating custom Skills.
 
-**If a guide asks you to edit something manually, these are the real file paths**
+**Manual configuration paths**
 
 - Codex: `~/.codex/settings.json`
 - Claude Code: `~/.claude/settings.json`
@@ -713,7 +713,7 @@ Only read this part if you need manual configuration, troubleshooting, or advanc
 - OpenCode: `~/.config/opencode/opencode.json`
 - Windsurf / OpenClaw sidecar state: `<target-root>/.vibeskills/host-settings.json`
 
-**What stays visible after install**
+**What install creates**
 
 - public runtime entry: `<target-root>/skills/vibe`
 - internal bundled corpus: `<target-root>/skills/vibe/bundled/skills/*`
@@ -724,7 +724,7 @@ The `.vibeskills` folders are split on purpose:
 - host-sidecar: `<target-root>/.vibeskills/host-settings.json`, `host-closure.json`, `install-ledger.json`, `bin/*`
 - workspace-sidecar: `<workspace-root>/.vibeskills/project.json`, `.vibeskills/docs/requirements/*`, `.vibeskills/docs/plans/*`, `.vibeskills/outputs/runtime/vibe-sessions/*`
 
-**What has been verified after install**
+**Verified install behavior**
 
 | Host | Verified areas after install |
 |:---|:---|
@@ -733,7 +733,7 @@ The `.vibeskills` folders are split on purpose:
 | `openclaw` | planning, debug, governed execution, memory continuity |
 | `opencode` | planning, debug, governed execution, memory continuity |
 
-These checks confirm that the installed runtime still controls routing, still writes its governance and cleanup records, and still preserves memory continuity. They do not mean that every host-specific invocation surface was exercised in the exact same way.
+These checks confirm that the installed runtime still controls routing, writes governance and cleanup records, and preserves memory continuity. They do not prove every host-specific invocation path was exercised in the same run.
 
 **Uninstall and custom skills**
 

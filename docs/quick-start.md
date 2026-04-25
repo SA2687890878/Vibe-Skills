@@ -18,7 +18,7 @@
 
 - [`install/one-click-install-release-copy.md`](./install/one-click-install-release-copy.md)
 
-这里的主入口不是一堆命令，而是一段可以直接复制给 AI 的安装提示词。
+这里会把安装路径压到很短：选宿主、选动作、选版本，然后复制一段提示词给 AI。
 
 当前公开投影出来的宿主可见入口固定是：
 
@@ -53,7 +53,7 @@
 
 ## 我已经是重度用户，想看更完整的安装说明
 
-看这两份：
+看这些：
 
 - [`install/recommended-full-path.md`](./install/recommended-full-path.md)
 - [`cold-start-install-paths.md`](./cold-start-install-paths.md)

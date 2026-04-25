@@ -18,7 +18,7 @@ Go straight to:
 
 - [`install/one-click-install-release-copy.en.md`](./install/one-click-install-release-copy.en.md)
 
-The main entry there is not a wall of commands. It is a prompt you can copy into your AI assistant.
+That page keeps the install path short: choose host, action, and version, then copy one prompt into your AI assistant.
 
 The current public host-visible entry set is fixed to:
 
@@ -59,7 +59,7 @@ Read these:
 - [`cold-start-install-paths.en.md`](./cold-start-install-paths.en.md)
 - [`install/opencode-path.en.md`](./install/opencode-path.en.md)
 
-They are more complete and more operator-oriented than the public entry pages.
+They are more complete and more operator-oriented than the public entry page.
 
 ## How should I think about `VibeSkills` and `VCO`
 
