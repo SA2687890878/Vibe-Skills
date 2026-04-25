@@ -206,7 +206,7 @@ class InstallProfileDifferentiationTests(unittest.TestCase):
             self.assertIn("foreign-user-skill", installed_skills)
             self.assertFalse(mirrored_foreign_skill.exists())
             self.assertNotIn("foreign-user-skill", ledger["payload_summary"]["installed_skill_names"])
-            self.assertEqual(sorted(MINIMAL_REQUIRED_SKILLS), ledger["payload_summary"]["installed_skill_names"])
+            self.assertEqual(sorted(MINIMAL_INSTALLED_SKILLS), ledger["payload_summary"]["installed_skill_names"])
             self.assertLess(ledger["payload_summary"]["installed_file_count"], count_files(target_root))
 
 
