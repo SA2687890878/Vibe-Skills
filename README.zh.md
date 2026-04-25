@@ -23,11 +23,6 @@
 &nbsp;
 *它不只是“更多工具”，而是一种新的 Super Skill：让 harness 成为 Skill 管理者。你不需要背技能表，不需要一步步盯着 AI，也不需要反复提醒它工作应该怎么推进。*
 
-<br/>
-
-<a href="https://github.com/foryourhealth111-pixel/Vibe-Skills">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&size=19&pause=650&color=32CD32&center=true&vCenter=true&width=780&height=72&lines=%3E+vibe;%3E+freeze+intent;%3E+orchestrate+expert+Skills;%3E+verify+evidence;%3E+preserve+workspace+context" alt="Vibe runtime terminal animation" />
-</a>
 
 <table align="center">
 <tr>
@@ -53,12 +48,6 @@
 <a href="https://github.com/foryourhealth111-pixel/Vibe-Skills/pulse">
   <img src="https://img.shields.io/github/last-commit/foryourhealth111-pixel/Vibe-Skills?style=for-the-badge&logo=git-lfs&color=32CD32&label=MOMENTUM" alt="last commit">
 </a>
-<a href="https://gitcgr.com/foryourhealth111-pixel/Vibe-Skills">
-  <img src="https://gitcgr.com/badge/foryourhealth111-pixel/Vibe-Skills.svg" alt="gitcgr" />
-</a>
-
-<br/><br/>
-
 <img src="https://komarev.com/ghpvc/?username=vibe-skills-foryourhealth&label=NODES+ACTIVE&color=0078d7&style=for-the-badge" alt="Visitors">
 &nbsp;
 <img src="https://img.shields.io/badge/Architecture-VCO_Runtime-orange?style=for-the-badge" alt="Arch">
