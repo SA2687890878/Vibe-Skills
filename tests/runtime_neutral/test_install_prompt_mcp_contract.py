@@ -38,6 +38,15 @@ PUBLIC_INSTALL_DOCS = [
     REPO_ROOT / "docs" / "one-shot-setup.md",
     *PROMPT_FILES,
 ]
+INSTALL_USER_VISIBLE_SURFACES = [
+    REPO_ROOT / "config" / "settings.template.codex.json",
+    REPO_ROOT / "config" / "settings.template.claude.json",
+    REPO_ROOT / "scripts" / "bootstrap" / "one-shot-setup.ps1",
+    REPO_ROOT / "scripts" / "bootstrap" / "one-shot-setup.sh",
+    REPO_ROOT / "packages" / "verification-core" / "src" / "vgo_verify" / "bootstrap_doctor.py",
+    REPO_ROOT / "packages" / "verification-core" / "src" / "vgo_verify" / "bootstrap_doctor_runtime.py",
+    REPO_ROOT / "scripts" / "verify" / "vibe-bootstrap-doctor-gate.ps1",
+]
 HIDDEN_ONLINE_CONFIG_TOKENS = (
     "VCO_INTENT_ADVICE",
     "VCO_VECTOR_DIFF",
@@ -114,6 +123,12 @@ class InstallPromptMcpContractTests(unittest.TestCase):
 
     def test_public_install_docs_do_not_expose_hidden_online_config_keys(self) -> None:
         for path in PUBLIC_INSTALL_DOCS:
+            text = path.read_text(encoding="utf-8-sig")
+            for token in HIDDEN_ONLINE_CONFIG_TOKENS:
+                self.assertNotIn(token, text, path.name)
+
+    def test_install_user_visible_surfaces_do_not_expose_hidden_online_config_keys(self) -> None:
+        for path in INSTALL_USER_VISIBLE_SURFACES:
             text = path.read_text(encoding="utf-8-sig")
             for token in HIDDEN_ONLINE_CONFIG_TOKENS:
                 self.assertNotIn(token, text, path.name)
