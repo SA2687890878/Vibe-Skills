@@ -195,11 +195,11 @@ _People asked what VibeSkills looks like in real work. These examples are easier
 
 <div align="center">
 
-| Demo | Starting Point | How `vibe` Moves It Forward | Visible Result |
-|:---|:---|:---|:---|
-| **Image Workbench** | Build a GPT-image workspace for prompt chat, reference uploads, and real image generation. | Turns the idea into a product scope, UI/API tasks, workflow checks, and screenshot review. | A local workbench, generation history, and a setup path readers can follow. |
-| **Video Editing Pipeline** | Recut a rocket moon-landing history clip into a short-video style edit. | Breaks the media work into caption, music, pacing, render, and review passes, with rough edges recorded plainly. | Before/after clips, a rendered output, and an edit log. |
-| **ML Experiment + Paper** | Build a face-recognition ML demo and turn the run into a paper. | Guides dataset and model choice, training, evaluation, figure generation, and LaTeX compilation. | Metrics, plots, `paper.pdf`, commands, and verification notes. |
+| Demo | Starting Point | How `vibe` Moves It Forward |
+|:---|:---|:---|
+| **Image Workbench** | Build a GPT-image workspace for prompt chat, reference uploads, and real image generation. | 
+| **Video Editing Pipeline** | Recut a rocket moon-landing history clip into a short-video style edit. | 
+| **ML Experiment + Paper** | Build a face-recognition ML demo and turn the run into a paper. | 
 
 </div>
 
