@@ -92,6 +92,7 @@
 ## 📋 目录
 
 - [运行时一眼看懂](#-运行时一眼看懂)
+- [实践演示](#-实践演示看得见的真实任务)
 - [一种新的 Super Skill 范式](#-一种新的-super-skill-范式)
 - [为什么与众不同](#-为什么它与众不同)
 - [适合你吗](#-适用人群)
@@ -183,6 +184,50 @@ flowchart LR
 | `memory plane` | 需求、计划、决策和证据不会随着聊天窗口消失。 |
 
 </div>
+
+---
+
+## 🎬 实践演示：看得见的真实任务
+
+_VibeSkills 3.1.0 的社区讨论里，用户直接问能不能多分享几个实际使用例子。README 的实践区应该用最容易扫读的方式回答这个问题：用户提出了什么目标，`vibe` 如何协调流程，最后用什么可见产物证明结果。_
+
+<div align="center">
+
+| 演示 | 用户目标 | `vibe` 协调什么 | 读者应该看到什么 |
+|:---|:---|:---|:---|
+| **图像生成工作台** | 交付一个 GPT-image 工作台，支持对话、提示词迭代、参考图上传和真实生图调用。 | 冻结产品需求，规划 UI/API 工作，路由设计与实现 Skills，测试生图流程，并截图检查界面。 | 可运行工作台截图、图片生成记录、启动或配置路径。 |
+| **视频剪辑流水线** | 把火箭登月历史素材剪成短视频风格，补充节奏、字幕和配乐。 | 路由媒体 Skills，保留剪辑过程记录，渲染视频，视觉复核结果，并诚实记录粗糙点。 | 前后对比素材、剪辑过程证据、渲染成品和已知限制。 |
+| **机器学习实验 + 论文** | 做一个人脸识别机器学习演示，并把实验整理成详细 LaTeX 论文。 | 选择数据集和模型路线，运行训练与评估，生成图表，编译论文，并保存指标。 | 指标、图表、`paper.pdf`、运行命令和验证说明。 |
+
+</div>
+
+最强的实践演示，要让 harness 的过程本身也被看见：
+
+```mermaid
+flowchart LR
+    accTitle: VibeSkills Practice Demo Flow
+    accDescr: User goal moves through requirement freeze, staged planning, skill routing, execution, verification, and visible artifact delivery.
+
+    goal["用户目标"]
+    freeze["需求冻结"]
+    plan["阶段计划"]
+    route["Skill 路由"]
+    work["构建 / 分析 / 渲染"]
+    proof["测试 + 产物证据"]
+    show["截图 / 视频 / 论文"]
+
+    goal --> freeze --> plan --> route --> work --> proof --> show
+
+    classDef goal fill:#fff7ed,stroke:#f97316,stroke-width:1.5px,color:#7c2d12
+    classDef flow fill:#e0f2fe,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e
+    classDef proof fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+
+    class goal goal
+    class freeze,plan,route,work flow
+    class proof,show proof
+```
+
+> 灵感来自 [VibeSkills 3.1.0 社区实践案例](https://linux.do/t/topic/2061161)：GPT-image 工作台、视频剪辑流程，以及直出论文的机器学习实验。README 里的演示声明应尽量绑定真实产物，而不是只放聊天截图。
 
 ---
 

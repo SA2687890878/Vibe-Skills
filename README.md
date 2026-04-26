@@ -93,6 +93,7 @@ Install VibeSkills, type `vibe`, and let the harness handle the busy work: under
 ## 📋 Table of Contents
 
 - [Runtime at a Glance](#-runtime-at-a-glance)
+- [Practice Demos](#-practice-demos-real-work-you-can-see)
 - [A New Kind of Super Skill](#-a-new-kind-of-super-skill)
 - [What makes it different](#-what-makes-it-different)
 - [Who is it for](#-who-is-it-for)
@@ -185,6 +186,50 @@ flowchart LR
 | `memory plane` | Requirements, plans, decisions, and evidence survive the chat window. |
 
 </div>
+
+---
+
+## 🎬 Practice Demos: Real Work You Can See
+
+_The VibeSkills 3.1.0 community discussion asked for more practical examples. This README section should answer that need in a scan-friendly way: what the user asked for, how `vibe` coordinated the work, and what visible artifact proved the result._
+
+<div align="center">
+
+| Demo | User Goal | What `vibe` Coordinates | What Readers Should See |
+|:---|:---|:---|:---|
+| **Image Workbench** | Build a GPT-image workspace with chat, prompt iteration, reference-image upload, and real generation calls. | Freeze product requirements, plan UI/API work, route design and implementation skills, test the image workflow, and inspect screenshots. | A runnable workbench screenshot, generated-image history, and the command or setup path. |
+| **Video Editing Pipeline** | Turn a rocket moon-landing history clip into a short-video edit with pacing, captions, and music. | Route media skills, keep an edit ledger, render the video, visually review the result, and record rough edges honestly. | Before/after media, edit process evidence, render output, and known limitations. |
+| **ML Experiment + Paper** | Create a face-recognition machine-learning demo and turn the experiment into a detailed LaTeX paper. | Choose a dataset and model path, run training and evaluation, generate figures, compile the paper, and preserve metrics. | Metrics, plots, `paper.pdf`, run commands, and verification notes. |
+
+</div>
+
+The strongest demos make the harness itself visible:
+
+```mermaid
+flowchart LR
+    accTitle: VibeSkills Practice Demo Flow
+    accDescr: A user goal moves through requirement freeze, staged planning, skill routing, execution, verification, and a visible artifact.
+
+    goal["User Goal"]
+    freeze["Requirement Freeze"]
+    plan["Staged Plan"]
+    route["Skill Routing"]
+    work["Build / Analyze / Render"]
+    proof["Tests + Artifact Evidence"]
+    show["Screenshot / Video / Paper"]
+
+    goal --> freeze --> plan --> route --> work --> proof --> show
+
+    classDef goal fill:#fff7ed,stroke:#f97316,stroke-width:1.5px,color:#7c2d12
+    classDef flow fill:#e0f2fe,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e
+    classDef proof fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+
+    class goal goal
+    class freeze,plan,route,work flow
+    class proof,show proof
+```
+
+> Inspired by the [VibeSkills 3.1.0 community practice cases](https://linux.do/t/topic/2061161): a GPT-image workbench, a video-editing run, and an ML experiment that produced a paper. Demo claims should stay tied to artifacts, not only screenshots of chat.
 
 ---
 
