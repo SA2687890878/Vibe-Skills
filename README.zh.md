@@ -92,6 +92,7 @@
 ## 📋 目录
 
 - [运行时一眼看懂](#-运行时一眼看懂)
+- [实践演示](#-实践演示看得见的真实任务)
 - [一种新的 Super Skill 范式](#-一种新的-super-skill-范式)
 - [为什么与众不同](#-为什么它与众不同)
 - [适合你吗](#-适用人群)
@@ -183,6 +184,50 @@ flowchart LR
 | `memory plane` | 需求、计划、决策和证据不会随着聊天窗口消失。 |
 
 </div>
+
+---
+
+## 🎬 实践演示：看得见的真实任务
+
+_社区里有人问：VibeSkills 实际用起来是什么样？下面这些案例比功能清单更容易判断。它们都从一个普通目标出发，经过一次受管的 `vibe` 流程，最后落到能打开、能检查、能复现的东西。_
+
+<div align="center">
+
+| 演示 | 起点 | `vibe` 如何推进 |
+|:---|:---|:---|
+| **图像生成工作台** | 做一个能对话改提示词、上传参考图、调用真实生图接口的 GPT-image 工作台。 | 把想法拆成产品范围、UI/API 任务、流程检查和截图复核。 | 
+| **视频剪辑流水线** | 把火箭登月历史素材剪成短视频节奏。 | 拆出字幕、配乐、节奏、渲染和复核几轮工作，并把粗糙点直接记下来。 | 
+| **机器学习实验 + 论文** | 做一个人脸识别 ML 演示，并把实验整理成论文。 | 推进数据集与模型选择、训练、评估、图表生成和 LaTeX 编译。 | 
+
+</div>
+
+好演示不只展示最终截图，也要让任务推进过程看得见：
+
+```mermaid
+flowchart LR
+    accTitle: VibeSkills 实践演示流程
+    accDescr: 一个用户目标经过范围确认、计划拆分、Skill 调用、执行检查，最后交付可打开的结果。
+
+    goal["一句话目标"]
+    freeze["确认范围"]
+    plan["拆成计划"]
+    route["调用 Skills"]
+    work["构建 / 分析 / 渲染"]
+    proof["检查 + 证据"]
+    show["可打开的结果"]
+
+    goal --> freeze --> plan --> route --> work --> proof --> show
+
+    classDef goal fill:#fff7ed,stroke:#f97316,stroke-width:1.5px,color:#7c2d12
+    classDef flow fill:#e0f2fe,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e
+    classDef proof fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+
+    class goal goal
+    class freeze,plan,route,work flow
+    class proof,show proof
+```
+
+> 这些例子参考了 [VibeSkills 3.1.0 社区实践案例](https://linux.do/t/topic/2061161)：GPT-image 工作台、视频剪辑流程，以及直出论文的机器学习实验。README 里最好链接到具体东西：可运行应用、渲染视频、编译论文，或产生它们的命令和证据。
 
 ---
 

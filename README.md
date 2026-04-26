@@ -93,6 +93,7 @@ Install VibeSkills, type `vibe`, and let the harness handle the busy work: under
 ## 📋 Table of Contents
 
 - [Runtime at a Glance](#-runtime-at-a-glance)
+- [Practice Demos](#-practice-demos-real-work-you-can-see)
 - [A New Kind of Super Skill](#-a-new-kind-of-super-skill)
 - [What makes it different](#-what-makes-it-different)
 - [Who is it for](#-who-is-it-for)
@@ -185,6 +186,52 @@ flowchart LR
 | `memory plane` | Requirements, plans, decisions, and evidence survive the chat window. |
 
 </div>
+
+---
+
+## 🎬 Practice Demos: Real Work You Can See
+
+_People asked what VibeSkills looks like in real work. These examples are easier to judge than a feature list: each one starts with a plain goal, goes through a governed `vibe` run, and ends with something you can open, inspect, or rerun._
+
+<div align="center">
+
+
+| Demo | Starting Point | How `vibe` Moves It Forward |
+|:---|:---|:---|
+| **Image Workbench** | Build a GPT-image workspace for prompt chat, reference uploads, and real image generation. | Turns the idea into a product scope, UI/API tasks, workflow checks, and screenshot review. |
+| **Video Editing Pipeline** | Recut a rocket moon-landing history clip into a short-video style edit. | Breaks the media work into caption, music, pacing, render, and review passes, with rough edges recorded plainly. |
+| **ML Experiment + Paper** | Build a face-recognition ML demo and turn the run into a paper. | Guides dataset and model choice, training, evaluation, figure generation, and LaTeX compilation. |
+
+
+</div>
+
+The useful pattern is not just the final screenshot. A good demo also shows how the work moved:
+
+```mermaid
+flowchart LR
+    accTitle: VibeSkills Practice Demo Flow
+    accDescr: A user goal moves through scope confirmation, planning, skill handoff, execution checks, and an openable result.
+
+    goal["Plain Request"]
+    freeze["Confirmed Scope"]
+    plan["Work Plan"]
+    route["Skill Handoff"]
+    work["Build / Analyze / Render"]
+    proof["Checks + Evidence"]
+    show["Openable Result"]
+
+    goal --> freeze --> plan --> route --> work --> proof --> show
+
+    classDef goal fill:#fff7ed,stroke:#f97316,stroke-width:1.5px,color:#7c2d12
+    classDef flow fill:#e0f2fe,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e
+    classDef proof fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+
+    class goal goal
+    class freeze,plan,route,work flow
+    class proof,show proof
+```
+
+> Inspired by the [VibeSkills 3.1.0 community practice cases](https://linux.do/t/topic/2061161): a GPT-image workbench, a video-editing run, and an ML experiment that produced a paper. The best examples link to concrete outputs: a running app, a rendered clip, a compiled paper, or the commands and evidence used to produce them.
 
 ---
 
